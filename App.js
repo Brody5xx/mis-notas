@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView,
-  KeyboardAvoidingView, Platform, useWindowDimensions,
+  KeyboardAvoidingView, Platform, useWindowDimensions, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -528,6 +528,7 @@ export default function App() {
 
   function closeEditor() {
     const id = currentId;
+    const opened = openedRef.current;          // cómo estaba al abrirla (se guarda antes de cerrar)
     const finish = () => {
       // Si la nota quedó vacía, se descarta
       setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n))));
@@ -537,7 +538,7 @@ export default function App() {
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
       setHistOpen(false); setHistView(null);
-      setTimeout(() => saveVersionIfChanged(id), 400);
+      setTimeout(() => saveVersionIfChanged(id, opened), 400);
     };
     // Primero se guarda lo último que escribiste en el editor
     if (Platform.OS === 'web') {
@@ -585,9 +586,8 @@ export default function App() {
     try { await saveHistory(id, next); } catch (e) { showToast('No se pudo guardar el historial'); }
     return next;
   }
-  async function saveVersionIfChanged(id) {
+  async function saveVersionIfChanged(id, opened) {
     const n = notesRef.current.find(x => x.id === id);
-    const opened = openedRef.current;
     if (!n || !opened || opened.id !== id || isEmpty(n)) return;
     const now = versionOf(n);
     if (sameVersion(now, opened.v)) return;              // no cambió nada
@@ -734,6 +734,16 @@ export default function App() {
     const n = notesRef.current.find(x => x.id === currentId);
     openedRef.current = n ? { id: n.id, v: versionOf(n) } : null;
     setUndoState({ canUndo: false, canRedo: false });
+  }, [currentId]);
+
+  // Si sales de la app con una nota abierta, también se guarda una versión
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active' || !currentId) return;
+      const id = currentId, opened = openedRef.current;
+      flushEditor(() => saveVersionIfChanged(id, opened));
+    });
+    return () => sub.remove();
   }, [currentId]);
 
   // Al abrir una nota, cargar su fondo propio (si tiene)
