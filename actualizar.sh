@@ -20,9 +20,15 @@ for f in $LISTA; do
   fi
 done
 
+# Archivos viejos que ya no se usan
+VIEJOS=$(curl -fsSL "$BASE/eliminar.txt?t=$T" 2>/dev/null)
+for f in $VIEJOS; do
+  if [ -f "$f" ]; then rm -f "$f"; echo "  🗑  $f (ya no se usa)"; fi
+done
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
-  echo "¡Listo! $OK archivos actualizados. Ahora detén la app (Stop) y dale Run."
+  echo "¡Listo! $OK archivos actualizados. Ahora abre la app."
 else
   echo "Hubo $MAL archivo(s) con problemas. Intenta de nuevo en un minuto."
 fi

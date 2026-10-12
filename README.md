@@ -14,7 +14,8 @@ Luego detén la app (**Stop**) y dale **Run**.
 
 ## Archivos
 
-- `App.js` — pantallas, notas, fondos y menú.
-- `editor.js` + `editor-1.js` … `editor-4.js` — el editor (texto, fotos, recorte, dibujo).
+- `App.js` — pantallas, notas, carpetas, etiquetas, PIN, fondos y menú.
+- `editor.js` — el editor (texto, listas, checklist, fotos, recorte, dibujo).
 - `actualizar.sh` — descarga la última versión a `artifacts/mobile`.
 - `archivos.txt` — lista de archivos que descarga `actualizar.sh`.
+- `eliminar.txt` — archivos viejos que `actualizar.sh` borra.

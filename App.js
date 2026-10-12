@@ -77,6 +77,38 @@ const THEMES = {
   },
 };
 const TITLES = { all: 'Todas las notas', fav: 'Favoritos', trash: 'Papelera' };
+
+/* Carpetas, orden y etiquetas */
+const FOLDER_COLORS = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1',
+                       '#1e88e5', '#3949ab', '#8e24aa', '#d81b60', '#757575'];
+const SORTS = [
+  ['updated', 'clock', 'Última modificación'],
+  ['created', 'calendar', 'Fecha de creación'],
+  ['alpha', 'type', 'Alfabético (A-Z)'],
+];
+const TAG_RE = /#([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-z0-9_ÁÉÍÓÚÜÑáéíóúüñ-]*)/g;
+
+/* PIN: se guarda solo una "huella" del número, no el número en sí */
+function hashPin(p) {
+  let h = 2166136261;
+  for (let r = 0; r < 500; r++) {
+    const str = 'misnotas:' + r + ':' + p + ':' + h;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  }
+  return h.toString(36);
+}
+
+/* Pregunta Sí/No (funciona en el teléfono y en la vista previa web) */
+function confirmAsk(title, msg, okText, onOk) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(title + '\n\n' + msg)) onOk();
+    return;
+  }
+  Alert.alert(title, msg, [
+    { text: 'Cancelar', style: 'cancel' },
+    { text: okText, style: 'destructive', onPress: onOk },
+  ]);
+}
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /* ============================================================
@@ -225,6 +257,17 @@ function titleSegments(n) {
   return out;
 }
 
+/* Etiquetas (#algo) que hay en una nota. Las notas bloqueadas solo muestran las del título */
+function tagsOf(n) {
+  const text = (n.title || '') + ' ' + (n.locked ? '' : toPlain(n));
+  const out = [];
+  for (const m of text.matchAll(TAG_RE)) {
+    const t = m[1].toLowerCase();
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
 /* Primera foto de la nota (para mostrarla en la tarjeta) */
 function firstImg(n) {
   if (!n.html || !n.content) return null;
@@ -311,6 +354,32 @@ function IconBtn({ name, set, onPress, s, t, dim }) {
   );
 }
 
+/* Hoja de opciones que sale desde abajo */
+function Sheet({ visible, onClose, title, s, t, children }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[s.newScrim, { backgroundColor: t.scrim }]} onPress={onClose}>
+        <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+          <Glass t={t} strong radius={26} inner={{ paddingVertical: 10 }}>
+            {title ? <Text style={s.sheetTitle}>{title}</Text> : null}
+            <ScrollView style={{ maxHeight: 420 }}>{children}</ScrollView>
+          </Glass>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={s.row}>
+      {icon ? <Feather name={icon} size={19} color={iconColor || (danger ? '#e53935' : t.text)} style={{ marginRight: 14 }} /> : null}
+      <Text style={[s.rowText, danger && { color: '#e53935' }]} numberOfLines={1}>{label}</Text>
+      {right}
+    </TouchableOpacity>
+  );
+}
+
 /* ============================================================
    APP PRINCIPAL
    ============================================================ */
@@ -333,6 +402,17 @@ export default function App() {
   const [wallFor, setWallFor] = useState(null);       // null = menú principal; id = una nota
   const [noteWall, setNoteWall] = useState(null);     // fondo propio de la nota abierta
   const [titleColorOpen, setTitleColorOpen] = useState(false);
+  const [folders, setFolders] = useState([]);          // [{ id, name, color }]
+  const [sortBy, setSortBy] = useState('updated');     // 'updated' | 'created' | 'alpha'
+  const [pinHash, setPinHash] = useState(null);        // huella del PIN
+  const [unlocked, setUnlocked] = useState({});        // notas abiertas con PIN en esta sesión
+  const [folderEdit, setFolderEdit] = useState(null);  // ventana crear/editar carpeta
+  const [moveOpen, setMoveOpen] = useState(false);     // mover nota a carpeta
+  const [sortOpen, setSortOpen] = useState(false);     // elegir orden
+  const [optsOpen, setOptsOpen] = useState(false);     // opciones de la nota (⋯)
+  const [pinPad, setPinPad] = useState(null);          // teclado del PIN
+  const [pinEntry, setPinEntry] = useState('');
+  const pinOkRef = useRef(null);
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
   const webRef = useRef(null);
@@ -351,6 +431,9 @@ export default function App() {
         setLayout(data.layout || 'grid');
         setDark(!!data.dark);
         if (typeof data.wallBlur === 'number') setWallBlur(data.wallBlur);
+        setFolders(data.folders || []);
+        if (data.sortBy) setSortBy(data.sortBy);
+        if (data.pinHash) setPinHash(data.pinHash);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -360,10 +443,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      saveData({ notes, layout, dark, wallBlur }).catch(() => showToast('No se pudo guardar'));
+      saveData({ notes, layout, dark, wallBlur, folders, sortBy, pinHash }).catch(() => showToast('No se pudo guardar'));
     }, 500);
     return () => clearTimeout(t);
-  }, [notes, layout, dark, wallBlur, loaded]);
+  }, [notes, layout, dark, wallBlur, folders, sortBy, pinHash, loaded]);
 
   function showToast(msg) {
     setToastMsg(msg);
@@ -381,6 +464,7 @@ export default function App() {
       title: '', content: '', html: true, created: now, updated: now,
       fav: false, pinned: false, deleted: false, kind,
       ink: kind === 'draw' ? [] : undefined,
+      folderId: view.startsWith('f:') ? view.slice(2) : undefined,
     };
     setNewOpen(false);
     setNotes(ns => [...ns, n]);
@@ -407,6 +491,8 @@ export default function App() {
       setCurrentId(cur => (cur === id ? null : cur));
       setCropOpen(false);
       setTitleColorOpen(false);
+      setOptsOpen(false);
+      setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
     };
     // Primero se guarda lo último que escribiste en el editor
     if (Platform.OS === 'web') {
@@ -448,17 +534,12 @@ export default function App() {
 
   function destroy() {
     const id = current.id;
-    Alert.alert('Eliminar nota', '¿Eliminar esta nota para siempre? No se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive', onPress: () => {
-          setNotes(ns => ns.filter(n => n.id !== id));
-          saveWallpaper(null, id).catch(() => {});
-          setCurrentId(null);
-          showToast('Nota eliminada');
-        },
-      },
-    ]);
+    confirmAsk('Eliminar nota', '¿Eliminar esta nota para siempre? No se puede deshacer.', 'Eliminar', () => {
+      setNotes(ns => ns.filter(n => n.id !== id));
+      saveWallpaper(null, id).catch(() => {});
+      setCurrentId(null);
+      showToast('Nota eliminada');
+    });
   }
 
   async function pickWallpaper() {
@@ -513,6 +594,107 @@ export default function App() {
     return () => { alive = false; };
   }, [currentId]);
 
+  /* ---------- Carpetas ---------- */
+  function openFolderEdit(f, assignTo) {
+    setMenuOpen(false); setMoveOpen(false);
+    setFolderEdit(f ? { ...f } : { name: '', color: FOLDER_COLORS[5], assignTo });
+  }
+  function saveFolder() {
+    const name = (folderEdit.name || '').trim();
+    if (!name) { showToast('Escribe un nombre para la carpeta'); return; }
+    if (folderEdit.id) {
+      setFolders(fs => fs.map(f => (f.id === folderEdit.id ? { ...f, name, color: folderEdit.color } : f)));
+      showToast('Carpeta actualizada');
+    } else {
+      const f = { id: 'f' + Date.now().toString(36), name, color: folderEdit.color };
+      setFolders(fs => [...fs, f]);
+      if (folderEdit.assignTo) { patch(folderEdit.assignTo, { folderId: f.id }, false); showToast('Nota movida a ' + name); }
+      else showToast('Carpeta creada');
+    }
+    setFolderEdit(null);
+  }
+  function deleteFolder(f) {
+    confirmAsk('Eliminar carpeta', 'Las notas de "' + f.name + '" no se borran: quedan en "Todas las notas".', 'Eliminar', () => {
+      setFolders(fs => fs.filter(x => x.id !== f.id));
+      setNotes(ns => ns.map(n => (n.folderId === f.id ? { ...n, folderId: undefined } : n)));
+      if (view === 'f:' + f.id) setView('all');
+      setFolderEdit(null);
+      showToast('Carpeta eliminada');
+    });
+  }
+  function moveTo(folderId) {
+    patch(current.id, { folderId: folderId || undefined }, false);
+    setMoveOpen(false);
+    const f = folders.find(x => x.id === folderId);
+    showToast(f ? 'Movida a ' + f.name : 'Quitada de la carpeta');
+  }
+
+  /* ---------- PIN ---------- */
+  function askPin(mode, title, onOk) {
+    pinOkRef.current = onOk;
+    setPinEntry('');
+    setPinPad({ mode, title });
+  }
+  function pressPin(d) {
+    if (d === 'del') { setPinEntry(p => p.slice(0, -1)); return; }
+    const next = (pinEntry + d).slice(0, 4);
+    setPinEntry(next);
+    if (next.length < 4) return;
+    setTimeout(() => {
+      const pad = pinPad;
+      if (!pad) return;
+      if (pad.mode === 'unlock') {
+        if (hashPin(next) === pinHash) { setPinPad(null); setPinEntry(''); pinOkRef.current && pinOkRef.current(); }
+        else { setPinEntry(''); showToast('PIN incorrecto'); }
+      } else if (pad.mode === 'set1') {
+        setPinPad({ mode: 'set2', title: 'Confirma tu PIN', first: next });
+        setPinEntry('');
+      } else if (pad.mode === 'set2') {
+        if (next === pad.first) {
+          setPinHash(hashPin(next)); setPinPad(null); setPinEntry('');
+          pinOkRef.current && pinOkRef.current();
+        } else {
+          setPinPad({ mode: 'set1', title: 'Los PIN no coinciden. Crea tu PIN otra vez' });
+          setPinEntry('');
+        }
+      }
+    }, 120);
+  }
+  function toggleLock() {
+    setOptsOpen(false);
+    const id = current.id;
+    if (current.locked) {
+      askPin('unlock', 'Escribe tu PIN para quitar el bloqueo', () => {
+        patch(id, { locked: false }, false); showToast('Bloqueo quitado');
+      });
+      return;
+    }
+    const lockIt = () => {
+      patch(id, { locked: true }, false);
+      setUnlocked(u => ({ ...u, [id]: true }));      // sigue abierta hasta que salgas
+      showToast('Nota bloqueada con PIN');
+    };
+    if (!pinHash) askPin('set1', 'Crea un PIN de 4 números', lockIt);
+    else lockIt();
+  }
+  function changePin() {
+    setMenuOpen(false);
+    if (!pinHash) { askPin('set1', 'Crea un PIN de 4 números', () => showToast('PIN creado')); return; }
+    askPin('unlock', 'Escribe tu PIN actual', () => {
+      setTimeout(() => askPin('set1', 'Escribe tu PIN nuevo', () => showToast('PIN cambiado')), 200);
+    });
+  }
+  function openNote(n) {
+    if (n.locked && !unlocked[n.id]) {
+      askPin('unlock', 'Nota bloqueada', () => {
+        setUnlocked(u => ({ ...u, [n.id]: true }));
+        setCurrentId(n.id);
+      });
+      return;
+    }
+    setCurrentId(n.id);
+  }
+
   function toggleSearch() {
     if (searchOpen) setQuery('');
     setSearchOpen(!searchOpen);
@@ -556,6 +738,11 @@ export default function App() {
         webRef.current.injectJavaScript('window.closeCrop && window.closeCrop(); true;');
         return true;
       }
+      if (pinPad) { setPinPad(null); return true; }
+      if (folderEdit) { setFolderEdit(null); return true; }
+      if (moveOpen) { setMoveOpen(false); return true; }
+      if (optsOpen) { setOptsOpen(false); return true; }
+      if (sortOpen) { setSortOpen(false); return true; }
       if (wallOpen) { setWallOpen(false); return true; }
       if (newOpen) { setNewOpen(false); return true; }
       if (currentId) { closeEditor(); return true; }
@@ -564,22 +751,49 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen]);
+  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen]);
 
   /* ---------- Notas que se muestran ---------- */
+  const viewFolder = view.startsWith('f:') ? folders.find(f => f.id === view.slice(2)) : null;
+  const viewTag = view.startsWith('t:') ? view.slice(2) : null;
+  const viewTitle = viewFolder ? viewFolder.name : viewTag ? '#' + viewTag : (TITLES[view] || TITLES.all);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const byOrder = (a, b) => {
+      if (sortBy === 'created') return (b.created || 0) - (a.created || 0);
+      if (sortBy === 'alpha') {
+        const ta = (a.title || '').trim(), tb = (b.title || '').trim();
+        if (!ta !== !tb) return ta ? -1 : 1;           // las "Sin título" al final
+        return ta.localeCompare(tb, 'es', { sensitivity: 'base' });
+      }
+      return b.updated - a.updated;
+    };
     return notes
-      .filter(n => (view === 'trash' ? n.deleted : !n.deleted && (view !== 'fav' || n.fav)))
-      .filter(n => !q || (n.title + ' ' + toPlain(n)).toLowerCase().includes(q))
-      .sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated));
-  }, [notes, view, query]);
+      .filter(n => {
+        if (view === 'trash') return n.deleted;
+        if (n.deleted) return false;
+        if (view === 'fav') return n.fav;
+        if (view.startsWith('f:')) return n.folderId === view.slice(2);
+        if (view.startsWith('t:')) return tagsOf(n).includes(view.slice(2));
+        return true;
+      })
+      .filter(n => !q || ((n.title || '') + ' ' + (n.locked ? '' : toPlain(n))).toLowerCase().includes(q))
+      .sort((a, b) => (b.pinned - a.pinned) || byOrder(a, b));
+  }, [notes, view, query, sortBy]);
 
+  const live = notes.filter(n => !n.deleted);
   const counts = {
-    all: notes.filter(n => !n.deleted).length,
-    fav: notes.filter(n => !n.deleted && n.fav).length,
-    trash: notes.filter(n => n.deleted).length,
+    all: live.length,
+    fav: live.filter(n => n.fav).length,
+    trash: notes.length - live.length,
   };
+  const folderCount = id => live.filter(n => n.folderId === id).length;
+  const allTags = useMemo(() => {
+    const m = {};
+    notes.forEach(n => { if (!n.deleted) tagsOf(n).forEach(t => { m[t] = (m[t] || 0) + 1; }); });
+    return Object.keys(m).sort().map(t => [t, m[t]]);
+  }, [notes]);
 
   const toast = toastMsg ? (
     <View style={s.toastWrap} pointerEvents="none">
@@ -639,6 +853,104 @@ export default function App() {
     </Modal>
   );
 
+  /* ---------- Ventana: crear / editar carpeta ---------- */
+  const folderModal = (
+    <Modal visible={!!folderEdit} transparent animationType="fade" onRequestClose={() => setFolderEdit(null)}>
+      <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setFolderEdit(null)}>
+        <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
+          {folderEdit && (
+            <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
+              <Text style={s.wallTitle}>{folderEdit.id ? 'Editar carpeta' : 'Nueva carpeta'}</Text>
+              <View style={[s.folderInputWrap, { borderColor: c.border }]}>
+                <Feather name="folder" size={20} color={folderEdit.color} />
+                <TextInput
+                  style={s.folderInput}
+                  value={folderEdit.name}
+                  onChangeText={tx => setFolderEdit(f => ({ ...f, name: tx }))}
+                  placeholder="Nombre de la carpeta"
+                  placeholderTextColor={c.muted}
+                  autoFocus
+                  maxLength={40}
+                />
+              </View>
+              <Text style={s.wallLabel}>Color</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {FOLDER_COLORS.map(col => (
+                  <TouchableOpacity
+                    key={col}
+                    onPress={() => setFolderEdit(f => ({ ...f, color: col }))}
+                    style={[s.swatch, { backgroundColor: col }, folderEdit.color === col && { borderColor: c.text, borderWidth: 3 }]}
+                  />
+                ))}
+              </View>
+              <TouchableOpacity onPress={saveFolder} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text, marginTop: 20 }]}>
+                <Text style={[s.wallBtnText, { color: c.inv }]}>Guardar</Text>
+              </TouchableOpacity>
+              {folderEdit.id && (
+                <TouchableOpacity onPress={() => deleteFolder(folderEdit)} style={s.wallRemove}>
+                  <Feather name="trash-2" size={16} color="#e53935" />
+                  <Text style={{ color: '#e53935', fontSize: 15, marginLeft: 6 }}>Eliminar carpeta</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setFolderEdit(null)} style={{ alignSelf: 'center', padding: 10, marginTop: 4 }}>
+                <Text style={{ color: c.muted, fontSize: 16 }}>Cancelar</Text>
+              </TouchableOpacity>
+            </Glass>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
+  /* ---------- Teclado del PIN ---------- */
+  const pinModal = (
+    <Modal visible={!!pinPad} transparent animationType="fade" onRequestClose={() => setPinPad(null)}>
+      <View style={[s.wallScrim, { backgroundColor: c.scrim }]}>
+        {pinPad && (
+          <Glass t={c} strong radius={30} style={{ width: '100%', maxWidth: 340 }} inner={{ padding: 22, alignItems: 'center' }}>
+            <Feather name="lock" size={28} color={c.text} />
+            <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{pinPad.title}</Text>
+            {(pinPad.mode === 'set1') && (
+              <Text style={[s.wallHint, { textAlign: 'center' }]}>Guárdalo bien: si lo olvidas no se puede recuperar.</Text>
+            )}
+            <View style={s.pinDots}>
+              {[0, 1, 2, 3].map(i => (
+                <View key={i} style={[s.pinDot, { borderColor: c.text }, i < pinEntry.length && { backgroundColor: c.text }]} />
+              ))}
+            </View>
+            <View style={s.pinGrid}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((k, i) => (
+                k === '' ? <View key={i} style={s.pinKey} /> : (
+                  <TouchableOpacity key={i} onPress={() => pressPin(k)} activeOpacity={0.6} style={s.pinKey}>
+                    <Glass t={c} radius={32} style={{ width: 64, height: 64 }} inner={s.center}>
+                      {k === 'del'
+                        ? <Feather name="delete" size={22} color={c.text} />
+                        : <Text style={s.pinKeyText}>{k}</Text>}
+                    </Glass>
+                  </TouchableOpacity>
+                )
+              ))}
+            </View>
+            <TouchableOpacity onPress={() => setPinPad(null)} style={{ padding: 10, marginTop: 4 }}>
+              <Text style={{ color: c.muted, fontSize: 16 }}>Cancelar</Text>
+            </TouchableOpacity>
+          </Glass>
+        )}
+      </View>
+    </Modal>
+  );
+
+  /* ---------- Elegir orden ---------- */
+  const sortSheet = (
+    <Sheet visible={sortOpen} onClose={() => setSortOpen(false)} title="Ordenar por" s={s} t={c}>
+      {SORTS.map(([k, icon, label]) => (
+        <Row key={k} icon={icon} label={label} s={s} t={c}
+          onPress={() => { setSortBy(k); setSortOpen(false); }}
+          right={sortBy === k ? <Feather name="check" size={20} color={c.text} /> : null} />
+      ))}
+    </Sheet>
+  );
+
   if (!loaded) return <View style={s.screen} />;
 
   /* ============================================================
@@ -665,6 +977,7 @@ export default function App() {
               <IconBtn set="mci" name={current.fav ? 'star' : 'star-outline'} onPress={toggleFav} s={s} t={c} />
               <IconBtn name="image" onPress={() => openWall(current.id)} s={s} t={c} />
               <IconBtn name="trash-2" onPress={moveToTrash} s={s} t={c} />
+              <IconBtn name="more-vertical" onPress={() => setOptsOpen(true)} s={s} t={c} />
             </>
           )}
         </View>
@@ -704,6 +1017,30 @@ export default function App() {
           </View>
         </KeyboardAvoidingView>
         {wallModal}
+
+        {/* Opciones de la nota */}
+        <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title="Opciones de la nota" s={s} t={c}>
+          <Row icon="folder" iconColor={(folders.find(f => f.id === current.folderId) || {}).color} s={s} t={c}
+            label={'Carpeta: ' + ((folders.find(f => f.id === current.folderId) || {}).name || 'Ninguna')}
+            onPress={() => { setOptsOpen(false); setMoveOpen(true); }}
+            right={<Feather name="chevron-right" size={18} color={c.muted} />} />
+          <Row icon={current.locked ? 'unlock' : 'lock'} s={s} t={c}
+            label={current.locked ? 'Quitar bloqueo' : 'Bloquear con PIN'} onPress={toggleLock} />
+        </Sheet>
+
+        {/* Mover a carpeta */}
+        <Sheet visible={moveOpen} onClose={() => setMoveOpen(false)} title="Mover a carpeta" s={s} t={c}>
+          <Row icon="inbox" label="Sin carpeta" s={s} t={c} onPress={() => moveTo(null)}
+            right={!current.folderId ? <Feather name="check" size={20} color={c.text} /> : null} />
+          {folders.map(f => (
+            <Row key={f.id} icon="folder" iconColor={f.color} label={f.name} s={s} t={c} onPress={() => moveTo(f.id)}
+              right={current.folderId === f.id ? <Feather name="check" size={20} color={c.text} /> : null} />
+          ))}
+          <Row icon="plus" label="Nueva carpeta" s={s} t={c} onPress={() => openFolderEdit(null, current.id)} />
+        </Sheet>
+
+        {folderModal}
+        {pinModal}
         {toast}
       </View>
     );
@@ -718,9 +1055,11 @@ export default function App() {
 
   const emptyMsg = query
     ? ['search', 'Ninguna nota coincide con la búsqueda.']
-    : { all: ['file-text', 'No hay notas todavía.\nToca el lápiz para crear la primera.'],
+    : viewFolder ? ['folder', 'Esta carpeta está vacía.\nToca el lápiz para crear una nota aquí.']
+    : viewTag ? ['hash', 'Ninguna nota tiene esta etiqueta.']
+    : ({ all: ['file-text', 'No hay notas todavía.\nToca el lápiz para crear la primera.'],
         fav: ['star', 'Aún no tienes favoritos.'],
-        trash: ['trash-2', 'La papelera está vacía.'] }[view];
+        trash: ['trash-2', 'La papelera está vacía.'] }[view] || ['file-text', '']);
 
   return (
     <View style={s.screen}>
@@ -732,6 +1071,7 @@ export default function App() {
         <IconBtn name="menu" onPress={() => setMenuOpen(true)} s={s} t={c} />
         <View style={{ flex: 1 }} />
         <IconBtn name="search" onPress={toggleSearch} s={s} t={c} />
+        <IconBtn set="mci" name="sort" onPress={() => setSortOpen(true)} s={s} t={c} />
         <IconBtn name={isGrid ? 'list' : 'grid'} onPress={() => setLayout(isGrid ? 'list' : 'grid')} s={s} t={c} />
         <IconBtn name={dark ? 'sun' : 'moon'} onPress={() => setDark(!dark)} s={s} t={c} />
       </View>
@@ -748,7 +1088,10 @@ export default function App() {
         ListHeaderComponent={
           <View>
             <View style={s.hero}>
-              <Text style={s.heroTitle}>{TITLES[view]}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {viewFolder && <Feather name="folder" size={26} color={viewFolder.color} style={{ marginRight: 10 }} />}
+                <Text style={[s.heroTitle, { flexShrink: 1 }]} numberOfLines={1}>{viewTitle}</Text>
+              </View>
               <Text style={s.heroCount}>{visible.length} {visible.length === 1 ? 'nota' : 'notas'}</Text>
             </View>
             {searchOpen && (
@@ -776,7 +1119,7 @@ export default function App() {
           return (
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => setCurrentId(item.id)}
+              onPress={() => openNote(item)}
               style={isGrid ? { width: cardW } : null}
             >
               <Glass t={c} radius={22} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
@@ -794,15 +1137,31 @@ export default function App() {
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 4 }}>
                     {item.pinned && <MaterialCommunityIcons name="pin" size={14} color={c.muted} />}
+                    {item.locked && <Feather name="lock" size={13} color={c.muted} />}
                     {item.kind === 'draw' && <Feather name="edit-2" size={13} color={c.muted} />}
                     {item.fav && <MaterialCommunityIcons name="star" size={14} color={c.muted} />}
                   </View>
                 </View>
-                {thumb && (
-                  <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />
+                {item.locked ? (
+                  <View style={s.lockedBox}>
+                    <Feather name="lock" size={22} color={c.muted} />
+                    <Text style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>Nota bloqueada</Text>
+                  </View>
+                ) : (
+                  <>
+                    {thumb && (
+                      <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />
+                    )}
+                    <Text style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{toPlain(item)}</Text>
+                  </>
                 )}
-                <Text style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{toPlain(item)}</Text>
-                <Text style={s.date}>{fmtDate(item.updated)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {(() => {
+                    const f = !viewFolder && folders.find(x => x.id === item.folderId);
+                    return f ? <View style={[s.folderDot, { backgroundColor: f.color }]} /> : null;
+                  })()}
+                  <Text style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(sortBy === 'created' ? (item.created || item.updated) : item.updated)}</Text>
+                </View>
               </Glass>
             </TouchableOpacity>
           );
@@ -821,7 +1180,8 @@ export default function App() {
       {/* Menú lateral de cristal */}
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.scrim }}>
-          <Glass t={c} strong radius={28} style={s.sidebar} inner={s.sidebarInner}>
+          <Glass t={c} strong radius={28} style={s.sidebar}>
+           <ScrollView contentContainerStyle={s.sidebarInner}>
             <Text style={s.sideTitle}>Mis Notas</Text>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); setMenuOpen(false); }} activeOpacity={0.7}>
@@ -841,21 +1201,85 @@ export default function App() {
               </TouchableOpacity>
             ))}
             <View style={s.sep} />
+
+            {/* Carpetas */}
+            <View style={s.sideHeader}>
+              <Text style={s.sideHeaderText}>CARPETAS</Text>
+              <TouchableOpacity onPress={() => openFolderEdit(null)} hitSlop={10}>
+                <Feather name="plus" size={20} color={c.text} />
+              </TouchableOpacity>
+            </View>
+            {folders.length === 0 && (
+              <TouchableOpacity style={s.navItem} onPress={() => openFolderEdit(null)} activeOpacity={0.7}>
+                <Feather name="folder-plus" size={19} color={c.muted} style={s.navIcon} />
+                <Text style={[s.navText, { color: c.muted }]}>Crear carpeta</Text>
+              </TouchableOpacity>
+            )}
+            {folders.map(f => {
+              const on = view === 'f:' + f.id;
+              const body = (
+                <>
+                  <Feather name="folder" size={19} color={f.color} style={s.navIcon} />
+                  <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
+                  <Text style={s.navCount}>{folderCount(f.id)}</Text>
+                  <TouchableOpacity onPress={() => openFolderEdit(f)} hitSlop={10} style={{ marginLeft: 10 }}>
+                    <Feather name="more-horizontal" size={18} color={c.muted} />
+                  </TouchableOpacity>
+                </>
+              );
+              return (
+                <TouchableOpacity key={f.id} onPress={() => { setView('f:' + f.id); setMenuOpen(false); }}
+                  onLongPress={() => openFolderEdit(f)} activeOpacity={0.7}>
+                  {on
+                    ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
+                    : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Etiquetas */}
+            {allTags.length > 0 && (
+              <>
+                <View style={s.sideHeader}><Text style={s.sideHeaderText}>ETIQUETAS</Text></View>
+                {allTags.map(([tg, n]) => {
+                  const on = view === 't:' + tg;
+                  const body = (
+                    <>
+                      <Feather name="hash" size={18} color={on ? c.text : c.muted} style={s.navIcon} />
+                      <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{tg}</Text>
+                      <Text style={s.navCount}>{n}</Text>
+                    </>
+                  );
+                  return (
+                    <TouchableOpacity key={tg} onPress={() => { setView('t:' + tg); setMenuOpen(false); }} activeOpacity={0.7}>
+                      {on
+                        ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
+                        : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
+
+            <View style={s.sep} />
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); openWall(null); }}>
               <Feather name="image" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>Fondo de pantalla</Text>
             </TouchableOpacity>
-            <View style={s.navItem}>
-              <Feather name="folder" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={[s.navText, { color: c.muted }]}>Carpetas</Text>
-              <Text style={s.navCount}>Pronto</Text>
-            </View>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
+              <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{pinHash ? 'Cambiar PIN' : 'Crear PIN de bloqueo'}</Text>
+            </TouchableOpacity>
+           </ScrollView>
           </Glass>
           <Pressable style={{ flex: 1 }} onPress={() => setMenuOpen(false)} />
         </View>
       </Modal>
 
       {wallModal}
+      {sortSheet}
+      {folderModal}
+      {pinModal}
 
       {/* Catálogo: tipo de nota nueva */}
       <Modal visible={newOpen} transparent animationType="fade" onRequestClose={() => setNewOpen(false)}>
@@ -923,7 +1347,7 @@ function makeStyles(c) {
       backgroundColor: c.text, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.5)',
     },
 
-    sidebar: { width: 280, maxWidth: '85%', margin: 10, marginTop: top + 10 },
+    sidebar: { width: 290, maxWidth: '86%', margin: 10, marginTop: top + 10 },
     sidebarInner: { paddingTop: 22, paddingHorizontal: 12, paddingBottom: 16 },
     sideTitle: { fontSize: 21, fontWeight: '800', color: c.text, paddingHorizontal: 12, marginBottom: 18 },
     navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 12 },
@@ -942,6 +1366,20 @@ function makeStyles(c) {
     wallTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 4 },
     wallHint: { fontSize: 13, color: c.muted, marginBottom: 14 },
     newScrim: { flex: 1, justifyContent: 'flex-end', padding: 16, paddingBottom: 40 },
+    sheetTitle: { fontSize: 13, color: c.muted, letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
+    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20 },
+    rowText: { flex: 1, fontSize: 16, color: c.text },
+    sideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 },
+    sideHeaderText: { fontSize: 12, color: c.muted, letterSpacing: 1.2, fontWeight: '600' },
+    folderInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, marginTop: 6 },
+    folderInput: { flex: 1, color: c.text, fontSize: 16, paddingVertical: 12 },
+    folderDot: { width: 8, height: 8, borderRadius: 4 },
+    lockedBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+    pinDots: { flexDirection: 'row', gap: 16, marginVertical: 18 },
+    pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
+    pinGrid: { flexDirection: 'row', flexWrap: 'wrap', width: 252, justifyContent: 'space-between', rowGap: 12 },
+    pinKey: { width: 64, height: 64, marginHorizontal: 10 },
+    pinKeyText: { fontSize: 26, fontWeight: '500', color: c.text },
     newTitle: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 14, marginLeft: 6 },
     newCard: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
     newIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
