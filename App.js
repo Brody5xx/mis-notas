@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
-  Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView,
+  Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share,
   KeyboardAvoidingView, Platform, useWindowDimensions, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -507,6 +507,7 @@ export default function App() {
   const [wallpaper, setWallpaper] = useState(null);   // tu imagen de fondo
   const [wallBlur, setWallBlur] = useState(8);        // desenfoque del fondo
   const [newOpen, setNewOpen] = useState(false);      // catálogo de nota nueva
+  const [selected, setSelected] = useState({});       // notas seleccionadas (mantener presionado)
   const [wallOpen, setWallOpen] = useState(false);    // ventana de fondo de pantalla
   const [wallFor, setWallFor] = useState(null);       // null = menú principal; id = una nota
   const [noteWall, setNoteWall] = useState(null);     // fondo propio de la nota abierta
@@ -796,13 +797,84 @@ export default function App() {
     showToast('Nota restaurada');
   }
 
+  /* Borra los archivos aparte de una nota (fondo, historial y registro) */
+  function purgeFiles(id) {
+    saveWallpaper(null, id).catch(() => {});
+    saveHistory(id, []).catch(() => {});
+    saveRecord(id, null).catch(() => {});
+    delete recCache.current[id];
+  }
+
+  /* ---------- Selección (mantener presionada una nota) ---------- */
+  const selIds = Object.keys(selected);
+  const selMode = selIds.length > 0;
+  function toggleSelect(id) {
+    setSelected(sl => { const n2 = { ...sl }; if (n2[id]) delete n2[id]; else n2[id] = true; return n2; });
+  }
+  function clearSelection() { setSelected({}); }
+  function selectAll() {
+    const all = {}; visible.forEach(n => { all[n.id] = true; });
+    setSelected(selIds.length === visible.length ? {} : all);
+  }
+  async function shareSelected() {
+    const list = notes.filter(n => selected[n.id]);
+    const text = list.map(n => {
+      const t = (n.title || '').trim() || 'Sin título';
+      return n.locked ? `${t}\n(Nota bloqueada)` : `${t}\n${toPlain(n)}`.trim();
+    }).join('\n\n────────\n\n');
+    try {
+      await Share.share({ message: text, title: list.length === 1 ? (list[0].title || 'Nota') : 'Mis notas' });
+      clearSelection();
+    } catch (e) {
+      showToast('No se puede compartir desde aquí. Prueba en el teléfono.');
+    }
+  }
+  function trashSelected() {
+    const ids = selIds;
+    setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: true, pinned: false } : n)));
+    clearSelection();
+    showToast(ids.length === 1 ? 'Movida a la papelera' : `${ids.length} notas movidas a la papelera`);
+  }
+  function restoreSelected() {
+    const ids = selIds;
+    setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: false } : n)));
+    clearSelection();
+    showToast(ids.length === 1 ? 'Nota recuperada' : `${ids.length} notas recuperadas`);
+  }
+  function destroySelected() {
+    const ids = selIds;
+    confirmAsk('Eliminar para siempre',
+      ids.length === 1 ? '¿Eliminar esta nota para siempre? No se puede deshacer.' : `¿Eliminar ${ids.length} notas para siempre? No se puede deshacer.`,
+      'Eliminar', () => {
+        setNotes(ns => ns.filter(n => !ids.includes(n.id)));
+        ids.forEach(purgeFiles);
+        clearSelection();
+        showToast(ids.length === 1 ? 'Nota eliminada' : `${ids.length} notas eliminadas`);
+      });
+  }
+  function restoreAllTrash() {
+    const n = notes.filter(x => x.deleted).length;
+    if (!n) return;
+    setNotes(ns => ns.map(x => (x.deleted ? { ...x, deleted: false } : x)));
+    showToast(n === 1 ? 'Nota recuperada' : `${n} notas recuperadas`);
+  }
+  function emptyTrash() {
+    const ids = notes.filter(x => x.deleted).map(x => x.id);
+    if (!ids.length) return;
+    confirmAsk('Vaciar papelera',
+      `Se eliminarán ${ids.length === 1 ? '1 nota' : ids.length + ' notas'} para siempre. No se puede deshacer.`, 'Vaciar', () => {
+        setNotes(ns => ns.filter(x => !x.deleted));
+        ids.forEach(purgeFiles);
+        clearSelection();
+        showToast('Papelera vacía');
+      });
+  }
+
   function destroy() {
     const id = current.id;
     confirmAsk('Eliminar nota', '¿Eliminar esta nota para siempre? No se puede deshacer.', 'Eliminar', () => {
       setNotes(ns => ns.filter(n => n.id !== id));
-      saveWallpaper(null, id).catch(() => {});
-      saveHistory(id, []).catch(() => {});
-      saveRecord(id, null).catch(() => {}); delete recCache.current[id];
+      purgeFiles(id);
       setCurrentId(null);
       showToast('Nota eliminada');
     });
@@ -1033,6 +1105,7 @@ export default function App() {
         return true;
       }
       if (pinPad) { setPinPad(null); return true; }
+      if (selMode && !currentId) { clearSelection(); return true; }
       if (histView) { setHistView(null); return true; }
       if (histOpen) { setHistOpen(false); return true; }
       if (folderEdit) { setFolderEdit(null); return true; }
@@ -1047,9 +1120,11 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView]);
+  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
 
   /* ---------- Notas que se muestran ---------- */
+  useEffect(() => { setSelected({}); }, [view]);
+
   const viewFolder = view.startsWith('f:') ? folders.find(f => f.id === view.slice(2)) : null;
   const viewTag = view.startsWith('t:') ? view.slice(2) : null;
   const viewTitle = viewFolder ? viewFolder.name : viewTag ? '#' + viewTag : (TITLES[view] || TITLES.all);
@@ -1505,6 +1580,23 @@ export default function App() {
       <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
 
       {/* Barra superior */}
+      {selMode ? (
+        <View style={s.topbar}>
+          <Glass t={c} radius={24} inner={s.selPill}>
+            <TouchableOpacity onPress={clearSelection} hitSlop={10} style={{ paddingHorizontal: 6 }}>
+              <Feather name="x" size={22} color={c.text} />
+            </TouchableOpacity>
+            <Text style={s.selCount}>{selIds.length}</Text>
+          </Glass>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity onPress={selectAll} activeOpacity={0.7}>
+            <Glass t={c} radius={22} inner={s.selAll}>
+              <Feather name={selIds.length === visible.length ? 'minus-square' : 'check-square'} size={18} color={c.text} />
+              <Text style={s.selAllText}>{selIds.length === visible.length ? 'Ninguna' : 'Todas'}</Text>
+            </Glass>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <View style={s.topbar}>
         <IconBtn name="menu" onPress={() => setMenuOpen(true)} s={s} t={c} />
         <View style={{ flex: 1 }} />
@@ -1513,6 +1605,7 @@ export default function App() {
         <IconBtn name={isGrid ? 'list' : 'grid'} onPress={() => setLayout(isGrid ? 'list' : 'grid')} s={s} t={c} />
         <IconBtn name={dark ? 'sun' : 'moon'} onPress={() => setDark(!dark)} s={s} t={c} />
       </View>
+      )}
 
       {/* Lista de notas */}
       <FlatList
@@ -1532,6 +1625,22 @@ export default function App() {
               </View>
               <Text style={s.heroCount}>{visible.length} {visible.length === 1 ? 'nota' : 'notas'}</Text>
             </View>
+            {view === 'trash' && counts.trash > 0 && !selMode && (
+              <View style={s.trashBtns}>
+                <TouchableOpacity onPress={restoreAllTrash} activeOpacity={0.75} style={{ flex: 1 }}>
+                  <Glass t={c} radius={18} inner={s.trashBtn}>
+                    <Feather name="rotate-ccw" size={18} color={c.text} />
+                    <Text style={s.trashBtnText}>Recuperar todo</Text>
+                  </Glass>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={emptyTrash} activeOpacity={0.75} style={{ flex: 1 }}>
+                  <Glass t={c} radius={18} inner={s.trashBtn}>
+                    <Feather name="trash-2" size={18} color="#e53935" />
+                    <Text style={[s.trashBtnText, { color: '#e53935' }]}>Vaciar papelera</Text>
+                  </Glass>
+                </TouchableOpacity>
+              </View>
+            )}
             {searchOpen && (
               <Glass t={c} radius={24} style={{ marginBottom: 14 }}>
                 <TextInput
@@ -1557,10 +1666,17 @@ export default function App() {
           return (
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => openNote(item)}
+              onPress={() => (selMode ? toggleSelect(item.id) : openNote(item))}
+              onLongPress={() => toggleSelect(item.id)}
+              delayLongPress={350}
               style={isGrid ? { width: cardW } : null}
             >
-              <Glass t={c} radius={22} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
+              <Glass t={c} radius={22} style={selected[item.id] && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
+                {selMode && (
+                  <View style={[s.selCheck, { borderColor: c.text }, selected[item.id] && { backgroundColor: c.text }]}>
+                    {selected[item.id] && <Feather name="check" size={15} color={c.inv} />}
+                  </View>
+                )}
                 <View style={s.cardHeader}>
                   <Text style={s.cardTitle} numberOfLines={1}>
                     {item.title ? titleSegments(item).map((g, i) => (
@@ -1606,8 +1722,39 @@ export default function App() {
         }}
       />
 
+      {/* Barra de acciones al seleccionar (estilo Google Fotos) */}
+      {selMode && (
+        <View style={s.selBarWrap} pointerEvents="box-none">
+          <Glass t={c} strong radius={28} inner={s.selBar}>
+            {view === 'trash' ? (
+              <>
+                <TouchableOpacity onPress={restoreSelected} style={s.selAction} activeOpacity={0.6}>
+                  <Feather name="rotate-ccw" size={24} color={c.text} />
+                  <Text style={s.selActionText}>Recuperar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={destroySelected} style={s.selAction} activeOpacity={0.6}>
+                  <Feather name="trash-2" size={24} color="#e53935" />
+                  <Text style={[s.selActionText, { color: '#e53935' }]}>Eliminar</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity onPress={shareSelected} style={s.selAction} activeOpacity={0.6}>
+                  <Feather name="share-2" size={24} color={c.text} />
+                  <Text style={s.selActionText}>Compartir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={trashSelected} style={s.selAction} activeOpacity={0.6}>
+                  <Feather name="trash-2" size={24} color={c.text} />
+                  <Text style={s.selActionText}>Papelera</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Glass>
+        </View>
+      )}
+
       {/* Botón flotante con brillo */}
-      {view !== 'trash' && (
+      {view !== 'trash' && !selMode && (
         <TouchableOpacity style={s.fabWrap} onPress={() => newNote('text')} activeOpacity={0.85}>
           <View style={s.fab}>
             <Feather name="edit-3" size={24} color={c.inv} />
@@ -1779,6 +1926,20 @@ function makeStyles(c) {
     wallTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 4 },
     wallHint: { fontSize: 13, color: c.muted, marginBottom: 14 },
     newScrim: { flex: 1, justifyContent: 'flex-end', padding: 16, paddingBottom: 40 },
+    selPill: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 10, gap: 10 },
+    selCount: { fontSize: 20, fontWeight: '700', color: c.text, marginRight: 6, minWidth: 16 },
+    selAll: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 14, gap: 8 },
+    selAllText: { fontSize: 15, fontWeight: '600', color: c.text },
+    selCheck: { position: 'absolute', top: 10, left: 10, zIndex: 2, width: 24, height: 24, borderRadius: 12, borderWidth: 2,
+                alignItems: 'center', justifyContent: 'center' },
+    cardSel: { transform: [{ scale: 0.95 }], opacity: 0.85 },
+    selBarWrap: { position: 'absolute', left: 12, right: 12, bottom: 24 },
+    selBar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 },
+    selAction: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 4, gap: 6 },
+    selActionText: { fontSize: 14, color: c.text, fontWeight: '500' },
+    trashBtns: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+    trashBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
+    trashBtnText: { fontSize: 15, fontWeight: '600', color: c.text },
     undoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, height: 44 },
     undoBtn: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
     histLockBadge: { position: 'absolute', right: 8, bottom: 9 },
