@@ -151,6 +151,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .rh{border-color:${c.text} !important}
   /* La barra se acomoda en 2 filas si no cabe (así ningún botón queda escondido) */
   .dock{flex-wrap:wrap;justify-content:center;overflow:visible !important;row-gap:2px}
+  /* Barra de texto: ancha, 2 filas fijas */
+  #dock{left:10px !important;right:10px;transform:none !important;max-width:none !important;
+        flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
+  #dock.hide{transform:translateY(24px) !important}
+  #dock .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
+  #dock .db{flex:1 1 0;min-width:0;height:40px;padding:0 2px}
+  #dock .db[data-act=size]{flex:1.7 1 0}
+  #dock .db[data-act=color]{flex:1.2 1 0}
+  #dock .dsep{margin:0 2px}
+  /* Barra de dibujo y de fotos: también anchas */
+  #drawdock,#imgbar{left:10px !important;right:10px;transform:none !important;max-width:none !important;justify-content:space-around}
+  #drawdock.hide,#imgbar.hide{transform:translateY(24px) !important}
   .db{min-width:40px;padding:0 8px}
   .panel{bottom:calc(var(--dockH, 56px) + 24px + var(--kb)) !important}
   .fxNone{display:block;margin:14px auto 0;border:none;background:none;color:${c.muted};font-size:15px;padding:6px 12px}
@@ -168,6 +180,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Barra flotante -->
 <div class="dock" id="dock" ${editable ? '' : 'style="display:none"'}>
+ <div class="drow">
   <button class="db draw-only" data-act="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
   <button class="db" data-act="img"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
   <span class="dsep"></span>
@@ -176,13 +189,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <button class="db" data-cmd="underline"><u>U</u></button>
   <button class="db" data-act="hl"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
   <button class="db" data-act="ol"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19" rx="5"/><polyline points="7.5 17 12 7 16.5 17"/><line x1="9.2" y1="13.5" x2="14.8" y2="13.5"/></svg></button>
-  <span class="dsep"></span>
+ </div>
+ <div class="drow">
   <button class="db" data-list="ul"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg></button>
   <button class="db" data-list="ol"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/><path d="M4 4.5h1.5V9"/><path d="M3.5 13.5c.4-.6 1-1 1.6-1 .8 0 1.4.5 1.4 1.2 0 1-2.9 2.2-2.9 3.3h3"/></svg></button>
   <button class="db" data-list="check"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg></button>
   <span class="dsep"></span>
   <button class="db" data-act="size"><span style="font-size:13px;opacity:.7">Aa</span><span id="sizeNum">17</span><span class="caret">▼</span></button>
   <button class="db" data-act="color"><span id="colorDot" style="background:${c.text}"></span><span class="caret">▼</span></button>
+ </div>
 </div>
 
 <!-- Barra de dibujo -->
