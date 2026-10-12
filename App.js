@@ -179,6 +179,80 @@ function sameVersion(a, b) {
     JSON.stringify(a.ink || null) === JSON.stringify(b.ink || null);
 }
 
+/* ============================================================
+   REGISTRO: guarda todo lo que se escribe en una nota, aunque
+   después se borre. Se va actualizando solo mientras escribes.
+   ============================================================ */
+const REC_KEY = 'misnotas_registro';
+const REC_IMG = '\u0001';              // marca de foto dentro del registro
+const MAX_REC = 3000;
+function recFile(id) { return new FS.File(FS.Paths.document, `registro_${id}.json`); }
+async function loadRecord(id) {
+  try {
+    if (FS) { const f = recFile(id); if (f.exists) return JSON.parse(await f.text()); return null; }
+    const raw = await AsyncStorage.getItem(`${REC_KEY}_${id}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+async function saveRecord(id, rec) {
+  const str = rec ? JSON.stringify(rec) : '';
+  if (FS) {
+    try {
+      const f = recFile(id);
+      if (!rec) { if (f.exists) f.delete(); return; }
+      if (!f.exists) f.create();
+      f.write(str);
+      return;
+    } catch (e) {}
+  }
+  if (rec) await AsyncStorage.setItem(`${REC_KEY}_${id}`, str);
+  else await AsyncStorage.removeItem(`${REC_KEY}_${id}`);
+}
+/* La nota convertida en una lista ordenada de renglones y fotos */
+function noteTokens(n) {
+  const out = [];
+  const add = l => { l = l.replace(/\u200B/g, '').replace(/\s+/g, ' ').trim(); if (l) out.push(l); };
+  add(n.title || '');
+  if (!n.html) { (n.content || '').split('\n').forEach(add); return out; }
+  (n.content || '').split(/(<img[^>]*>)/i).forEach(part => {
+    const m = part.match(/^<img[^>]+src="([^"]+)"/i);
+    if (m) out.push(REC_IMG + m[1]);
+    else toPlain({ html: true, content: part.replace(/<(div|p|li|h[1-6])[\s>]/gi, '\n$&') }).split('\n').forEach(add);
+  });
+  return out;
+}
+/* ¿"a" se puede formar con "b" solo agregando letras? */
+function isSubseq(a, b) {
+  let i = 0;
+  for (let j = 0; j < b.length && i < a.length; j++) if (a[i] === b[j]) i++;
+  return i === a.length;
+}
+/* Suma lo nuevo al registro. Nunca quita nada.
+   - Renglón que solo creció (ej. "Hol" → "Hola"): se actualiza.
+   - Renglón al que le borraste algo: se queda la versión completa.
+   - Renglón nuevo: se agrega en su lugar. */
+function mergeRecord(entries, tokens) {
+  const arr = entries.slice();
+  const cur = new Set(tokens);
+  let changed = false, prev = -1;
+  for (const tk of tokens) {
+    let idx = arr.indexOf(tk);
+    if (idx === -1 && tk[0] !== REC_IMG) {
+      const grown = arr.findIndex(r => r[0] !== REC_IMG && !cur.has(r) && r.length < tk.length && isSubseq(r, tk));
+      if (grown !== -1) { arr[grown] = tk; idx = grown; changed = true; }
+      else if (arr.some(r => r[0] !== REC_IMG && !cur.has(r) && r.length > tk.length && isSubseq(tk, r))) continue;
+    }
+    if (idx === -1) {
+      idx = prev + 1;
+      while (idx < arr.length && !cur.has(arr[idx])) idx++;   // lo nuevo va después de lo borrado
+      arr.splice(idx, 0, tk); changed = true;
+    }
+    prev = idx;
+  }
+  if (!changed) return null;
+  return arr.slice(0, MAX_REC);
+}
+
 async function loadData() {
   if (FS) {
     try {
@@ -456,6 +530,9 @@ export default function App() {
   const notesRef = useRef(notes);
   notesRef.current = notes;
   const openedRef = useRef(null);                      // cómo estaba la nota al abrirla
+  const recCache = useRef({});                         // registro de cada nota (en memoria)
+  const recTimers = useRef({});
+  const [recEntries, setRecEntries] = useState([]);    // registro que se está mirando
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
   const webRef = useRef(null);
@@ -528,7 +605,6 @@ export default function App() {
 
   function closeEditor() {
     const id = currentId;
-    const opened = openedRef.current;          // cómo estaba al abrirla (se guarda antes de cerrar)
     const finish = () => {
       // Si la nota quedó vacía, se descarta
       setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n))));
@@ -538,7 +614,7 @@ export default function App() {
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
       setHistOpen(false); setHistView(null);
-      setTimeout(() => saveVersionIfChanged(id, opened), 400);
+      setTimeout(() => { updateRecord(notesRef.current.find(x => x.id === id)); flushRecord(id); }, 400);
     };
     // Primero se guarda lo último que escribiste en el editor
     if (Platform.OS === 'web') {
@@ -586,21 +662,65 @@ export default function App() {
     try { await saveHistory(id, next); } catch (e) { showToast('No se pudo guardar el historial'); }
     return next;
   }
-  async function saveVersionIfChanged(id, opened) {
-    const n = notesRef.current.find(x => x.id === id);
-    if (!n || !opened || opened.id !== id || isEmpty(n)) return;
-    const now = versionOf(n);
-    if (sameVersion(now, opened.v)) return;              // no cambió nada
-    const list = await loadHistory(id);
-    if (!list.length && !isEmpty({ ...n, ...opened.v, hasWall: false, ink: opened.v.ink })) {
-      await addVersion(id, opened.v);                    // la primera vez, guarda cómo estaba antes
-    }
-    await addVersion(id, now);
+  /* ---------- Registro (todo lo que se escribe, nunca lo borrado) ---------- */
+  function updateRecord(n) {
+    if (!n) return;
+    const cache = recCache.current;
+    if (!cache[n.id]) return;                            // todavía cargando
+    const next = mergeRecord(cache[n.id].e, noteTokens(n));
+    if (!next) return;
+    cache[n.id] = { e: next, at: Date.now() };
+    clearTimeout(recTimers.current[n.id]);
+    recTimers.current[n.id] = setTimeout(() => {
+      delete recTimers.current[n.id];
+      saveRecord(n.id, cache[n.id]).catch(() => {});
+    }, 1500);
+  }
+  function flushRecord(id) {
+    if (!recTimers.current[id]) return;
+    clearTimeout(recTimers.current[id]);
+    delete recTimers.current[id];
+    if (recCache.current[id]) saveRecord(id, recCache.current[id]).catch(() => {});
+  }
+  function openRecord() {
+    const r = recCache.current[current.id];
+    setRecEntries(r ? r.e : []);
+    setHistView({ rec: true });
+  }
+  function recordToHtml(entries) {
+    const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const title = (current.title || '').trim();
+    return entries.filter(e => e !== title).map(e => (e[0] === REC_IMG
+      ? `<div class="imgwrap" contenteditable="false" data-scale="100" style="width:40%"><img src="${e.slice(1)}"></div>`
+      : `<div>${esc(e)}</div>`)).join('');
+  }
+  function restoreRecord() {
+    const id = current.id;
+    confirmAsk('Poner el registro en la nota',
+      'La nota tendrá todo lo del registro, incluido lo que habías borrado. Lo que tiene ahora se reemplaza.', 'Restaurar', () => {
+        flushEditor(() => {
+          patch(id, { content: recordToHtml(recEntries), html: true });
+          setHistOpen(false); setHistView(null);
+          setEditorRev(r => r + 1);
+          showToast('✓ Registro restaurado en la nota');
+        });
+      });
+  }
+  function clearRecord() {
+    const id = current.id;
+    confirmAsk('Vaciar registro', 'Se borra todo el registro de esta nota. La nota no cambia.', 'Vaciar', () => {
+      const n = notesRef.current.find(x => x.id === id);
+      recCache.current[id] = { e: n ? noteTokens(n) : [], at: Date.now() };
+      saveRecord(id, recCache.current[id]).catch(() => {});
+      setRecEntries(recCache.current[id].e);
+      showToast('Registro vaciado');
+    });
   }
   function openHistory() {
     const id = current.id;
     const show = () => {
       flushEditor(async () => {
+        updateRecord(notesRef.current.find(x => x.id === id));
         setHistView(null);
         setHistList(await loadHistory(id));
         setHistOpen(true);
@@ -622,14 +742,14 @@ export default function App() {
   }
   function restoreVersion(v) {
     const id = current.id;
-    flushEditor(async () => {
-      const n = notesRef.current.find(x => x.id === id);
-      if (n) await addVersion(id, versionOf(n));          // así puedes volver a como estaba
-      patch(id, { title: v.title, titleHtml: v.titleHtml, content: v.content, html: v.html, ...(v.ink ? { ink: v.ink } : {}) });
-      openedRef.current = { id, v: versionOf({ ...n, ...v }) };
-      setHistOpen(false); setHistView(null);
-      setEditorRev(r => r + 1);                            // recargar el editor con la versión
-      showToast('✓ Versión restaurada');
+    confirmAsk('Restaurar versión', 'La nota volverá a como estaba en esta versión. Lo que escribiste queda en el Registro.', 'Restaurar', () => {
+      flushEditor(() => {
+        updateRecord(notesRef.current.find(x => x.id === id));
+        patch(id, { title: v.title, titleHtml: v.titleHtml, content: v.content, html: v.html, ...(v.ink ? { ink: v.ink } : {}) });
+        setHistOpen(false); setHistView(null);
+        setEditorRev(r => r + 1);                          // recargar el editor con la versión
+        showToast('✓ Versión restaurada');
+      });
     });
   }
   function deleteVersion(v) {
@@ -682,6 +802,7 @@ export default function App() {
       setNotes(ns => ns.filter(n => n.id !== id));
       saveWallpaper(null, id).catch(() => {});
       saveHistory(id, []).catch(() => {});
+      saveRecord(id, null).catch(() => {}); delete recCache.current[id];
       setCurrentId(null);
       showToast('Nota eliminada');
     });
@@ -734,14 +855,22 @@ export default function App() {
     const n = notesRef.current.find(x => x.id === currentId);
     openedRef.current = n ? { id: n.id, v: versionOf(n) } : null;
     setUndoState({ canUndo: false, canRedo: false });
+    if (n && !recCache.current[n.id]) {
+      const id = n.id;
+      loadRecord(id).then(r => {
+        if (recCache.current[id]) return;
+        recCache.current[id] = r && r.e ? r : { e: [], at: 0 };
+        updateRecord(notesRef.current.find(x => x.id === id));
+      });
+    }
   }, [currentId]);
 
-  // Si sales de la app con una nota abierta, también se guarda una versión
+  // Si sales de la app con una nota abierta, se guarda el registro
   useEffect(() => {
     const sub = AppState.addEventListener('change', st => {
       if (st === 'active' || !currentId) return;
-      const id = currentId, opened = openedRef.current;
-      flushEditor(() => saveVersionIfChanged(id, opened));
+      const id = currentId;
+      flushEditor(() => { updateRecord(notesRef.current.find(x => x.id === id)); flushRecord(id); });
     });
     return () => sub.remove();
   }, [currentId]);
@@ -868,6 +997,8 @@ export default function App() {
       const m = JSON.parse(data);
       if (m.type === 'change' && m.id) {
         patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) });
+        const base = notesRef.current.find(x => x.id === m.id) || {};
+        updateRecord({ ...base, id: m.id, title: m.title || '', content: m.html, html: true });
       }
       if (m.type === 'crop') setCropOpen(!!m.open);
       if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
@@ -1240,15 +1371,30 @@ export default function App() {
                       </TouchableOpacity>
                     </View>
                     <Text style={[s.wallHint, { marginTop: 6 }]}>
-                      Se guarda una versión cada vez que sales de la nota después de cambiarla. Toca una para verla o restaurarla.
+                      El Registro guarda solo todo lo que escribes, aunque lo borres. Las versiones se guardan cuando tú quieras.
                     </Text>
+                    <TouchableOpacity onPress={openRecord} activeOpacity={0.7}>
+                      <Glass t={c} radius={18} style={{ marginBottom: 12 }} inner={s.histRow}>
+                        <View style={[s.recIcon, { backgroundColor: c.text }]}>
+                          <Feather name="book-open" size={18} color={c.inv} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.recTitle}>Registro</Text>
+                          <Text style={s.histDate}>
+                            {((recCache.current[current.id] || {}).e || []).length} renglón(es) · se actualiza solo
+                          </Text>
+                        </View>
+                        <Feather name="chevron-right" size={18} color={c.muted} />
+                      </Glass>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={saveVersionNow} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="save" size={18} color={c.inv} />
                       <Text style={[s.wallBtnText, { color: c.inv }]}>Guardar versión ahora</Text>
                     </TouchableOpacity>
-                    <ScrollView style={{ maxHeight: 340, marginTop: 12 }}>
+                    <Text style={[s.sideHeaderText, { marginTop: 16, marginBottom: 8, marginLeft: 4 }]}>VERSIONES GUARDADAS</Text>
+                    <ScrollView style={{ maxHeight: 260 }}>
                       {histList.length === 0 && (
-                        <Text style={[s.emptyText, { paddingVertical: 24 }]}>Todavía no hay versiones guardadas.</Text>
+                        <Text style={[s.emptyText, { paddingVertical: 16 }]}>Toca "Guardar versión ahora" para guardar una copia exacta de la nota.</Text>
                       )}
                       {histList.map((v, i) => (
                         <TouchableOpacity key={v.at} onPress={() => setHistView(v)} activeOpacity={0.7}>
@@ -1271,6 +1417,29 @@ export default function App() {
                         <View style={[s.toggleKnob, { backgroundColor: current.histLocked ? c.inv : c.text },
                           current.histLocked && { alignSelf: 'flex-end' }]} />
                       </View>
+                    </TouchableOpacity>
+                  </>
+                ) : histView.rec ? (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity onPress={() => setHistView(null)} hitSlop={10}>
+                        <Feather name="arrow-left" size={22} color={c.text} />
+                      </TouchableOpacity>
+                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>Registro</Text>
+                      <TouchableOpacity onPress={clearRecord} hitSlop={10}>
+                        <Feather name="trash-2" size={20} color="#e53935" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>Todo lo que has escrito en esta nota, incluso lo que borraste.</Text>
+                    <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
+                      {recEntries.length === 0 && <Text style={[s.emptyText, { paddingVertical: 16 }]}>El registro está vacío.</Text>}
+                      {recEntries.map((e, i) => (e[0] === REC_IMG
+                        ? <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />
+                        : <Text key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
+                    </ScrollView>
+                    <TouchableOpacity onPress={restoreRecord} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
+                      <Feather name="rotate-ccw" size={18} color={c.inv} />
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>Poner todo en la nota</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -1299,7 +1468,7 @@ export default function App() {
                       <Text style={[s.wallBtnText, { color: c.inv }]}>Restaurar esta versión</Text>
                     </TouchableOpacity>
                     <Text style={[s.wallHint, { textAlign: 'center', marginTop: 10, marginBottom: 0 }]}>
-                      Lo que tienes ahora se guarda en el historial, así puedes volver.
+                      Lo que tienes ahora queda guardado en el Registro.
                     </Text>
                   </>
                 )}
@@ -1638,6 +1807,8 @@ function makeStyles(c) {
     undoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, height: 44 },
     undoBtn: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
     histLockBadge: { position: 'absolute', right: 8, bottom: 9 },
+    recIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    recTitle: { fontSize: 16, fontWeight: '700', color: c.text },
     histRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
     histDate: { fontSize: 13, color: c.muted },
     histPrev: { fontSize: 15, color: c.text, marginTop: 2 },
