@@ -80,6 +80,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .chip{flex:none;min-width:46px;height:36px;border-radius:18px;border:1px solid ${c.border};background:transparent;
         color:${c.text};font-size:15px;font-variant-numeric:tabular-nums}
   .chip.on{background:linear-gradient(135deg,#f39c12,#ff5e3a);color:#fff;border-color:transparent}
+  .ctabs{display:flex;gap:4px;padding:3px;border-radius:16px;background:rgba(127,127,127,.18);text-transform:none;letter-spacing:0}
+  .ctab{border:none;background:none;color:${c.text};font-size:14px;font-weight:600;padding:6px 14px;border-radius:13px}
+  .ctab.on{background:${c.text};color:${c.inv}}
+  #colorPanel #ctitle{display:none}
+  body.drawing #colorPanel #ctitle{display:inline}
+  body.drawing #colorPanel .ctabs{display:none}
+  #olNone{display:none;margin-top:8px}
+  #colorPanel.olmode #olNone{display:block}
+  body.drawing #colorPanel #olNone{display:none}
   .cwrap{position:relative;width:220px;height:220px;margin:4px auto 10px;touch-action:none}
   #wheel{width:220px;height:220px;border-radius:50%;display:block;touch-action:none;
          box-shadow:0 4px 18px rgba(0,0,0,.25)}
@@ -204,7 +213,6 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <button class="db" data-cmd="italic"><i style="font-family:Georgia,serif">I</i></button>
   <button class="db" data-cmd="underline"><u>U</u></button>
   <button class="db" data-act="hl"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
-  <button class="db" data-act="ol"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19" rx="5"/><polyline points="7.5 17 12 7 16.5 17"/><line x1="9.2" y1="13.5" x2="14.8" y2="13.5"/></svg></button>
  </div>
  <div class="drow">
   <button class="db" data-list="ul"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg></button>
@@ -247,7 +255,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Panel de colores -->
 <div class="panel" id="colorPanel">
-  <div class="ptitle"><span>Color de letra</span><button class="pclose" data-close="1">Listo</button></div>
+  <div class="ptitle">
+    <span id="ctitle">Color del lápiz</span>
+    <div class="ctabs" id="ctabs">
+      <button class="ctab on" data-ctab="text">Letra</button>
+      <button class="ctab" data-ctab="ol">Contorno</button>
+    </div>
+    <button class="pclose" data-close="1">Listo</button>
+  </div>
   <div class="cwrap" id="cwrap">
     <canvas id="wheel" width="440" height="440"></canvas>
     <div id="wheelShade"></div>
@@ -267,6 +282,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     <button class="sw" data-color="#000000" style="background:#000000"></button>
     <span class="clabel" id="chex"></span>
   </div>
+  <button class="fxNone" id="olNone">Quitar contorno</button>
 </div>
 
 <!-- Barra de opciones de foto -->
@@ -577,7 +593,27 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   });
 
   /* ---------- Cambiar color ---------- */
+  var cmode = 'text', lastOutline = '#000000';
+  function setCMode(m){
+    cmode = m;
+    colorPanel.classList.toggle('olmode', m === 'ol');
+    colorPanel.querySelectorAll('.ctab').forEach(function(b){ b.classList.toggle('on', b.dataset.ctab === m); });
+    colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.remove('on'); });
+    syncWheel(m === 'ol' ? lastOutline : getComputedStyle(colorDot).backgroundColor);
+  }
+  $('ctabs').addEventListener('mousedown', function(e){ e.preventDefault(); });
+  $('ctabs').addEventListener('click', function(e){
+    var b = e.target.closest('.ctab');
+    if (b) setCMode(b.dataset.ctab);
+  });
+  $('olNone').addEventListener('mousedown', function(e){ e.preventDefault(); });
+  $('olNone').addEventListener('click', function(){ applyOutline(null); });
   function applyColor(col, quiet){
+    if (!drawing && cmode === 'ol') {   // pestaña Contorno: color del borde de las letras
+      lastOutline = col;
+      applyOutline(col);
+      return;
+    }
     if (drawing) {                      // en modo dibujo: color del lápiz
       penColor = col;
       $('penDot').style.background = penColor;
@@ -785,7 +821,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     if (p === colorPanel) {
       syncWheel(drawing ? penColor : getComputedStyle(colorDot).backgroundColor);
-      p.querySelector('.ptitle span').textContent = drawing ? 'Color del lápiz' : 'Color de letra';
+      if (drawing) cmode = 'text';
+      else setCMode('text');
     }
   }
   document.querySelectorAll('[data-close]').forEach(function(b){ b.addEventListener('click', closePanels); });
