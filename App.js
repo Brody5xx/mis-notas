@@ -144,6 +144,41 @@ async function saveWallpaper(data, id) {
   else await AsyncStorage.removeItem(wallKey(id));
 }
 
+/* Historial de versiones: un archivo por nota (no hace pesado el archivo de notas) */
+const HIST_KEY = 'misnotas_hist';
+const MAX_VERSIONS = 20;
+function histFile(id) { return new FS.File(FS.Paths.document, `historial_${id}.json`); }
+async function loadHistory(id) {
+  try {
+    if (FS) { const f = histFile(id); if (f.exists) return JSON.parse(await f.text()); return []; }
+    const raw = await AsyncStorage.getItem(`${HIST_KEY}_${id}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+async function saveHistory(id, list) {
+  const str = JSON.stringify(list);
+  if (FS) {
+    try {
+      const f = histFile(id);
+      if (!list.length) { if (f.exists) f.delete(); return; }
+      if (!f.exists) f.create();
+      f.write(str);
+      return;
+    } catch (e) {}
+  }
+  if (list.length) await AsyncStorage.setItem(`${HIST_KEY}_${id}`, str);
+  else await AsyncStorage.removeItem(`${HIST_KEY}_${id}`);
+}
+/* Lo que se guarda de una nota en cada versión */
+function versionOf(n, at) {
+  return { at: at || Date.now(), title: n.title || '', titleHtml: n.titleHtml || '',
+           content: n.content || '', html: !!n.html, ink: n.ink || null };
+}
+function sameVersion(a, b) {
+  return !!a && !!b && a.title === b.title && a.titleHtml === b.titleHtml && a.content === b.content &&
+    JSON.stringify(a.ink || null) === JSON.stringify(b.ink || null);
+}
+
 async function loadData() {
   if (FS) {
     try {
@@ -413,6 +448,14 @@ export default function App() {
   const [pinPad, setPinPad] = useState(null);          // teclado del PIN
   const [pinEntry, setPinEntry] = useState('');
   const pinOkRef = useRef(null);
+  const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
+  const [histOpen, setHistOpen] = useState(false);     // ventana del historial
+  const [histList, setHistList] = useState([]);        // versiones de la nota abierta
+  const [histView, setHistView] = useState(null);      // versión que se está mirando
+  const [editorRev, setEditorRev] = useState(0);       // para recargar el editor al restaurar
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const openedRef = useRef(null);                      // cómo estaba la nota al abrirla
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
   const webRef = useRef(null);
@@ -493,6 +536,8 @@ export default function App() {
       setTitleColorOpen(false);
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
+      setHistOpen(false); setHistView(null);
+      setTimeout(() => saveVersionIfChanged(id), 400);
     };
     // Primero se guarda lo último que escribiste en el editor
     if (Platform.OS === 'web') {
@@ -507,6 +552,105 @@ export default function App() {
     } else {
       finish();
     }
+  }
+
+  /* ---------- Deshacer / Rehacer (los hace el editor) ---------- */
+  function callEditor(fn) {
+    if (Platform.OS === 'web') {
+      try { const w = iframeRef.current && iframeRef.current.contentWindow; if (w && w[fn]) w[fn](); } catch (e) {}
+    } else if (webRef.current) {
+      webRef.current.injectJavaScript(`window.${fn} && window.${fn}(); true;`);
+    }
+  }
+
+  /* Guarda lo último que escribiste y luego hace "after" */
+  function flushEditor(after) {
+    if (Platform.OS === 'web') {
+      try {
+        const r = iframeRef.current && iframeRef.current.contentWindow.getHtml();
+        if (r && currentId) patch(currentId, { content: r.html, html: true, title: r.title, titleHtml: r.titleHtml, ...(r.ink ? { ink: r.ink } : {}) });
+      } catch (e) {}
+      setTimeout(after, 50);
+    } else {
+      callEditor('flushNow');
+      setTimeout(after, 250);
+    }
+  }
+
+  /* ---------- Historial de versiones ---------- */
+  async function addVersion(id, v) {
+    const list = await loadHistory(id);
+    if (sameVersion(list[0], v)) return list;            // ya está guardada igual
+    const next = [v, ...list].slice(0, MAX_VERSIONS);
+    try { await saveHistory(id, next); } catch (e) { showToast('No se pudo guardar el historial'); }
+    return next;
+  }
+  async function saveVersionIfChanged(id) {
+    const n = notesRef.current.find(x => x.id === id);
+    const opened = openedRef.current;
+    if (!n || !opened || opened.id !== id || isEmpty(n)) return;
+    const now = versionOf(n);
+    if (sameVersion(now, opened.v)) return;              // no cambió nada
+    const list = await loadHistory(id);
+    if (!list.length && !isEmpty({ ...n, ...opened.v, hasWall: false, ink: opened.v.ink })) {
+      await addVersion(id, opened.v);                    // la primera vez, guarda cómo estaba antes
+    }
+    await addVersion(id, now);
+  }
+  function openHistory() {
+    const id = current.id;
+    const show = () => {
+      flushEditor(async () => {
+        setHistView(null);
+        setHistList(await loadHistory(id));
+        setHistOpen(true);
+      });
+    };
+    if (current.histLocked) askPin('unlock', 'Historial protegido', show);
+    else show();
+  }
+  function saveVersionNow() {
+    const id = current.id;
+    flushEditor(async () => {
+      const n = notesRef.current.find(x => x.id === id);
+      if (!n) return;
+      const list = await loadHistory(id);
+      if (sameVersion(list[0], versionOf(n))) { showToast('Esta versión ya está guardada'); return; }
+      setHistList(await addVersion(id, versionOf(n)));
+      showToast('✓ Versión guardada');
+    });
+  }
+  function restoreVersion(v) {
+    const id = current.id;
+    flushEditor(async () => {
+      const n = notesRef.current.find(x => x.id === id);
+      if (n) await addVersion(id, versionOf(n));          // así puedes volver a como estaba
+      patch(id, { title: v.title, titleHtml: v.titleHtml, content: v.content, html: v.html, ...(v.ink ? { ink: v.ink } : {}) });
+      openedRef.current = { id, v: versionOf({ ...n, ...v }) };
+      setHistOpen(false); setHistView(null);
+      setEditorRev(r => r + 1);                            // recargar el editor con la versión
+      showToast('✓ Versión restaurada');
+    });
+  }
+  function deleteVersion(v) {
+    const id = current.id;
+    confirmAsk('Borrar versión', '¿Borrar esta versión del historial?', 'Borrar', async () => {
+      const next = (await loadHistory(id)).filter(x => x.at !== v.at);
+      await saveHistory(id, next);
+      setHistList(next); setHistView(null);
+    });
+  }
+  function toggleHistLock() {
+    const id = current.id;
+    if (current.histLocked) {
+      askPin('unlock', 'Escribe tu PIN para quitar la protección', () => {
+        patch(id, { histLocked: false }, false); showToast('Historial sin PIN');
+      });
+      return;
+    }
+    const lockIt = () => { patch(id, { histLocked: true }, false); showToast('Historial protegido con PIN'); };
+    if (!pinHash) askPin('set1', 'Crea un PIN de 4 números', lockIt);
+    else lockIt();
   }
 
   function toggleFav() {
@@ -537,6 +681,7 @@ export default function App() {
     confirmAsk('Eliminar nota', '¿Eliminar esta nota para siempre? No se puede deshacer.', 'Eliminar', () => {
       setNotes(ns => ns.filter(n => n.id !== id));
       saveWallpaper(null, id).catch(() => {});
+      saveHistory(id, []).catch(() => {});
       setCurrentId(null);
       showToast('Nota eliminada');
     });
@@ -583,6 +728,13 @@ export default function App() {
   }
 
   function openWall(target) { setWallFor(target || null); setWallOpen(true); }
+
+  // Al abrir una nota: recordar cómo estaba (para el historial) y reiniciar deshacer
+  useEffect(() => {
+    const n = notesRef.current.find(x => x.id === currentId);
+    openedRef.current = n ? { id: n.id, v: versionOf(n) } : null;
+    setUndoState({ canUndo: false, canRedo: false });
+  }, [currentId]);
 
   // Al abrir una nota, cargar su fondo propio (si tiene)
   useEffect(() => {
@@ -708,6 +860,7 @@ export default function App() {
         patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) });
       }
       if (m.type === 'crop') setCropOpen(!!m.open);
+      if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
     } catch (e) {}
   }
 
@@ -729,7 +882,7 @@ export default function App() {
       updated: current.updated, editable: !current.deleted, c,
       kind: current.kind, ink: current.ink,
     });
-  }, [currentId, dark, current && current.deleted]);
+  }, [currentId, dark, current && current.deleted, editorRev]);
 
   /* ---------- Botón "atrás" de Android ---------- */
   useEffect(() => {
@@ -739,6 +892,8 @@ export default function App() {
         return true;
       }
       if (pinPad) { setPinPad(null); return true; }
+      if (histView) { setHistView(null); return true; }
+      if (histOpen) { setHistOpen(false); return true; }
       if (folderEdit) { setFolderEdit(null); return true; }
       if (moveOpen) { setMoveOpen(false); return true; }
       if (optsOpen) { setOptsOpen(false); return true; }
@@ -751,7 +906,7 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen]);
+  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView]);
 
   /* ---------- Notas que se muestran ---------- */
   const viewFolder = view.startsWith('f:') ? folders.find(f => f.id === view.slice(2)) : null;
@@ -965,7 +1120,22 @@ export default function App() {
         <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
         <View style={s.topbar}>
           <IconBtn name="arrow-left" onPress={closeEditor} s={s} t={c} />
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            {!inTrash && (
+              <Glass t={c} radius={22} inner={s.undoPill}>
+                <TouchableOpacity onPress={() => callEditor('undoNow')} style={s.undoBtn} activeOpacity={0.6}>
+                  <MaterialCommunityIcons name="undo-variant" size={22} color={c.text} style={!undoState.canUndo && { opacity: 0.35 }} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={openHistory} style={s.undoBtn} activeOpacity={0.6}>
+                  <MaterialCommunityIcons name={current.histLocked ? 'history' : 'history'} size={22} color={c.text} />
+                  {current.histLocked && <Feather name="lock" size={9} color={c.text} style={s.histLockBadge} />}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => callEditor('redoNow')} style={s.undoBtn} activeOpacity={0.6}>
+                  <MaterialCommunityIcons name="redo-variant" size={22} color={c.text} style={!undoState.canRedo && { opacity: 0.35 }} />
+                </TouchableOpacity>
+              </Glass>
+            )}
+          </View>
           {inTrash ? (
             <>
               <IconBtn name="rotate-ccw" onPress={restore} s={s} t={c} />
@@ -973,10 +1143,7 @@ export default function App() {
             </>
           ) : (
             <>
-              <IconBtn set="mci" name={current.pinned ? 'pin' : 'pin-outline'} onPress={togglePin} s={s} t={c} />
-              <IconBtn set="mci" name={current.fav ? 'star' : 'star-outline'} onPress={toggleFav} s={s} t={c} />
               <IconBtn name="image" onPress={() => openWall(current.id)} s={s} t={c} />
-              <IconBtn name="trash-2" onPress={moveToTrash} s={s} t={c} />
               <IconBtn name="more-vertical" onPress={() => setOptsOpen(true)} s={s} t={c} />
             </>
           )}
@@ -1026,6 +1193,15 @@ export default function App() {
             right={<Feather name="chevron-right" size={18} color={c.muted} />} />
           <Row icon={current.locked ? 'unlock' : 'lock'} s={s} t={c}
             label={current.locked ? 'Quitar bloqueo' : 'Bloquear con PIN'} onPress={toggleLock} />
+          <TouchableOpacity onPress={() => { setOptsOpen(false); togglePin(); }} activeOpacity={0.6} style={s.row}>
+            <MaterialCommunityIcons name={current.pinned ? 'pin-off-outline' : 'pin-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
+            <Text style={s.rowText}>{current.pinned ? 'Desfijar' : 'Fijar arriba'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { setOptsOpen(false); toggleFav(); }} activeOpacity={0.6} style={s.row}>
+            <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
+            <Text style={s.rowText}>{current.fav ? 'Quitar de favoritos' : 'Añadir a favoritos'}</Text>
+          </TouchableOpacity>
+          <Row icon="trash-2" label="Mover a la papelera" danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
         </Sheet>
 
         {/* Mover a carpeta */}
@@ -1038,6 +1214,89 @@ export default function App() {
           ))}
           <Row icon="plus" label="Nueva carpeta" s={s} t={c} onPress={() => openFolderEdit(null, current.id)} />
         </Sheet>
+
+        {/* Historial de versiones */}
+        <Modal visible={histOpen} transparent animationType="fade" onRequestClose={() => (histView ? setHistView(null) : setHistOpen(false))}>
+          <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setHistOpen(false)}>
+            <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 440, maxHeight: '88%' }}>
+              <Glass t={c} strong radius={28} inner={{ padding: 18 }}>
+                {!histView ? (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <MaterialCommunityIcons name="history" size={24} color={c.text} />
+                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>Historial</Text>
+                      <TouchableOpacity onPress={() => setHistOpen(false)} hitSlop={10}>
+                        <Feather name="x" size={22} color={c.muted} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[s.wallHint, { marginTop: 6 }]}>
+                      Se guarda una versión cada vez que sales de la nota después de cambiarla. Toca una para verla o restaurarla.
+                    </Text>
+                    <TouchableOpacity onPress={saveVersionNow} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
+                      <Feather name="save" size={18} color={c.inv} />
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>Guardar versión ahora</Text>
+                    </TouchableOpacity>
+                    <ScrollView style={{ maxHeight: 340, marginTop: 12 }}>
+                      {histList.length === 0 && (
+                        <Text style={[s.emptyText, { paddingVertical: 24 }]}>Todavía no hay versiones guardadas.</Text>
+                      )}
+                      {histList.map((v, i) => (
+                        <TouchableOpacity key={v.at} onPress={() => setHistView(v)} activeOpacity={0.7}>
+                          <Glass t={c} radius={16} style={{ marginBottom: 8 }} inner={s.histRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={s.histDate}>{fmtDate(v.at)}{i === 0 ? '  · más reciente' : ''}</Text>
+                              <Text style={s.histPrev} numberOfLines={2}>
+                                {(v.title ? v.title + ' — ' : '') + (toPlain(v) || (v.ink && v.ink.length ? 'Dibujo' : 'Vacía'))}
+                              </Text>
+                            </View>
+                            <Feather name="chevron-right" size={18} color={c.muted} />
+                          </Glass>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <TouchableOpacity onPress={toggleHistLock} style={[s.row, { paddingHorizontal: 4, paddingBottom: 4 }]} activeOpacity={0.7}>
+                      <Feather name={current.histLocked ? 'lock' : 'unlock'} size={18} color={c.text} style={{ marginRight: 12 }} />
+                      <Text style={s.rowText}>{current.histLocked ? 'Historial protegido con PIN' : 'Proteger historial con PIN'}</Text>
+                      <View style={[s.toggle, { borderColor: c.text }, current.histLocked && { backgroundColor: c.text }]}>
+                        <View style={[s.toggleKnob, { backgroundColor: current.histLocked ? c.inv : c.text },
+                          current.histLocked && { alignSelf: 'flex-end' }]} />
+                      </View>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity onPress={() => setHistView(null)} hitSlop={10}>
+                        <Feather name="arrow-left" size={22} color={c.text} />
+                      </TouchableOpacity>
+                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]} numberOfLines={1}>{fmtDate(histView.at)}</Text>
+                      <TouchableOpacity onPress={() => deleteVersion(histView)} hitSlop={10}>
+                        <Feather name="trash-2" size={20} color="#e53935" />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView style={{ maxHeight: 380, marginVertical: 14 }}>
+                      {!!histView.title && <Text style={s.histViewTitle}>{histView.title}</Text>}
+                      {firstImg(histView) && (
+                        <Image source={{ uri: firstImg(histView) }} style={[s.thumb, { height: 140 }]} resizeMode="cover" />
+                      )}
+                      <Text style={s.histViewText}>{toPlain(histView) || ' '}</Text>
+                      {!!(histView.ink && histView.ink.length) && (
+                        <Text style={[s.histDate, { marginTop: 8 }]}>✏️ Incluye {histView.ink.length} trazo(s) de dibujo</Text>
+                      )}
+                    </ScrollView>
+                    <TouchableOpacity onPress={() => restoreVersion(histView)} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
+                      <Feather name="rotate-ccw" size={18} color={c.inv} />
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>Restaurar esta versión</Text>
+                    </TouchableOpacity>
+                    <Text style={[s.wallHint, { textAlign: 'center', marginTop: 10, marginBottom: 0 }]}>
+                      Lo que tienes ahora se guarda en el historial, así puedes volver.
+                    </Text>
+                  </>
+                )}
+              </Glass>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {folderModal}
         {pinModal}
@@ -1366,6 +1625,16 @@ function makeStyles(c) {
     wallTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 4 },
     wallHint: { fontSize: 13, color: c.muted, marginBottom: 14 },
     newScrim: { flex: 1, justifyContent: 'flex-end', padding: 16, paddingBottom: 40 },
+    undoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, height: 44 },
+    undoBtn: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
+    histLockBadge: { position: 'absolute', right: 8, bottom: 9 },
+    histRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+    histDate: { fontSize: 13, color: c.muted },
+    histPrev: { fontSize: 15, color: c.text, marginTop: 2 },
+    histViewTitle: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 8 },
+    histViewText: { fontSize: 16, lineHeight: 23, color: c.text },
+    toggle: { width: 44, height: 26, borderRadius: 13, borderWidth: 2, padding: 2, justifyContent: 'center' },
+    toggleKnob: { width: 18, height: 18, borderRadius: 9 },
     sheetTitle: { fontSize: 13, color: c.muted, letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
     row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20 },
     rowText: { flex: 1, fontSize: 16, color: c.text },

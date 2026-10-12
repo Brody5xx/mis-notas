@@ -357,6 +357,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function changedNow(){
     clearTimeout(sendTimer); dirty = false;
+    record();                                   // guardar el paso para Deshacer
     var p = payload();
     send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink });
     $('meta').textContent = 'Modificado: ' + fmtDate(Date.now());
@@ -1165,7 +1166,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     if (d === 'undo') {
       if (!strokes.length) return;
-      strokes.pop(); redraw(); changedNow(); showTip('Deshecho');
+      strokes.pop(); redraw(); changedNow(); showTip('Trazo borrado');
       return;
     }
     if (d === 'clear') {
@@ -1326,5 +1327,58 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     target.src = canvasToData(cv, ctx, 0.85);
     window.closeCrop(); changedNow(); showTip('✓ Foto recortada');
   };
+
+  /* =========================================================
+     DESHACER / REHACER: cada cambio (texto, formato, fotos,
+     dibujo) se guarda como un paso. La app llama a undoNow()
+     y redoNow() desde los botones de arriba.
+     ========================================================= */
+  var undoStack = [], redoStack = [], lastSnap = null, restoring = false, MAXSTEPS = 100;
+  function snap(){
+    return { h: cleanHtml(), t: ttl.innerHTML, k: isDraw ? JSON.stringify(strokes) : '' };
+  }
+  function sameSnap(a, b){ return a && b && a.h === b.h && a.t === b.t && a.k === b.k; }
+  function notifyUndo(){ send({ type: 'undo', canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }); }
+  function record(){
+    if (restoring || !lastSnap) return;
+    var s = snap();
+    if (sameSnap(s, lastSnap)) return;
+    undoStack.push(lastSnap);
+    if (undoStack.length > MAXSTEPS) undoStack.shift();
+    lastSnap = s;
+    redoStack = [];
+    notifyUndo();
+  }
+  function applySnap(s){
+    restoring = true;
+    selectImg(null); closePanels();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    window.getSelection().removeAllRanges();
+    saved = null;
+    ed.innerHTML = s.h;
+    ttl.innerHTML = s.t;
+    if (isDraw) { strokes = JSON.parse(s.k || '[]'); redraw(); }
+    changedNow();
+    restoring = false;
+    notifyUndo();
+  }
+  window.undoNow = function(){
+    if (dirty) changedNow();                     // guarda lo último que escribiste
+    if (!undoStack.length) { showTip('No hay nada que deshacer'); return; }
+    redoStack.push(lastSnap);
+    lastSnap = undoStack.pop();
+    applySnap(lastSnap);
+    showTip('↶ Deshecho');
+  };
+  window.redoNow = function(){
+    if (dirty) changedNow();
+    if (!redoStack.length) { showTip('No hay nada que rehacer'); return; }
+    undoStack.push(lastSnap);
+    lastSnap = redoStack.pop();
+    applySnap(lastSnap);
+    showTip('↷ Rehecho');
+  };
+  lastSnap = snap();
+  notifyUndo();
 </script></body></html>`;
 }
