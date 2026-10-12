@@ -80,6 +80,22 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .chip{flex:none;min-width:46px;height:36px;border-radius:18px;border:1px solid ${c.border};background:transparent;
         color:${c.text};font-size:15px;font-variant-numeric:tabular-nums}
   .chip.on{background:linear-gradient(135deg,#f39c12,#ff5e3a);color:#fff;border-color:transparent}
+  .cwrap{position:relative;width:220px;height:220px;margin:4px auto 10px;touch-action:none}
+  #wheel{width:220px;height:220px;border-radius:50%;display:block;touch-action:none;
+         box-shadow:0 4px 18px rgba(0,0,0,.25)}
+  #wheelShade{position:absolute;inset:0;border-radius:50%;background:#000;opacity:0;pointer-events:none}
+  #wheelKnob{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;
+             border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.4);
+             pointer-events:none;left:50%;top:50%}
+  .crow{display:flex;align-items:center;gap:14px;padding:0 4px}
+  #cprev{flex:none;width:40px;height:40px;border-radius:20px;border:2px solid rgba(255,255,255,.8);
+         box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  .cbright{flex:1}
+  #bright{width:100%;height:30px;accent-color:${c.text}}
+  .clabel{font-size:12px;color:${c.muted};letter-spacing:.06em}
+  .cquick{display:flex;align-items:center;gap:12px;padding:10px 4px 0}
+  .cquick .sw{width:32px;height:32px}
+  #chex{margin-left:auto;font-variant-numeric:tabular-nums}
   .sws{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;justify-items:center;padding:4px 0}
   .sw{width:40px;height:40px;border-radius:20px;border:2px solid rgba(255,255,255,.7);padding:0;
       box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .1s}
@@ -232,7 +248,25 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <!-- Panel de colores -->
 <div class="panel" id="colorPanel">
   <div class="ptitle"><span>Color de letra</span><button class="pclose" data-close="1">Listo</button></div>
-  <div class="sws" id="sws">${swatches}</div>
+  <div class="cwrap" id="cwrap">
+    <canvas id="wheel" width="440" height="440"></canvas>
+    <div id="wheelShade"></div>
+    <div id="wheelKnob"></div>
+  </div>
+  <div class="crow">
+    <span id="cprev"></span>
+    <div class="cbright">
+      <span class="clabel">Brillo</span>
+      <input type="range" id="bright" min="0" max="100" value="100">
+    </div>
+  </div>
+  <div class="cquick" id="sws">
+    <button class="sw" data-color="${c.text}" style="background:${c.text}" title="Normal"></button>
+    <button class="sw" data-color="#ffffff" style="background:#ffffff"></button>
+    <button class="sw" data-color="#9e9e9e" style="background:#9e9e9e"></button>
+    <button class="sw" data-color="#000000" style="background:#000000"></button>
+    <span class="clabel" id="chex"></span>
+  </div>
 </div>
 
 <!-- Barra de opciones de foto -->
@@ -543,28 +577,115 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   });
 
   /* ---------- Cambiar color ---------- */
-  $('sws').addEventListener('click', function(e){
-    var sw = e.target.closest('.sw');
-    if (!sw) return;
+  function applyColor(col, quiet){
     if (drawing) {                      // en modo dibujo: color del lápiz
-      penColor = sw.dataset.color;
+      penColor = col;
       $('penDot').style.background = penColor;
       if (tool === 'eraser') setTool('pen');
-      colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
-      closePanels();
       return;
     }
     restore();
-    if (!collapsedSpan({ color: sw.dataset.color })) {
+    if (!collapsedSpan({ color: col })) {
       document.execCommand('styleWithCSS', false, true);
-      document.execCommand('foreColor', false, sw.dataset.color);
+      document.execCommand('foreColor', false, col);
     }
     keepSelection();
     changedNow();
-    colorDot.style.background = sw.dataset.color;
+    colorDot.style.background = col;
+    if (!quiet) showTip('✓ Color aplicado');
+  }
+  $('sws').addEventListener('click', function(e){
+    var sw = e.target.closest('.sw');
+    if (!sw) return;
     colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
-    showTip('✓ Color aplicado');
+    syncWheel(sw.dataset.color);
+    applyColor(sw.dataset.color);
   });
+
+  /* ---------- Rueda de colores ---------- */
+  var wheel = $('wheel'), knob = $('wheelKnob'), shade = $('wheelShade');
+  var bright = $('bright'), cprev = $('cprev'), chex = $('chex');
+  var HSV = { h: 0, s: 0, v: 1 }, wheelDrawn = false;
+  function hsvToHex(h, s, v){
+    var f = function(n){ var k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    var to = function(x){ var t = Math.round(x * 255).toString(16); return t.length < 2 ? '0' + t : t; };
+    return '#' + to(f(5)) + to(f(3)) + to(f(1));
+  }
+  function cssToHsv(css){
+    var m = String(css || '').match(/\d+(\.\d+)?/g);
+    var r, g, b;
+    if (/^#([0-9a-f]{6})$/i.test(css)) { var n = parseInt(css.slice(1), 16); r = n >> 16; g = (n >> 8) & 255; b = n & 255; }
+    else if (m && m.length >= 3) { r = +m[0]; g = +m[1]; b = +m[2]; }
+    else return null;
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+    if (d) {
+      if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return { h: h, s: mx ? d / mx : 0, v: mx };
+  }
+  function drawWheel(){
+    if (wheelDrawn) return;
+    var ctx = wheel.getContext('2d'), N = wheel.width, R = N / 2;
+    var img = ctx.createImageData(N, N), d = img.data;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      var dx = x - R, dy = y - R, r = Math.sqrt(dx * dx + dy * dy), i = (y * N + x) * 4;
+      if (r > R) { d[i + 3] = 0; continue; }
+      var h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, s = r / R;
+      var hex = hsvToHex(h, s, 1), n = parseInt(hex.slice(1), 16);
+      d[i] = n >> 16; d[i + 1] = (n >> 8) & 255; d[i + 2] = n & 255;
+      d[i + 3] = r > R - 1.5 ? Math.round(255 * (R - r) / 1.5) : 255;   // borde suave
+    }
+    ctx.putImageData(img, 0, 0);
+    wheelDrawn = true;
+  }
+  function showWheel(){
+    var hex = hsvToHex(HSV.h, HSV.s, HSV.v);
+    var a = HSV.h * Math.PI / 180, rr = HSV.s * 110;
+    knob.style.left = (110 + Math.cos(a) * rr) + 'px';
+    knob.style.top = (110 + Math.sin(a) * rr) + 'px';
+    knob.style.background = hex;
+    shade.style.opacity = String(1 - HSV.v);
+    bright.value = Math.round(HSV.v * 100);
+    cprev.style.background = hex;
+    chex.textContent = hex.toUpperCase();
+    return hex;
+  }
+  function syncWheel(css){
+    drawWheel();
+    var hsv = cssToHsv(css);
+    if (hsv) HSV = hsv;
+    showWheel();
+  }
+  var wdrag = false;
+  function wheelPick(e){
+    var r = wheel.getBoundingClientRect();
+    var dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
+    var R = r.width / 2, dist = Math.min(Math.sqrt(dx * dx + dy * dy), R);
+    HSV.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    HSV.s = dist / R;
+    if (HSV.v < 0.15) HSV.v = 1;            // si estaba muy oscuro, vuelve a mostrar el color
+    colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.remove('on'); });
+    return showWheel();
+  }
+  $('cwrap').addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    wdrag = true;
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    wheelPick(e);
+  });
+  $('cwrap').addEventListener('mousedown', function(e){ e.preventDefault(); });
+  $('cwrap').addEventListener('pointermove', function(e){ if (wdrag) wheelPick(e); });
+  function wheelEnd(e){
+    if (!wdrag) return;
+    wdrag = false;
+    applyColor(wheelPick(e));
+  }
+  $('cwrap').addEventListener('pointerup', wheelEnd);
+  $('cwrap').addEventListener('pointercancel', function(){ wdrag = false; });
+  bright.addEventListener('input', function(){ HSV.v = bright.value / 100; showWheel(); });
+  bright.addEventListener('change', function(){ applyColor(showWheel(), true); });
 
   /* ---------- Resaltador y contorno de letras ---------- */
   var fxPanel = $('fxPanel'), fxMode = 'hl';
@@ -661,6 +782,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (p === sizePanel) {
       var v = +sizeNum.textContent || 17;
       range.value = v; showSizePreview(v);
+    }
+    if (p === colorPanel) {
+      syncWheel(drawing ? penColor : getComputedStyle(colorDot).backgroundColor);
+      p.querySelector('.ptitle span').textContent = drawing ? 'Color del lápiz' : 'Color de letra';
     }
   }
   document.querySelectorAll('[data-close]').forEach(function(b){ b.addEventListener('click', closePanels); });
