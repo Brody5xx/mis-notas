@@ -1576,7 +1576,7 @@ export default function App() {
                   <View style={{ flexDirection: 'row', gap: 4 }}>
                     {item.pinned && <MaterialCommunityIcons name="pin" size={14} color={c.muted} />}
                     {item.locked && <Feather name="lock" size={13} color={c.muted} />}
-                    {item.kind === 'draw' && <Feather name="edit-2" size={13} color={c.muted} />}
+                    {!!(item.ink && item.ink.length) && <Feather name="edit-2" size={13} color={c.muted} />}
                     {item.fav && <MaterialCommunityIcons name="star" size={14} color={c.muted} />}
                   </View>
                 </View>
@@ -1608,7 +1608,7 @@ export default function App() {
 
       {/* Botón flotante con brillo */}
       {view !== 'trash' && (
-        <TouchableOpacity style={s.fabWrap} onPress={() => setNewOpen(true)} activeOpacity={0.85}>
+        <TouchableOpacity style={s.fabWrap} onPress={() => newNote('text')} activeOpacity={0.85}>
           <View style={s.fab}>
             <Feather name="edit-3" size={24} color={c.inv} />
           </View>
@@ -1719,31 +1719,6 @@ export default function App() {
       {folderModal}
       {pinModal}
 
-      {/* Catálogo: tipo de nota nueva */}
-      <Modal visible={newOpen} transparent animationType="fade" onRequestClose={() => setNewOpen(false)}>
-        <Pressable style={[s.newScrim, { backgroundColor: c.scrim }]} onPress={() => setNewOpen(false)}>
-          <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
-            <Text style={s.newTitle}>Nueva nota</Text>
-            {[
-              ['text', 'file-text', 'Nota', 'Texto, fotos y formato.'],
-              ['draw', 'edit-2', 'Nota con dibujo', 'Escribe y dibuja sobre un fondo. Ideal para estudiar.'],
-            ].map(([kind, icon, title, desc]) => (
-              <TouchableOpacity key={kind} activeOpacity={0.8} onPress={() => newNote(kind)} style={{ marginBottom: 12 }}>
-                <Glass t={c} strong radius={24} inner={s.newCard}>
-                  <View style={[s.newIcon, { backgroundColor: c.text }]}>
-                    <Feather name={icon} size={22} color={c.inv} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.newCardTitle}>{title}</Text>
-                    <Text style={s.newCardDesc}>{desc}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color={c.muted} />
-                </Glass>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {toast}
     </View>

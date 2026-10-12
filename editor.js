@@ -1077,7 +1077,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
      Los trazos se guardan como líneas (no como foto), así se ven
      nítidos en cualquier pantalla.
      ========================================================= */
-  var isDraw = ${kind === 'draw' ? 'true' : 'false'};
+  var isDraw = true;                    // todas las notas permiten dibujar
   var strokes = ${safeInk};
   var ink = $('ink'), live = $('live');
   var ictx = ink.getContext('2d'), lctx = live.getContext('2d');
@@ -1085,7 +1085,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var PEN = [2, 4, 8];
   var drawdock = $('drawdock');
 
-  if (isDraw) { document.body.classList.add('isdraw'); ed.style.minHeight = '140vh'; }
+  document.body.classList.add('isdraw');
+  if (strokes.length) ed.style.minHeight = '140vh';
 
   function inkW(){ return document.documentElement.clientWidth; }
   function sizeInk(){
@@ -1127,6 +1128,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
 
   function setDrawMode(on){
+    if (on && !ed.style.minHeight) ed.style.minHeight = '140vh';   // espacio para dibujar
     drawing = on;
     document.body.classList.toggle('drawing', on);
     setTimeout(placeDock, 0);
@@ -1255,7 +1257,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     window.addEventListener('load', sizeInk);
     Array.prototype.forEach.call(document.images, function(im){ if (!im.complete) im.addEventListener('load', sizeInk); });
   }
-  if (editable && !isDraw && !plainTitle() && !ed.textContent.trim() && !ed.querySelector('img')) {
+  if (editable && !strokes.length && !plainTitle() && !ed.textContent.trim() && !ed.querySelector('img')) {
     setTimeout(function(){ cur = ttl; ttl.focus(); }, 300);
   }
 
