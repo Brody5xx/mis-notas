@@ -81,7 +81,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         color:${c.text};font-size:15px;font-variant-numeric:tabular-nums}
   .chip.on{background:linear-gradient(135deg,#f39c12,#ff5e3a);color:#fff;border-color:transparent}
   .ctabs{display:flex;gap:4px;padding:3px;border-radius:16px;background:rgba(127,127,127,.18);text-transform:none;letter-spacing:0}
-  .ctab{border:none;background:none;color:${c.text};font-size:14px;font-weight:600;padding:6px 14px;border-radius:13px}
+  .ctab{border:none;background:none;color:${c.text};padding:4px 14px;border-radius:13px;line-height:0}
+  .ctab svg{display:block}
   .ctab.on{background:${c.text};color:${c.inv}}
   #colorPanel #ctitle{display:none}
   body.drawing #colorPanel #ctitle{display:inline}
@@ -258,8 +259,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <div class="ptitle">
     <span id="ctitle">Color del lápiz</span>
     <div class="ctabs" id="ctabs">
-      <button class="ctab on" data-ctab="text">Letra</button>
-      <button class="ctab" data-ctab="ol">Contorno</button>
+      <button class="ctab on" data-ctab="text" title="Color de letra"><svg width="26" height="26" viewBox="0 0 24 24"><defs><linearGradient id="rb" x1="0" x2="1"><stop offset="0" stop-color="#ff3b30"/><stop offset=".25" stop-color="#ffcc00"/><stop offset=".5" stop-color="#34c759"/><stop offset=".75" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs><text x="12" y="16.5" text-anchor="middle" font-size="16" font-weight="800" font-family="Arial,sans-serif" fill="currentColor">A</text><rect x="4" y="19" width="16" height="3.2" rx="1.6" fill="url(#rb)"/></svg></button>
+      <button class="ctab" data-ctab="ol" title="Contorno de letras"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="12" y="17.3" text-anchor="middle" font-size="15" font-weight="900" font-family="Arial,sans-serif" fill="currentColor" stroke="#ff7a2a" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">A</text></svg></button>
     </div>
     <button class="pclose" data-close="1">Listo</button>
   </div>
