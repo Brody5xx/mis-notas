@@ -363,6 +363,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
     var t = parseFloat(w.style.top) || 0;
     if (t && !w.dataset.y) w.dataset.y = Math.round(t);
+    // El espacio grande de antes se convierte en líneas vacías donde se puede escribir
+    var y0 = +w.dataset.y || 0, LH = lineH();
+    if (y0 < 0) w.dataset.y = 0;
+    else if (y0 >= LH) { var k = Math.floor(y0 / LH); setSpacers(w, spacersAbove(w) + k); w.dataset.y = Math.round(y0 - k * LH); }
     if (w.style.top || w.dataset.y || w.dataset.rot) {
       var fix = function(){ applyVMargins(w); };
       fix();
@@ -1088,6 +1092,28 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     w.style.marginTop = Math.round(10 + extra + y) + 'px';
     w.style.marginBottom = Math.round(10 + extra) + 'px';
   }
+  /* ---------- Líneas vacías de verdad encima de la foto ----------
+     Al bajar una foto se crean líneas vacías arriba (puedes escribir en ellas);
+     al subirla se quitan. Solo queda un pequeño espacio menor a una línea. */
+  function isEmptyLine(el){
+    return !!el && el.nodeType === 1 && !el.classList.contains('imgwrap') && !/^(UL|OL|LI)$/.test(el.tagName) &&
+           !el.querySelector('img') && !el.textContent.replace(/[\s\u200B]/g, '');
+  }
+  function lineH(){ return parseFloat(getComputedStyle(ed).lineHeight) || 25; }
+  function spacersAbove(w){ var n = 0, p = w.previousElementSibling; while (isEmptyLine(p)) { n++; p = p.previousElementSibling; } return n; }
+  function setSpacers(w, k){
+    var cur = spacersAbove(w);
+    while (cur < k) { var d = document.createElement('div'); d.appendChild(document.createElement('br')); w.parentNode.insertBefore(d, w); cur++; }
+    while (cur > k) { w.parentNode.removeChild(w.previousElementSibling); cur--; }
+  }
+  /* Pone la foto a "gap" px por debajo de lo que tiene arriba: líneas enteras + un resto pequeño */
+  function setGapAbove(w, gap){
+    var LH = lineH(); gap = Math.max(0, gap);
+    var k = Math.floor(gap / LH), rem = Math.round(gap - k * LH);
+    setSpacers(w, k);
+    return rem;
+  }
+
   /* Siempre debe haber una línea para escribir justo debajo de cada foto */
   function ensureLines(){
     var ws = ed.querySelectorAll('.imgwrap');
@@ -1177,11 +1203,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var wp = widthPct(w);
     x = Math.max(0, Math.min(100 - wp, x));
     // Puede subir solo hasta tocar lo que está arriba (no tapa el texto)
-    //  (las líneas vacías de arriba sí las puede usar)
-    var prev = w.previousElementSibling, natTop = w.offsetTop - (+w.dataset.y || 0);
-    while (prev && !prev.classList.contains('imgwrap') && !prev.textContent.replace(/[\s\u200B]/g, '') && !prev.querySelector('img')) prev = prev.previousElementSibling;
-    var prevBottom = prev ? prev.offsetTop + prev.offsetHeight : ed.offsetTop;
-    var minY = -(natTop - prevBottom) + 10;
+    var minY = 0;
     y = Math.round(Math.max(minY, y));
     w.dataset.x = x.toFixed(1);
     w.dataset.y = y;
@@ -1298,7 +1320,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     e.preventDefault();
     mdrag = { w: w, id: e.pointerId, sx: e.clientX, sy: e.clientY, x: posX(w), y: posY(w),
               x0: w.dataset.ox != null ? +w.dataset.ox : posX(w), y0: w.dataset.oy != null ? +w.dataset.oy : 0,
-              cw: contentWidth(), moved: false };
+              cw: contentWidth(), moved: false, gap0: spacersAbove(w) * lineH() + posY(w) };
     if (w.dataset.ox == null) { w.dataset.ox = mdrag.x.toFixed(1); w.dataset.oy = 0; }   // dónde estaba al principio
     try { w.setPointerCapture(e.pointerId); } catch (_) {}
   });
@@ -1309,17 +1331,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!mdrag.moved) { mdrag.moved = true; anchorBar.classList.remove('show'); rsz.style.display = 'none'; }
     e.preventDefault();
     var w = mdrag.w, wp = widthPct(w), px = mdrag.cw / 100;
-    var nx = mdrag.x + dx / px, ny = mdrag.y + dy, snapX = false, snapY = false;
+    var nx = mdrag.x + dx / px, gap = Math.max(0, mdrag.gap0 + dy), snapX = false, snapY = false;
     // Imán: al centro de la hoja y a la posición de las fotos ancladas
     if (Math.abs(nx + wp / 2 - 50) * px < 8) { nx = 50 - wp / 2; snapX = true; }
     anchoredOthers(w).forEach(function(a){
       if (!snapX && Math.abs(nx - posX(a)) * px < 8) { nx = posX(a); snapX = true; }
-      if (!snapY && Math.abs(ny - posY(a)) < 8) { ny = posY(a); snapY = true; }
     });
-    if (Math.abs(ny) < 6) { ny = 0; snapY = true; }
-    setPos(w, nx, ny);
+    // Imán vertical: justo en una línea (sin resto)
+    var LH = lineH(), restLine = gap % LH;
+    if (restLine < 6) { gap -= restLine; snapY = true; } else if (LH - restLine < 6) { gap += LH - restLine; snapY = true; }
+    var rem = setGapAbove(w, gap);
+    setPos(w, nx, rem);
     showGuides(w, snapX, snapY);
-    var hx = Math.round((posX(w) - mdrag.x0) * px), vy = posY(w) - mdrag.y0;
+    var hx = Math.round((posX(w) - mdrag.x0) * px), vy = Math.round(gap - mdrag.gap0);
     showMv('↔ <b>' + fmtMove(hx, ' px') + '</b> &nbsp; ↕ <b>' + fmtMove(vy, ' px') + '</b>' +
            (getRot(w) ? ' &nbsp; ↻ <b>' + getRot(w) + '°</b>' : ''), true);
   }, { passive: false });
