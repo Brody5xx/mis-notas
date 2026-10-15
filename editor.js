@@ -359,6 +359,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var range = $('range'), sizeNum = $('sizeNum'), sizeBig = $('sizeBig'), sample = $('sample'), colorDot = $('colorDot');
   var saved = null, dirty = false, sendTimer = null;
   ed.innerHTML = ${safeContent};
+  // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
+  Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
+    var t = parseFloat(w.style.top) || 0;
+    if (t && !w.dataset.y) w.dataset.y = Math.round(t);
+    if (w.style.top || w.dataset.y || w.dataset.rot) {
+      var fix = function(){ applyVMargins(w); };
+      fix();
+      var im = w.querySelector('img');
+      if (im && !im.complete) im.addEventListener('load', fix);
+    }
+  });
+  if (editable) ensureLines();
   ttl.innerHTML = ${safeTitle};
   cur = ed;
 
@@ -409,6 +421,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function changedNow(){
     clearTimeout(sendTimer); dirty = false;
+    if (editable) ensureLines();                // línea para escribir debajo de cada foto
     record();                                   // guardar el paso para Deshacer
     var p = payload();
     send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink });
@@ -1059,12 +1072,34 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     return deg;
   }
   /* Al girar, deja espacio arriba y abajo para que no tape lo demás */
-  function fitRotSpace(w){
-    var deg = getRot(w), W = w.offsetWidth, H = w.offsetHeight;
-    if (!deg || !H) { w.style.marginTop = w.style.marginBottom = ''; return; }
-    var a = deg * Math.PI / 180, h2 = Math.abs(W * Math.sin(a)) + Math.abs(H * Math.cos(a));
-    var extra = Math.max(0, (h2 - H) / 2);
-    w.style.marginTop = w.style.marginBottom = Math.round(10 + extra) + 'px';
+  function fitRotSpace(w){ applyVMargins(w); }
+  /* Espacio de arriba y abajo de la foto:
+     - Subir/bajar la foto la mueve DE VERDAD (no solo se ve movida), así la
+       línea de abajo siempre queda pegada debajo de la foto para escribir.
+     - Si está girada, deja el espacio que ocupa al girar. */
+  function applyVMargins(w){
+    var y = +w.dataset.y || 0, deg = getRot(w), extra = 0, W = w.offsetWidth, H = w.offsetHeight;
+    if (deg && H) {
+      var a = deg * Math.PI / 180, h2 = Math.abs(W * Math.sin(a)) + Math.abs(H * Math.cos(a));
+      extra = Math.max(0, (h2 - H) / 2);
+    }
+    w.style.top = '';
+    if (!y && !extra) { w.style.marginTop = w.style.marginBottom = ''; return; }
+    w.style.marginTop = Math.round(10 + extra + y) + 'px';
+    w.style.marginBottom = Math.round(10 + extra) + 'px';
+  }
+  /* Siempre debe haber una línea para escribir justo debajo de cada foto */
+  function ensureLines(){
+    var ws = ed.querySelectorAll('.imgwrap');
+    for (var i = 0; i < ws.length; i++) {
+      var n = ws[i].nextSibling;
+      while (n && n.nodeType === 3 && !n.textContent.replace(/[\s\u200B]/g, '')) n = n.nextSibling;
+      if (!n || (n.nodeType === 1 && n.classList.contains('imgwrap'))) {
+        var line = document.createElement('div');
+        line.appendChild(document.createElement('br'));
+        ws[i].parentNode.insertBefore(line, n || null);
+      }
+    }
   }
   function placeRsz(){
     placeAnchorBar();
@@ -1141,13 +1176,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function setPos(w, x, y){
     var wp = widthPct(w);
     x = Math.max(0, Math.min(100 - wp, x));
-    var minY = -(w.offsetTop - (parseFloat(w.style.top) || 0) - ed.offsetTop);   // que no suba más arriba de la nota
+    // Puede subir solo hasta tocar lo que está arriba (no tapa el texto)
+    //  (las líneas vacías de arriba sí las puede usar)
+    var prev = w.previousElementSibling, natTop = w.offsetTop - (+w.dataset.y || 0);
+    while (prev && !prev.classList.contains('imgwrap') && !prev.textContent.replace(/[\s\u200B]/g, '') && !prev.querySelector('img')) prev = prev.previousElementSibling;
+    var prevBottom = prev ? prev.offsetTop + prev.offsetHeight : ed.offsetTop;
+    var minY = -(natTop - prevBottom) + 10;
     y = Math.round(Math.max(minY, y));
     w.dataset.x = x.toFixed(1);
     w.dataset.y = y;
     w.style.marginLeft = x + '%';
     w.style.marginRight = '0';
-    w.style.top = y ? y + 'px' : '';
+    applyVMargins(w);
   }
   function anchoredOthers(w){
     return Array.prototype.filter.call(ed.querySelectorAll('.imgwrap[data-anchor]'), function(a){ return a !== w; });
