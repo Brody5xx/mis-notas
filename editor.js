@@ -171,8 +171,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #imgbar .drow{display:flex;align-items:center;justify-content:space-between;gap:2px}
   #imgbar .db{height:40px;padding:0 6px;min-width:36px;font-size:14px}
   #imgbar .rotrow{padding:0 2px 2px}
-  #imgbar .presets{justify-content:space-between;padding:2px 0 0;gap:3px}
-  #imgbar .presets button{flex:1;min-width:0;height:30px;border-radius:15px;border:1px solid ${c.border};background:transparent;
+  #imgbar .presets{justify-content:flex-start;padding:2px 0 0;gap:5px;overflow-x:auto;scroll-behavior:smooth;
+          -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #imgbar .presets::-webkit-scrollbar{display:none}
+  #imgbar .presets button{flex:0 0 auto;min-width:48px;height:30px;border-radius:15px;border:1px solid ${c.border};background:transparent;
           color:${c.text};font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;padding:0}
   #imgbar .presets button.on{background:#ff3b30;border-color:#ff3b30;color:#fff}
   #imgbar .db.pm{min-width:34px;width:34px;height:34px;padding:0;border-radius:17px;font-size:22px;font-weight:700;
@@ -364,13 +366,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
  </div>
  <div class="drow presets" id="rotPresets">
-  <button data-deg="0">0°</button><button data-deg="45">45°</button><button data-deg="90">90°</button><button data-deg="135">135°</button>
-  <button data-deg="180">180°</button><button data-deg="225">225°</button><button data-deg="270">270°</button><button data-deg="315">315°</button>
  </div>
  <div class="drow rotrow">
   <span class="lbl" id="rotLbl">↻ 0°</span>
   <button class="db pm" id="rotMinus">−</button>
-  <input type="range" id="rotRange" min="0" max="359" step="1" value="0">
+  <input type="range" id="rotRange" min="0" max="360" step="1" value="0">
   <button class="db pm" id="rotPlus">+</button>
   <span class="lbl" id="pctLabel">100%</span>
  </div>
@@ -1131,9 +1131,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     pctEl.textContent = sc + '%';
   }
   /* Giro de la foto en grados (-180 a 180) */
-  function getRot(w){ var d = +w.dataset.rot || 0; return ((Math.round(d) % 360) + 360) % 360; }
+  function getRot(w){ var d = Math.round(+w.dataset.rot || 0); return d === 360 ? 360 : ((d % 360) + 360) % 360; }
   function setRot(w, deg){
-    deg = ((Math.round(deg) % 360) + 360) % 360;          // de 0° a 359°
+    deg = Math.round(deg);
+    deg = deg === 360 ? 360 : ((deg % 360) + 360) % 360;   // de 0° a 360° (vuelta completa)
     w.dataset.rot = deg;
     w.style.transform = deg ? 'rotate(' + deg + 'deg)' : '';
     if (w === selImg) syncRot();
@@ -1341,8 +1342,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function syncRot(){
     if (!selImg) return;
     var d = getRot(selImg); rotRange.value = d; rotLbl.textContent = '↻ ' + d + '°';
-    Array.prototype.forEach.call($('rotPresets').children, function(b){ b.classList.toggle('on', +b.dataset.deg === d); });
+    var row = $('rotPresets'), on = null;
+    Array.prototype.forEach.call(row.children, function(b){ var y = +b.dataset.deg === d; b.classList.toggle('on', y); if (y) on = b; });
+    // Que se vea el botón del ángulo actual (o el más cercano)
+    var near = on || row.children[Math.round(d / 15)];
+    if (near) row.scrollLeft = near.offsetLeft - row.clientWidth / 2 + near.offsetWidth / 2;
   }
+  /* Botones de grados: de 15° en 15° hasta la vuelta completa (360°). Se deslizan de lado. */
+  (function(){
+    var h = '';
+    for (var g = 0; g <= 360; g += 15) h += '<button data-deg="' + g + '">' + g + '°</button>';
+    $('rotPresets').innerHTML = h;
+  })();
   function rotTo(d, snap){
     if (!selImg) return;
     d = setRot(selImg, d);
@@ -1356,14 +1367,21 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     rotTo(+b.dataset.deg, true); rotDone();
   });
   /* − y +: un grado cada toque (déjalo presionado para que siga) */
+  function nextDeg(step){
+    var d = getRot(selImg) + step;
+    if (d === 361) return 1;          // después de 360° sigue 1°
+    if (d === -1) return 359;
+    if (d === 0 && step < 0) return 0;
+    return d;
+  }
   function holdBtn(btn, step){
     var t1 = null, t2 = null;
     function stop(){ clearTimeout(t1); clearInterval(t2); if (t1 !== null) { t1 = null; rotDone(); } }
     btn.addEventListener('pointerdown', function(e){
       e.preventDefault();
       if (!selImg) return;
-      rotTo(getRot(selImg) + step, false);
-      t1 = setTimeout(function(){ t2 = setInterval(function(){ rotTo(getRot(selImg) + step, false); }, 70); }, 400);
+      rotTo(nextDeg(step), false);
+      t1 = setTimeout(function(){ t2 = setInterval(function(){ rotTo(nextDeg(step), false); }, 70); }, 400);
     });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(ev){ btn.addEventListener(ev, stop); });
   }
@@ -1371,7 +1389,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   holdBtn($('rotPlus'), 1);
   rotRange.addEventListener('input', function(){
     if (!selImg) return;
-    var d = +rotRange.value, near = Math.round(d / 90) * 90, snap = Math.abs(d - near) < 4;
+    var d = +rotRange.value, near = Math.round(d / 45) * 45, snap = Math.abs(d - near) < 3;
     if (snap) d = near;                                    // se pega en 0°, 90°, 180°, 270°
     rotTo(d, snap);
   });
