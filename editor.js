@@ -164,9 +164,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .dock,.panel{
     border:none !important;
     background:${glass} !important;
-    -webkit-backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
-    backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
-    box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.22) !important;
+    -webkit-backdrop-filter:blur(8px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
+    backdrop-filter:blur(8px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
+    box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.12) !important;
   }
   /* borde de colores solo en la orilla (rosa arriba, azul abajo) */
   .dock::before,.panel::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;

@@ -33,15 +33,15 @@ const THEMES = {
     bgImage: BG_DARK,
     frost: 'rgba(255,255,255,0.02)',
     text: '#ffffff', muted: 'rgba(255,255,255,0.68)', border: 'rgba(255,255,255,0.18)', accent: '#ffffff',
-    fill: 'rgba(255,255,255,0.05)',            // vidrio casi transparente
+    fill: 'rgba(255,255,255,0.02)',            // vidrio casi transparente
     strong: 'rgba(38,38,38,0.80)',             // vidrio más sólido (menú, avisos)
     stroke: ['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.40)'],
     rim: 'rgba(255,255,255,0.14)',             // brillo interno del borde
-    rim2: 'rgba(255,255,255,0.06)',
-    sheen: 'rgba(255,255,255,0.18)',           // brillo de esquina
+    rim2: 'rgba(255,255,255,0.03)',
+    sheen: 'rgba(255,255,255,0.10)',           // brillo de esquina
     hi: 'rgba(255,255,255,0.22)',              // brillo interno arriba
-    lo: 'rgba(0,0,0,0.25)',                    // sombra interna abajo
-    dockFill: 'rgba(255,255,255,0.08)',
+    lo: 'rgba(0,0,0,0.12)',                    // sombra interna abajo
+    dockFill: 'rgba(255,255,255,0.03)',
     scrim: 'rgba(0,0,0,0.35)',
     bar: 'light-content',
     inv: '#1c1c1c',
@@ -54,15 +54,15 @@ const THEMES = {
     bgImage: BG_LIGHT,
     frost: 'rgba(255,255,255,0.05)',
     text: '#ffffff', muted: 'rgba(255,255,255,0.80)', border: 'rgba(255,255,255,0.40)', accent: '#ffffff',
-    fill: 'rgba(255,255,255,0.06)',            // vidrio casi transparente, como los botones del iPhone
+    fill: 'rgba(255,255,255,0.025)',            // vidrio casi transparente, como los botones del iPhone
     strong: 'rgba(136,136,136,0.78)',          // vidrio más sólido (menú, avisos)
     stroke: ['rgba(255,255,255,0.75)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.60)'],
     rim: 'rgba(255,255,255,0.24)',             // brillo interno del borde
-    rim2: 'rgba(255,255,255,0.10)',
-    sheen: 'rgba(255,255,255,0.32)',           // brillo de esquina
+    rim2: 'rgba(255,255,255,0.05)',
+    sheen: 'rgba(255,255,255,0.18)',           // brillo de esquina
     hi: 'rgba(255,255,255,0.50)',
     lo: 'rgba(0,0,0,0.06)',
-    dockFill: 'rgba(255,255,255,0.10)',
+    dockFill: 'rgba(255,255,255,0.04)',
     glassBright: 0.95,                         // la barra del editor un poco más oscura para ver los íconos
     scrim: 'rgba(56,56,56,0.28)',
     bar: 'light-content',
@@ -494,6 +494,7 @@ export default function App() {
   const [view, setView] = useState('all');        // 'all', 'fav', 'trash'
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchFocus = useRef(false);   // el teclado solo se abre al tocar la lupa
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [cropOpen, setCropOpen] = useState(false);
@@ -1055,6 +1056,7 @@ export default function App() {
 
   function toggleSearch() {
     if (searchOpen) setQuery('');
+    else searchFocus.current = true;
     setSearchOpen(!searchOpen);
   }
 
@@ -1644,7 +1646,8 @@ export default function App() {
                   onChangeText={setQuery}
                   placeholder="Buscar notas..."
                   placeholderTextColor={c.muted}
-                  autoFocus
+                  autoFocus={searchFocus.current}
+                  onFocus={() => { searchFocus.current = false; }}
                 />
               </Glass>
             )}
