@@ -793,8 +793,8 @@ export default function App() {
   function closeEditor() {
     const id = currentId;
     const finish = () => {
-      // Si la nota quedó vacía, se descarta
-      setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n))));
+      // Si la nota quedó vacía, se descarta (menos si la vaciaste con "Vaciar chat")
+      setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)));
       setCurrentId(cur => (cur === id ? null : cur));
       setCropOpen(false); setSpellOn(false);
       setTitleColorOpen(false);
@@ -971,7 +971,7 @@ export default function App() {
   }
 
   function moveToTrash() {
-    if (isEmpty(current)) { closeEditor(); return; }
+    if (isEmpty(current) && !current.keep) { closeEditor(); return; }
     const id = current.id;
     patch(id, { deleted: true }, false);
     setCurrentId(null);
@@ -1732,7 +1732,7 @@ export default function App() {
         {wallModal}
         {colorSheet}
         <WarnSheet visible={clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
-          onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
+          onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); patch(current.id, { keep: true }, false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
 
         {/* Opciones de la nota */}
         <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
