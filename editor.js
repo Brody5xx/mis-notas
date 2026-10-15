@@ -2231,6 +2231,51 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
 
   /* =========================================================
+     BORRAR TODO EL CONTENIDO (con animación suave)
+     Las líneas se van desvaneciendo de abajo hacia arriba.
+     Se guarda como un paso, así que Deshacer lo trae de vuelta.
+     ========================================================= */
+  var clearing = false;
+  window.clearAll = function(){
+    if (!editable || clearing) return;
+    if (dirty) changedNow();
+    if (SP.on) spClose();
+    closePanels(); selectImg(null);
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    window.getSelection().removeAllRanges();
+    clearing = true;
+    document.body.style.pointerEvents = 'none';
+    // el texto suelto se envuelve para poder animarlo
+    Array.prototype.slice.call(ed.childNodes).forEach(function(n){
+      if (n.nodeType === 3) { if (!n.data.trim()) return; var sp = document.createElement('span'); sp.style.display = 'inline-block'; ed.insertBefore(sp, n); sp.appendChild(n); }
+    });
+    var items = Array.prototype.slice.call(ed.children).reverse();
+    items.push(ttl);
+    var step = Math.max(35, Math.min(90, 1100 / Math.max(1, items.length)));
+    var inkEl = $('ink');
+    if (inkEl) { inkEl.style.transition = 'opacity .6s ease'; inkEl.style.opacity = '0'; }
+    items.forEach(function(el, k){
+      setTimeout(function(){
+        el.style.transition = 'opacity .32s ease, transform .32s ease, filter .32s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-18px) scale(.98)';
+        el.style.filter = 'blur(2px)';
+      }, k * step);
+    });
+    setTimeout(function(){
+      ed.innerHTML = ''; ttl.innerHTML = '';
+      ttl.style.transition = ttl.style.opacity = ttl.style.transform = ttl.style.filter = '';
+      if (isDraw) { strokes = []; redraw(); }
+      if (inkEl) { inkEl.style.transition = ''; inkEl.style.opacity = ''; }
+      document.body.style.pointerEvents = '';
+      clearing = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      changedNow();
+      showTip(${J('noteCleared')});
+    }, items.length * step + 360);
+  };
+
+  /* =========================================================
      DESHACER / REHACER: cada cambio (texto, formato, fotos,
      dibujo) se guarda como un paso. La app llama a undoNow()
      y redoNow() desde los botones de arriba.

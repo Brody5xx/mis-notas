@@ -609,6 +609,34 @@ function ColorSheet({ visible, title, value, allowNone, onDone, onClose, s, t })
   );
 }
 
+/* Aviso formal antes de algo que borra (⚠️ + Cancelar / botón rojo) */
+function WarnSheet({ visible, title, msg, okText, onOk, onClose, s, t }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[s.wallScrim, { backgroundColor: t.scrim }]} onPress={onClose}>
+        <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 360 }}>
+          <Glass t={t} strong radius={28} inner={{ padding: 22, alignItems: 'center' }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(229,57,53,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <Feather name="alert-triangle" size={28} color="#e53935" />
+            </View>
+            <Text style={[s.wallTitle, { textAlign: 'center', marginBottom: 8 }]}>{title}</Text>
+            <Text style={{ color: t.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' }}>{msg}</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20, alignSelf: 'stretch' }}>
+              <TouchableOpacity onPress={onClose} activeOpacity={0.8}
+                style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: t.border }]}>
+                <Text style={[s.wallBtnText, { color: t.text }]}>{tr('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onOk} activeOpacity={0.8} style={[s.wallBtn, { flex: 1, backgroundColor: '#e53935' }]}>
+                <Text style={[s.wallBtnText, { color: '#fff' }]}>{okText}</Text>
+              </TouchableOpacity>
+            </View>
+          </Glass>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={s.row}>
@@ -678,6 +706,7 @@ export default function App() {
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
   const [spellOn, setSpellOn] = useState(false);   // revisando ortografía
+  const [clearAsk, setClearAsk] = useState(false);  // aviso antes de borrar todo
   const webRef = useRef(null);
 
   const { width } = useWindowDimensions();
@@ -1702,6 +1731,8 @@ export default function App() {
         </KeyboardAvoidingView>
         {wallModal}
         {colorSheet}
+        <WarnSheet visible={clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
+          onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
 
         {/* Opciones de la nota */}
         <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
@@ -1724,6 +1755,7 @@ export default function App() {
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
+          <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
         </Sheet>
 
