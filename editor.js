@@ -118,7 +118,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw.on{box-shadow:0 0 0 3px ${c.card},0 0 0 6px #ffffff}
 
   /* ===== Fotos dentro de la nota ===== */
-  .imgwrap{margin:10px auto;width:100%;max-width:100%;position:relative}
+  .imgwrap{margin:10px auto;width:100%;max-width:100%;position:relative;transform-origin:center center}
   .imgwrap.sel:not([data-anchor]){touch-action:none;cursor:move}
   /* Guías rojas y medida al mover una foto */
   #gx,#gy{position:fixed;background:#ff3b30;z-index:7;pointer-events:none;display:none}
@@ -138,14 +138,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #anchorBar button.on{background:#fff;color:#111}
   .imgwrap.sel[data-anchor]::after{content:'📌';position:absolute;top:-10px;left:-10px;font-size:18px;pointer-events:none}
   .imgwrap img{width:100%;height:auto;display:block;background:transparent}
-  #rsz{position:absolute;display:none;pointer-events:none;border:2px solid ${c.accent};border-radius:10px;z-index:3}
-  .rh{position:absolute;width:28px;height:28px;background:#fff;border:3px solid ${c.accent};border-radius:14px;
-      pointer-events:auto;touch-action:none}
-  .rh[data-r=tl]{left:-14px;top:-14px}.rh[data-r=tr]{right:-14px;top:-14px}
-  .rh[data-r=bl]{left:-14px;bottom:-14px}.rh[data-r=br]{right:-14px;bottom:-14px}
+  #rsz{position:absolute;display:none;pointer-events:none;border:1.5px solid ${c.text};border-radius:3px;z-index:3;
+        transform-origin:center center;box-shadow:0 0 0 .5px rgba(0,0,0,.35)}
+  /* Esquinas invisibles: no se ven, pero arrastrándolas cambia el tamaño */
+  .rh{position:absolute;width:44px;height:44px;background:transparent;border:none;pointer-events:auto;touch-action:none}
+  .rh[data-r=tl]{left:-22px;top:-22px}.rh[data-r=tr]{right:-22px;top:-22px}
+  .rh[data-r=bl]{left:-22px;bottom:-22px}.rh[data-r=br]{right:-22px;bottom:-22px}
   #pct{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.75);color:#fff;
        font-size:22px;font-weight:700;padding:8px 16px;border-radius:14px;display:none;white-space:nowrap}
-  #pct.show{display:block}
+  #pct.show{display:none}
   .lbl{flex:none;color:${c.muted};font-size:14px;padding:0 6px;font-variant-numeric:tabular-nums}
 
   /* ===== Pantalla de recorte ===== */
@@ -201,7 +202,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .db svg{display:block}
   #sizeBig{background:none !important;-webkit-background-clip:initial !important;background-clip:initial !important;color:${c.text} !important}
   #rsz{border-color:${c.text} !important}
-  .rh{border-color:${c.text} !important}
+  .rh{border:none !important}
   /* La barra se acomoda en 2 filas si no cabe (así ningún botón queda escondido) */
   .dock{flex-wrap:wrap;justify-content:center;overflow:visible !important;row-gap:2px}
   /* Barra de texto: ancha, 2 filas fijas */
@@ -317,7 +318,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div class="dock hide" id="imgbar">
   <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> ${H('crop')}</button>
   <span class="lbl" id="pctLabel">100%</span>
-  <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> 100%</button>
+  <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+  <button class="db" data-img="rot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg> 90°</button>
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
 </div>
@@ -1042,18 +1044,40 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     w.dataset.scale = sc;
     w.style.width = (sc * BASE) + '%';
     if (w.dataset.x != null) setPos(w, +w.dataset.x, +w.dataset.y || 0);   // que no se salga al crecer
+    if (w.dataset.rot) fitRotSpace(w);
     pctLabel.textContent = sc + '%';
     pctEl.textContent = sc + '%';
+  }
+  /* Giro de la foto en grados (-180 a 180) */
+  function getRot(w){ return +w.dataset.rot || 0; }
+  function setRot(w, deg){
+    deg = Math.round(((deg % 360) + 540) % 360 - 180);
+    if (deg === -180) deg = 180;
+    w.dataset.rot = deg;
+    w.style.transform = deg ? 'rotate(' + deg + 'deg)' : '';
+    fitRotSpace(w);
+    return deg;
+  }
+  /* Al girar, deja espacio arriba y abajo para que no tape lo demás */
+  function fitRotSpace(w){
+    var deg = getRot(w), W = w.offsetWidth, H = w.offsetHeight;
+    if (!deg || !H) { w.style.marginTop = w.style.marginBottom = ''; return; }
+    var a = deg * Math.PI / 180, h2 = Math.abs(W * Math.sin(a)) + Math.abs(H * Math.cos(a));
+    var extra = Math.max(0, (h2 - H) / 2);
+    w.style.marginTop = w.style.marginBottom = Math.round(10 + extra) + 'px';
   }
   function placeRsz(){
     placeAnchorBar();
     if (!selImg) { rsz.style.display = 'none'; return; }
-    var r = selImg.getBoundingClientRect();
+    // La línea gira junto con la foto
+    var r = selImg.getBoundingClientRect(), w = selImg.offsetWidth, h = selImg.offsetHeight;
+    var cx = r.left + r.width / 2 + window.scrollX, cy = r.top + r.height / 2 + window.scrollY;
     rsz.style.display = 'block';
-    rsz.style.left = (r.left + window.scrollX) + 'px';
-    rsz.style.top = (r.top + window.scrollY) + 'px';
-    rsz.style.width = r.width + 'px';
-    rsz.style.height = r.height + 'px';
+    rsz.style.width = w + 'px';
+    rsz.style.height = h + 'px';
+    rsz.style.left = (cx - w / 2) + 'px';
+    rsz.style.top = (cy - h / 2) + 'px';
+    rsz.style.transform = getRot(selImg) ? 'rotate(' + getRot(selImg) + 'deg)' : '';
   }
   function contentWidth(){
     var cs = getComputedStyle(ed);
@@ -1094,7 +1118,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       return;
     }
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
-    if (a === 'reset') { setScale(selImg, 100); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
+    if (a === 'reset') { setScale(selImg, 100); setRot(selImg, 0); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
+    if (a === 'rot') {
+      var d = setRot(selImg, Math.round((getRot(selImg) + 90) / 90) * 90);
+      placeRsz(); changedNow(); showMv('↻ <b>' + d + '°</b>');
+    }
   });
 
   /* =========================================================
@@ -1156,6 +1184,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var ref = selImg && refAnchor(selImg);
     if (!ref) return;
     setPos(selImg, posX(ref), posY(ref));
+    setRot(selImg, getRot(ref));                       // también el mismo giro (grados)
     selImg.dataset.anchor = '1';
     changedNow(); placeRsz();
     showTip(${J('anchoredSame')});
@@ -1172,10 +1201,59 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function hideGuides(){ gx.style.display = gy.style.display = 'none'; }
   function fmtMove(v, unit){ return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + unit; }
 
+  var mvTimer = null;
+  function showMv(html, stay){
+    clearTimeout(mvTimer);
+    mvinfo.innerHTML = html; mvinfo.style.display = 'block';
+    if (!stay) mvTimer = setTimeout(function(){ mvinfo.style.display = 'none'; }, 1200);
+  }
+  function hideMv(){ clearTimeout(mvTimer); mvTimer = setTimeout(function(){ mvinfo.style.display = 'none'; }, 700); }
+
+  /* ---------- Dos dedos sobre la foto: pellizcar = tamaño, girar = giro ---------- */
+  var touchPts = {}, gest = null;
+  function ptsList(){ return Object.keys(touchPts).map(function(k){ return touchPts[k]; }); }
+  window.addEventListener('pointerdown', function(e){
+    if (e.pointerType === 'mouse') return;
+    touchPts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var p = ptsList();
+    if (p.length === 2 && selImg && editable && (mdrag || selImg.contains(e.target) || selImg.contains(document.elementFromPoint(p[0].x, p[0].y)))) {
+      if (mdrag) { mdrag = null; hideGuides(); }
+      gest = { d0: Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) || 1,
+               a0: Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x), sc0: getScale(selImg), rot0: getRot(selImg) };
+      anchorBar.classList.remove('show'); rsz.style.display = 'none';
+      e.preventDefault();
+    }
+  }, true);
+  window.addEventListener('pointermove', function(e){
+    if (!touchPts[e.pointerId]) return;
+    touchPts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (!gest || !selImg) return;
+    var p = ptsList(); if (p.length < 2) return;
+    e.preventDefault();
+    var d = Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y), a = Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x);
+    var sc = gest.sc0 * d / gest.d0;
+    if (Math.abs(sc - 100) < 4) sc = 100;
+    setScale(selImg, sc);
+    var deg = gest.rot0 + (a - gest.a0) * 180 / Math.PI, snap = false;
+    var near = Math.round(deg / 90) * 90;
+    if (Math.abs(deg - near) < 5) { deg = near; snap = true; }        // se pega en 0°, 90°, 180°...
+    deg = setRot(selImg, deg);
+    showGuides(selImg, snap, snap);
+    showMv('↻ <b>' + deg + '°</b> &nbsp; <b>' + getScale(selImg) + '%</b>', true);
+  }, { passive: false });
+  function endPt(e){
+    delete touchPts[e.pointerId];
+    if (gest && ptsList().length < 2) { gest = null; hideGuides(); hideMv(); placeRsz(); changedNow(); }
+  }
+  window.addEventListener('pointerup', endPt);
+  window.addEventListener('pointercancel', endPt);
+  // Que la página no se mueva mientras mueves o giras una foto
+  document.addEventListener('touchmove', function(e){ if (gest || (mdrag && mdrag.moved)) e.preventDefault(); }, { passive: false });
+
   var mdrag = null;
   ed.addEventListener('pointerdown', function(e){
     var w = e.target.closest ? e.target.closest('.imgwrap') : null;
-    if (!w || w !== selImg || !editable || document.body.classList.contains('drawing')) return;
+    if (gest || !w || w !== selImg || !editable || document.body.classList.contains('drawing')) return;
     if (w.dataset.anchor) { showTip(${J('isAnchored')}); return; }
     e.preventDefault();
     mdrag = { w: w, id: e.pointerId, sx: e.clientX, sy: e.clientY, x: posX(w), y: posY(w),
@@ -1185,7 +1263,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     try { w.setPointerCapture(e.pointerId); } catch (_) {}
   });
   window.addEventListener('pointermove', function(e){
-    if (!mdrag || e.pointerId !== mdrag.id) return;
+    if (!mdrag || e.pointerId !== mdrag.id || gest) return;
     var dx = e.clientX - mdrag.sx, dy = e.clientY - mdrag.sy;
     if (!mdrag.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
     if (!mdrag.moved) { mdrag.moved = true; anchorBar.classList.remove('show'); rsz.style.display = 'none'; }
@@ -1202,15 +1280,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     setPos(w, nx, ny);
     showGuides(w, snapX, snapY);
     var hx = Math.round((posX(w) - mdrag.x0) * px), vy = posY(w) - mdrag.y0;
-    mvinfo.innerHTML = '↔ <b>' + fmtMove(hx, ' px') + '</b> &nbsp; ↕ <b>' + fmtMove(vy, ' px') + '</b>';
-    mvinfo.style.display = 'block';
+    showMv('↔ <b>' + fmtMove(hx, ' px') + '</b> &nbsp; ↕ <b>' + fmtMove(vy, ' px') + '</b>' +
+           (getRot(w) ? ' &nbsp; ↻ <b>' + getRot(w) + '°</b>' : ''), true);
   }, { passive: false });
   function endMove(e){
     if (!mdrag || (e && e.pointerId !== mdrag.id)) return;
     var moved = mdrag.moved;
     mdrag = null;
     hideGuides();
-    setTimeout(function(){ if (!mdrag) mvinfo.style.display = 'none'; }, 900);
+    hideMv();
     placeRsz();
     if (moved) { changedNow(); showTip(${J('moveDone')}); }
   }
@@ -1226,8 +1304,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     rdrag = { sign: h.indexOf('r') > -1 ? 1 : -1, sx: e.clientX,
               sw: selImg.getBoundingClientRect().width, base: contentWidth() * BASE };
     try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
-    pctEl.textContent = getScale(selImg) + '%';
-    pctEl.classList.add('show');
+    showMv('<b>' + getScale(selImg) + '%</b>', true);
   });
   rsz.addEventListener('pointermove', function(e){
     if (!rdrag || !selImg) return;
@@ -1236,10 +1313,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (Math.abs(sc - 100) < 4) sc = 100;
     setScale(selImg, sc);
     placeRsz();
+    showMv('<b>' + getScale(selImg) + '%</b>', true);
   });
   function endResize(){
     if (!rdrag) return;
-    rdrag = null; pctEl.classList.remove('show'); changedNow();
+    rdrag = null; hideMv(); changedNow();
   }
   rsz.addEventListener('pointerup', endResize);
   rsz.addEventListener('pointercancel', endResize);
