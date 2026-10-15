@@ -763,6 +763,8 @@ export default function App() {
 
   /* ---------- Acciones con notas ---------- */
   const current = notes.find(n => n.id === currentId);
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
 
   function newNote(kind = 'text') {
     const now = Date.now();
@@ -789,6 +791,21 @@ export default function App() {
   function isEmpty(n) {
     return !n.title.trim() && !toPlain(n).trim() && !firstImg(n) && !n.hasWall && !(n.ink && n.ink.length);
   }
+
+  /* Notas que vaciaste con "Vaciar chat": si siguen vacías después de 48 horas, se borran solas */
+  const EMPTY_LIFE = 48 * 60 * 60 * 1000;
+  useEffect(() => {
+    if (!loaded) return;
+    const sweep = () => setNotes(ns => {
+      const now = Date.now();
+      const keep = ns.filter(n => !(n.keep && !n.deleted && n.id !== currentIdRef.current && isEmpty(n) && now - (n.updated || 0) > EMPTY_LIFE));
+      return keep.length === ns.length ? ns : keep;
+    });
+    sweep();
+    const iv = setInterval(sweep, 10 * 60 * 1000);                 // revisa cada 10 minutos
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') sweep(); });
+    return () => { clearInterval(iv); sub && sub.remove && sub.remove(); };
+  }, [loaded]);
 
   function closeEditor() {
     const id = currentId;
