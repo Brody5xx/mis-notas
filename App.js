@@ -719,7 +719,7 @@ export default function App() {
     loadData()
       .then(data => {
         if (!data) return;
-        setNotes(data.notes || []);
+        setNotes((data.notes || []).filter(n => !(n.keep && !n.deleted && isEmpty(n) && Date.now() - (n.updated || 0) > 48 * 3600 * 1000)));   // notas vaciadas hace más de 48 h: se borran antes de mostrarse
         setLayout(data.layout || 'grid');
         setDark(!!data.dark);
         setTranslucent(!!data.translucent);
