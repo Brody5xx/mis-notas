@@ -95,6 +95,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #olNone{display:none;margin-top:8px}
   #colorPanel.olmode #olNone{display:block}
   body.drawing #colorPanel #olNone{display:none}
+  #colorPanel.noOl .ctabs,#colorPanel.noOl #olNone{display:none}
   .cwrap{position:relative;width:220px;height:220px;margin:4px auto 10px;touch-action:none}
   #wheel{width:220px;height:220px;border-radius:50%;display:block;touch-action:none;
          box-shadow:0 4px 18px rgba(0,0,0,.25)}
@@ -181,31 +182,34 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           border:1px solid ${c.border};touch-action:manipulation}
   #imgbar .lbl{font-size:13px;font-weight:700;color:${c.text};font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
   #rotRange{flex:1;min-width:60px;accent-color:#ff3b30;height:30px;touch-action:none}
-  /* Editor de foto: escribir y dibujar encima */
+  /* Editor de foto: escribir y dibujar encima (con la misma barra de las notas) */
   #imged{position:fixed;inset:0;background:#000;z-index:10;display:none;flex-direction:column}
   #imged.show{display:flex}
-  #ieTop{display:flex;justify-content:center;gap:10px;padding:12px 12px 6px}
-  #ieTop button{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);
-          color:#fff;font-size:15px;font-weight:700;padding:8px 14px;border-radius:18px}
-  #ieTop button.on{background:#fff;color:#111}
+  #ieHead{display:flex;justify-content:space-between;padding:8px 10px 2px}
+  #ieHead button{background:none;border:none;color:#fff;font-size:17px;padding:10px 14px}
+  #ieHead .ok{font-weight:800}
   #ieText{display:none;gap:8px;padding:6px 12px}
   #ieText.show{display:flex}
   #ieInput{flex:1;font-size:17px;padding:10px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.4);background:#1d1d1d;color:#fff;outline:none}
   #ieTextOk{border:none;background:#fff;color:#111;font-size:18px;font-weight:800;border-radius:14px;padding:0 16px}
   #ieHint{color:rgba(255,255,255,.7);text-align:center;font-size:13px;padding:2px 12px 4px;display:none}
   #ieHint.show{display:block}
-  #ieArea{flex:1;position:relative;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center}
+  #ieArea{flex:1;position:relative;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center;
+          padding-bottom:var(--ieBarH,120px)}
   #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
-  #ieColors{display:flex;gap:10px;justify-content:center;padding:10px 8px 4px;flex-wrap:wrap}
-  .iesw{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.45)}
-  .iesw.on{box-shadow:0 0 0 3px #000,0 0 0 5px #fff}
-  #ieSizeRow{display:flex;align-items:center;gap:10px;padding:4px 40px}
-  #ieSize{flex:1;accent-color:#fff}
-  .ieDot{background:#fff;border-radius:50%;display:inline-block}
-  .ieDot.small{width:6px;height:6px}.ieDot.big{width:16px;height:16px}
-  #ieBtns{display:flex;justify-content:space-between;padding:10px 16px 26px}
-  #ieBtns button{background:none;border:none;color:#fff;font-size:17px;padding:10px 14px}
-  #ieBtns .ok{color:#fff;font-weight:800}
+  #iebar{left:10px !important;right:10px;transform:none !important;max-width:none !important;bottom:14px !important;
+         flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
+  #iebar .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
+  #iebar .db{flex:1 1 0;min-width:0;height:40px;padding:0 2px}
+  #iebar .db[data-ie=size]{flex:1.6 1 0}
+  #iebar .db[data-ie=color]{flex:1.2 1 0}
+  #iebar .db[data-ie=edit]{flex:2.2 1 0;gap:6px}
+  #iebar .ielbl{font-size:14px;font-weight:700}
+  #iebar .ietxt.off{opacity:.3;pointer-events:none}
+  #iebar .db.on{background:${c.text};color:${c.inv}}
+  #ieColorDot{width:22px;height:22px;border-radius:11px;display:inline-block;border:2px solid rgba(255,255,255,.6)}
+  /* Los paneles de tamaño y color se ven encima del editor de foto */
+  body.ie .panel{z-index:13 !important;bottom:calc(var(--ieBarH,120px) + 24px) !important}
 
   #tip{position:fixed;left:50%;top:14px;transform:translateX(-50%) translateY(-8px);background:rgba(20,20,20,.85);color:#fff;
        z-index:20;padding:8px 16px;border-radius:18px;font-size:14px;opacity:0;transition:opacity .2s,transform .2s;
@@ -396,17 +400,29 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 </div>
 <div id="tip"></div>
 <div id="imged">
-  <div id="ieTop">
-    <button data-ie="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> ${H('imgDraw')}</button>
-    <button data-ie="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${H('imgText')}</button>
-    <button data-ie="undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
-  </div>
+  <div id="ieHead"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
   <div id="ieText"><input id="ieInput" type="text" placeholder="${H('imgTextPh')}" maxlength="120"><button id="ieTextOk">✓</button></div>
   <div id="ieHint">${H('imgTapText')}</div>
   <div id="ieArea"><canvas id="ieCanvas"></canvas></div>
-  <div id="ieColors"></div>
-  <div id="ieSizeRow"><span class="ieDot small"></span><input type="range" id="ieSize" min="1" max="10" value="4"><span class="ieDot big"></span></div>
-  <div id="ieBtns"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
+  <!-- Misma barra de las notas, para la foto -->
+  <div class="dock" id="iebar">
+   <div class="drow">
+    <button class="db" data-ie="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+    <button class="db" data-ie="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></button>
+    <span class="dsep"></span>
+    <button class="db" data-iecmd="b"><b>B</b></button>
+    <button class="db" data-iecmd="i"><i style="font-family:Georgia,serif">I</i></button>
+    <button class="db" data-iecmd="u"><u>U</u></button>
+    <button class="db" data-ie="undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+   </div>
+   <div class="drow">
+    <button class="db ietxt" data-ie="edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span class="ielbl">${H('imgEditText')}</span></button>
+    <button class="db ietxt" data-ie="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    <span class="dsep"></span>
+    <button class="db" data-ie="size"><span style="font-size:13px;opacity:.7">Aa</span><span id="ieSizeNum">28</span><span class="caret">▼</span></button>
+    <button class="db" data-ie="color"><span id="ieColorDot" style="background:#ff3b30"></span><span class="caret">▼</span></button>
+   </div>
+  </div>
 </div>
 <div id="gx"></div><div id="gy"></div><div id="mvinfo"></div>
 <div id="anchorBar">
@@ -678,6 +694,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* ---------- Cambiar tamaño (5 a 100) ---------- */
   function applySize(v){
     v = Math.max(5, Math.min(100, Math.round(v)));
+    if (ieOn()) { ieApplySize(v); markChip(v); return; }
     restore();
     var s = window.getSelection();
     if (!s.rangeCount) return;
@@ -745,6 +762,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   $('olNone').addEventListener('mousedown', function(e){ e.preventDefault(); });
   $('olNone').addEventListener('click', function(){ applyOutline(null); });
   function applyColor(col, quiet){
+    if (ieOn()) { if (cmode === 'ol' && IE.mode === 'text') ieApplyOutline(col); else ieApplyColor(col); return; }
     if (!drawing && cmode === 'ol') {   // pestaña Contorno: color del borde de las letras
       lastOutline = col;
       applyOutline(col);
@@ -896,6 +914,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     showTip(col ? ${J('hlOn')} : ${J('hlOff')});
   }
   function applyOutline(col){
+    if (ieOn()) { ieApplyOutline(col); return; }
     restore();
     var css = outlineStyle(col);
     if (!collapsedSpan(css)) {
@@ -944,6 +963,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* ---------- Paneles ---------- */
   function closePanels(){
     sizePanel.classList.remove('show'); colorPanel.classList.remove('show'); fxPanel.classList.remove('show');
+    var ib = document.getElementById('iebar');
+    if (ib) ib.querySelectorAll('[data-ie=size],[data-ie=color]').forEach(function(b){ b.classList.remove('on'); });
     dock.querySelectorAll('[data-act=size],[data-act=color],[data-act=hl],[data-act=ol]').forEach(function(b){ b.classList.remove('on'); });
   }
   function togglePanel(p, btn){
@@ -952,10 +973,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!open) return;
     p.classList.add('show'); btn.classList.add('on');
     if (p === sizePanel) {
-      var v = +sizeNum.textContent || 17;
+      var v = ieOn() ? +$('ieSizeNum').textContent : (+sizeNum.textContent || 17);
       range.value = v; showSizePreview(v);
     }
     if (p === colorPanel) {
+      if (ieOn()) { setCMode('text'); syncWheel(IE.sel ? IE.sel.c : IE.color); colorPanel.classList.toggle('noOl', IE.mode !== 'text'); return; }
+      colorPanel.classList.remove('noOl');
       syncWheel(drawing ? penColor : getComputedStyle(colorDot).backgroundColor);
       if (drawing) cmode = 'text';
       else setCMode('text');
@@ -1784,38 +1807,50 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
        luego puedes arrastrarlo. Tocar un texto lo deja editarlo.
      Al tocar Listo, todo queda pegado dentro de la foto.
      ========================================================= */
-  var imged = $('imged'), ieCv = $('ieCanvas'), ieCtx = ieCv.getContext('2d'), ieArea = $('ieArea');
-  var ieInput = $('ieInput'), ieTextBar = $('ieText'), ieHint = $('ieHint'), ieSize = $('ieSize');
-  var IE = { target: null, base: null, ops: [], mode: 'draw', color: '#ff3b30', cur: null, drag: null, edit: null, pend: null };
-  var IE_COLORS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#0a84ff', '#bf5af2', '#ff2d92'];
-  $('ieColors').innerHTML = IE_COLORS.map(function(col){ return '<button class="iesw" data-c="' + col + '" style="background:' + col + '"></button>'; }).join('');
-  function ieSetColor(col){
-    IE.color = col;
-    Array.prototype.forEach.call($('ieColors').children, function(b){ b.classList.toggle('on', b.dataset.c === col); });
-    if (IE.edit) IE.edit.c = col;
-    if (IE.base) ieRedraw();
+  var imged = $('imged'), ieCv = $('ieCanvas'), ieCtx = ieCv.getContext('2d'), ieArea = $('ieArea'), iebar = $('iebar');
+  var ieInput = $('ieInput'), ieTextBar = $('ieText'), ieHint = $('ieHint');
+  var IE = { target: null, base: null, ops: [], mode: 'draw', color: '#ff3b30', ol: null, size: 28, pen: 6,
+             b: true, i: false, u: false, cur: null, drag: null, sel: null, edit: null, pend: null };
+  function ieOn(){ return imged.classList.contains('show'); }
+  function ieK(){ var r = ieCv.getBoundingClientRect(); return r.width ? ieCv.width / r.width : 1; }   // px de la foto por px de pantalla
+  function ieSyncBar(){
+    iebar.querySelectorAll('[data-ie=draw],[data-ie=text]').forEach(function(b){ b.classList.toggle('on', b.dataset.ie === IE.mode); });
+    var t = IE.sel;
+    iebar.querySelectorAll('.ietxt').forEach(function(b){ b.classList.toggle('off', !t); });
+    var st = t || IE;
+    iebar.querySelectorAll('[data-iecmd]').forEach(function(b){ b.classList.toggle('on', IE.mode === 'text' && !!st[b.dataset.iecmd]); });
+    $('ieSizeNum').textContent = IE.mode === 'draw' ? IE.pen : (t ? t.n : IE.size);
+    $('ieColorDot').style.background = t ? t.c : IE.color;
   }
-  $('ieColors').addEventListener('click', function(e){ var b = e.target.closest('.iesw'); if (b) ieSetColor(b.dataset.c); });
-  function ieScale(){ return ieCv.width / 360; }                       // grosor parecido en fotos grandes y chicas
-  function ieLineW(){ return (+ieSize.value) * 2.2 * ieScale(); }
-  function ieFontPx(){ return (12 + (+ieSize.value) * 5) * ieScale(); }
   function ieSetMode(m){
     IE.mode = m;
-    Array.prototype.forEach.call(document.querySelectorAll('#ieTop [data-ie]'), function(b){ b.classList.toggle('on', b.dataset.ie === m); });
+    if (m !== 'text') { ieCloseText(true); IE.sel = null; }
     ieHint.classList.toggle('show', m === 'text');
-    if (m !== 'text') ieCloseText(true);
+    closePanels(); ieSyncBar(); if (IE.base) ieRedraw();
   }
   function ieFit(){
     if (!IE.base) return;
-    var W = ieArea.clientWidth - 24, H = ieArea.clientHeight - 24, k = Math.min(W / ieCv.width, H / ieCv.height);
+    var W = ieArea.clientWidth - 24, H = ieArea.clientHeight - parseFloat(getComputedStyle(ieArea).paddingBottom) - 24;
+    var k = Math.min(W / ieCv.width, H / ieCv.height);
     ieCv.style.width = Math.round(ieCv.width * k) + 'px';
     ieCv.style.height = Math.round(ieCv.height * k) + 'px';
   }
-  function ieFont(op){ return '800 ' + Math.round(op.s) + 'px -apple-system,Roboto,sans-serif'; }
+  function ieFont(op){ return (op.i ? 'italic ' : '') + (op.b ? '800 ' : '500 ') + Math.round(op.s) + 'px -apple-system,Roboto,sans-serif'; }
   function ieTextBox(op){
     ieCtx.font = ieFont(op);
     var w = ieCtx.measureText(op.v).width;
     return { x: op.x - w / 2, y: op.y - op.s / 2, w: w, h: op.s };
+  }
+  function ieDrawText(op){
+    var ctx = ieCtx;
+    ctx.font = ieFont(op); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    var border = op.ol || ((op.c === '#000000' || /^#0{3,6}$/.test(op.c)) ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)');
+    if (op.ol !== 'none') { ctx.lineWidth = Math.max(2, op.s / 7); ctx.strokeStyle = border; ctx.strokeText(op.v, op.x, op.y); }
+    ctx.fillStyle = op.c; ctx.fillText(op.v, op.x, op.y);
+    if (op.u) {
+      var b = ieTextBox(op), y = op.y + op.s * 0.45, lw = Math.max(2, op.s / 14);
+      ctx.fillStyle = op.c; ctx.fillRect(b.x, y, b.w, lw);
+    }
   }
   function ieRedraw(){
     var ctx = ieCtx;
@@ -1828,62 +1863,69 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         for (var i = 1; i < op.p.length; i++) ctx.lineTo(op.p[i][0], op.p[i][1]);
         if (op.p.length === 1) ctx.lineTo(op.p[0][0] + 0.1, op.p[0][1]);
         ctx.stroke();
-      } else {
-        ctx.font = ieFont(op); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, op.s / 7);
-        ctx.strokeStyle = (op.c === '#000000') ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
-        ctx.strokeText(op.v, op.x, op.y);
-        ctx.fillStyle = op.c; ctx.fillText(op.v, op.x, op.y);
-        if (op === IE.edit) { var b = ieTextBox(op); ctx.setLineDash([8 * ieScale(), 6 * ieScale()]); ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2 * ieScale(); ctx.strokeRect(b.x - 8, b.y - 6, b.w + 16, b.h + 12); ctx.setLineDash([]); }
-      }
+      } else ieDrawText(op);
     });
-    // Texto nuevo mientras lo escribes (vista previa)
-    if (IE.pend && ieInput.value.trim() && ieTextBar.classList.contains('show')) {
-      var tmp = { t: 'x', x: IE.pend.x, y: IE.pend.y, v: ieInput.value, c: IE.color, s: ieFontPx() };
-      IE.ops.push(tmp); var keep = IE.edit; IE.edit = tmp;
-      ieRedrawText(tmp);
-      IE.ops.pop(); IE.edit = keep;
+    // Texto nuevo mientras lo escribes
+    if (IE.pend && ieInput.value.trim() && ieTextBar.classList.contains('show'))
+      ieDrawText(ieNewOp(IE.pend.x, IE.pend.y, ieInput.value));
+    // Recuadro del texto seleccionado
+    var t = IE.sel || IE.edit;
+    if (t && IE.mode === 'text') {
+      var b = ieTextBox(t), k = ieK();
+      ctx.setLineDash([8 * k, 6 * k]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * k;
+      ctx.strokeRect(b.x - 8 * k, b.y - 6 * k, b.w + 16 * k, b.h + 12 * k); ctx.setLineDash([]);
     }
   }
-  function ieRedrawText(op){
-    var ctx = ieCtx;
-    ctx.font = ieFont(op); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, op.s / 7);
-    ctx.strokeStyle = (op.c === '#000000') ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
-    ctx.strokeText(op.v, op.x, op.y);
-    ctx.fillStyle = op.c; ctx.fillText(op.v, op.x, op.y);
-  }
+  function ieNewOp(x, y, v){ return { t: 'x', x: x, y: y, v: v, c: IE.color, ol: IE.ol, n: IE.size, s: IE.size * ieK(), b: IE.b, i: IE.i, u: IE.u }; }
   function iePt(e){
     var r = ieCv.getBoundingClientRect();
     return [(e.clientX - r.left) * ieCv.width / r.width, (e.clientY - r.top) * ieCv.height / r.height];
   }
   function openImgEdit(img, mode){
     if (!img) return;
-    IE.target = img; IE.ops = []; IE.edit = null; IE.pend = null;
+    IE.target = img; IE.ops = []; IE.sel = null; IE.edit = null; IE.pend = null;
     var base = new Image();
     base.onload = function(){
       var nw = base.naturalWidth, nh = base.naturalHeight, k = Math.min(1, 1600 / Math.max(nw, nh));
       ieCv.width = Math.round(nw * k); ieCv.height = Math.round(nh * k);
       IE.base = base;
-      imged.classList.add('show');
+      closePanels();
+      imged.classList.add('show'); document.body.classList.add('ie');
+      document.documentElement.style.setProperty('--ieBarH', (iebar.offsetHeight || 100) + 'px');
       send({ type: 'crop', open: true });
-      ieFit(); ieRedraw();
+      ieFit(); ieSetMode(mode || 'draw');
     };
     base.src = img.src;
-    ieSetColor(IE.color);
-    ieSetMode(mode || 'draw');
   }
   function closeImgEdit(){
-    imged.classList.remove('show'); ieCloseText(true);
-    IE.target = null; IE.base = null; IE.ops = [];
+    closePanels();
+    imged.classList.remove('show'); document.body.classList.remove('ie'); ieCloseText(true);
+    IE.target = null; IE.base = null; IE.ops = []; IE.sel = null;
     send({ type: 'crop', open: false });
   }
   var closeCropOld = window.closeCrop;
-  window.closeCrop = function(){ if (imged.classList.contains('show')) closeImgEdit(); else closeCropOld(); };
+  window.closeCrop = function(){ if (ieOn()) closeImgEdit(); else closeCropOld(); };
 
-  /* Texto: barra para escribir */
+  /* Lo que llega desde los paneles de tamaño y color (los mismos de las notas) */
+  function ieApplySize(v){
+    if (IE.mode === 'draw') IE.pen = v;
+    else { IE.size = v; if (IE.sel) { IE.sel.n = v; IE.sel.s = v * ieK(); } }
+    ieSyncBar(); ieRedraw();
+  }
+  function ieApplyColor(col){
+    IE.color = col;
+    if (IE.mode === 'text' && IE.sel) IE.sel.c = col;
+    ieSyncBar(); ieRedraw();
+  }
+  function ieApplyOutline(col){
+    IE.ol = col || 'none';
+    if (IE.sel) IE.sel.ol = IE.ol;
+    ieRedraw();
+  }
+
+  /* Escribir (el teclado solo sale al crear un texto nuevo o al tocar "Editar texto") */
   function ieOpenText(op, x, y){
+    closePanels();
     IE.edit = op || null; IE.pend = op ? null : { x: x, y: y };
     ieInput.value = op ? op.v : '';
     ieTextBar.classList.add('show');
@@ -1891,45 +1933,44 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ieRedraw();
   }
   function ieCloseText(save){
-    if (save !== false && ieTextBar.classList.contains('show')) ieCommitText();
+    if (save !== false && ieTextBar.classList.contains('show')) {
+      var v = ieInput.value.trim();
+      if (IE.edit) { if (v) IE.edit.v = v; else { IE.ops.splice(IE.ops.indexOf(IE.edit), 1); IE.sel = null; } }
+      else if (IE.pend && v) { var op = ieNewOp(IE.pend.x, IE.pend.y, v); IE.ops.push(op); IE.sel = op; }
+    }
     ieTextBar.classList.remove('show'); ieInput.blur();
     IE.edit = null; IE.pend = null;
-    if (IE.base) ieRedraw();
-  }
-  function ieCommitText(){
-    var v = ieInput.value.trim();
-    if (IE.edit) {
-      if (v) IE.edit.v = v; else IE.ops.splice(IE.ops.indexOf(IE.edit), 1);
-    } else if (IE.pend && v) {
-      IE.ops.push({ t: 'x', x: IE.pend.x, y: IE.pend.y, v: v, c: IE.color, s: ieFontPx() });
-    }
+    if (IE.base) { ieSyncBar(); ieRedraw(); }
   }
   $('ieTextOk').addEventListener('click', function(){ ieCloseText(true); });
   ieInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); ieCloseText(true); } });
   ieInput.addEventListener('input', function(){ if (IE.edit) IE.edit.v = ieInput.value || ' '; ieRedraw(); });
-  ieSize.addEventListener('input', function(){ if (IE.edit) IE.edit.s = ieFontPx(); ieRedraw(); });
 
   /* Dedo sobre la foto */
   ieCv.addEventListener('pointerdown', function(e){
     e.preventDefault();
+    closePanels();
     var p = iePt(e);
     try { ieCv.setPointerCapture(e.pointerId); } catch (_) {}
     if (IE.mode === 'draw') {
-      IE.cur = { t: 's', c: IE.color, w: ieLineW(), p: [p] };
+      IE.cur = { t: 's', c: IE.color, w: IE.pen * ieK(), p: [p] };
       IE.ops.push(IE.cur); ieRedraw();
       return;
     }
-    // Modo texto: ¿tocó un texto que ya existe? → arrastrarlo / editarlo
+    if (ieTextBar.classList.contains('show')) { ieCloseText(true); return; }
+    // ¿Tocó un texto? → se selecciona (sin teclado) y se puede arrastrar
     for (var i = IE.ops.length - 1; i >= 0; i--) {
       var op = IE.ops[i]; if (op.t !== 'x') continue;
-      var b = ieTextBox(op), pad = 14 * ieScale();
+      var b = ieTextBox(op), pad = 14 * ieK();
       if (p[0] > b.x - pad && p[0] < b.x + b.w + pad && p[1] > b.y - pad && p[1] < b.y + b.h + pad) {
-        if (ieTextBar.classList.contains('show')) ieCloseText(true);
-        IE.drag = { op: op, sx: p[0], sy: p[1], ox: op.x, oy: op.y, moved: false };
+        IE.sel = op; IE.color = op.c; IE.size = op.n; IE.b = op.b; IE.i = op.i; IE.u = op.u;
+        IE.drag = { op: op, sx: p[0], sy: p[1], ox: op.x, oy: op.y };
+        ieSyncBar(); ieRedraw();
         return;
       }
     }
-    if (ieTextBar.classList.contains('show')) { ieCloseText(true); return; }
+    // Tocó un lugar vacío: si había un texto elegido, se suelta; si no, texto nuevo aquí
+    if (IE.sel) { IE.sel = null; ieSyncBar(); ieRedraw(); return; }
     ieOpenText(null, p[0], p[1]);
   });
   ieCv.addEventListener('pointermove', function(e){
@@ -1941,29 +1982,38 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       ieCtx.strokeStyle = IE.cur.c; ieCtx.lineWidth = IE.cur.w; ieCtx.lineCap = ieCtx.lineJoin = 'round';
       ieCtx.beginPath(); ieCtx.moveTo(last[0], last[1]); ieCtx.lineTo(p[0], p[1]); ieCtx.stroke();
     } else if (IE.drag) {
-      var dx = p[0] - IE.drag.sx, dy = p[1] - IE.drag.sy;
-      if (Math.abs(dx) + Math.abs(dy) > 6 * ieScale()) IE.drag.moved = true;
-      IE.drag.op.x = IE.drag.ox + dx; IE.drag.op.y = IE.drag.oy + dy; ieRedraw();
+      IE.drag.op.x = IE.drag.ox + p[0] - IE.drag.sx; IE.drag.op.y = IE.drag.oy + p[1] - IE.drag.sy; ieRedraw();
     }
   });
-  function ieUp(){
-    if (IE.cur) { IE.cur = null; ieRedraw(); }
-    if (IE.drag) { var d = IE.drag; IE.drag = null; if (!d.moved) ieOpenText(d.op); }
-  }
+  function ieUp(){ if (IE.cur) { IE.cur = null; ieRedraw(); } IE.drag = null; }
   ieCv.addEventListener('pointerup', ieUp);
   ieCv.addEventListener('pointercancel', ieUp);
-  document.querySelector('#ieTop').addEventListener('click', function(e){
-    var b = e.target.closest('[data-ie]'); if (!b) return;
-    if (b.dataset.ie === 'undo') { ieCloseText(false); IE.ops.pop(); ieRedraw(); return; }
-    ieSetMode(b.dataset.ie);
+
+  /* Barra de abajo del editor de foto */
+  iebar.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
+  iebar.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    var a = b.dataset.ie, cmd = b.dataset.iecmd;
+    if (cmd) {
+      if (IE.mode !== 'text') ieSetMode('text');
+      IE[cmd] = !(IE.sel ? IE.sel[cmd] : IE[cmd]);
+      if (IE.sel) IE.sel[cmd] = IE[cmd];
+      ieSyncBar(); ieRedraw(); return;
+    }
+    if (a === 'draw' || a === 'text') { ieSetMode(a); return; }
+    if (a === 'undo') { ieCloseText(false); var gone = IE.ops.pop(); if (gone === IE.sel) IE.sel = null; ieSyncBar(); ieRedraw(); return; }
+    if (a === 'edit') { if (IE.sel) ieOpenText(IE.sel); return; }
+    if (a === 'del') { if (IE.sel) { IE.ops.splice(IE.ops.indexOf(IE.sel), 1); IE.sel = null; ieSyncBar(); ieRedraw(); } return; }
+    if (a === 'size') { togglePanel(sizePanel, b); return; }
+    if (a === 'color') { togglePanel(colorPanel, b); return; }
   });
-  window.addEventListener('resize', function(){ if (imged.classList.contains('show')) ieFit(); });
+  window.addEventListener('resize', function(){ if (ieOn()) ieFit(); });
   $('ieCancel').onclick = function(){ closeImgEdit(); };
   $('ieOk').onclick = function(){
     ieCloseText(true);
     var t = IE.target;
     if (t && IE.ops.length) {
-      IE.edit = null; ieRedraw();
+      IE.sel = null; IE.mode = 'draw'; ieRedraw();
       t.onload = placeRsz;
       t.src = canvasToData(ieCv, ieCtx, 0.88);
       changedNow(); showTip(${J('imgEdited')});

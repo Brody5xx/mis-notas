@@ -3046,6 +3046,22 @@ for (const code in IMGED) {
   Object.assign(S[code], { imgText: v[0], imgDraw: v[1], imgTextPh: v[2], imgTapText: v[3], imgEdited: v[4] });
 }
 
+/* Textos nuevos: [Editar texto, Sin color] */
+const EDT = {
+  es: ['Editar texto', 'Sin color'], en: ['Edit text', 'No color'], pt: ['Editar texto', 'Sem cor'], fr: ['Modifier le texte', 'Sans couleur'],
+  de: ['Text bearbeiten', 'Keine Farbe'], it: ['Modifica testo', 'Nessun colore'], ca: ['Edita el text', 'Sense color'],
+  nl: ['Tekst bewerken', 'Geen kleur'], sv: ['Redigera text', 'Ingen färg'], nb: ['Rediger tekst', 'Ingen farge'], da: ['Rediger tekst', 'Ingen farve'],
+  fi: ['Muokkaa tekstiä', 'Ei väriä'], pl: ['Edytuj tekst', 'Bez koloru'], cs: ['Upravit text', 'Bez barvy'], sk: ['Upraviť text', 'Bez farby'],
+  hu: ['Szöveg szerkesztése', 'Nincs szín'], ro: ['Editează textul', 'Fără culoare'], hr: ['Uredi tekst', 'Bez boje'],
+  el: ['Επεξεργασία κειμένου', 'Χωρίς χρώμα'], bg: ['Редактирай текста', 'Без цвят'], ru: ['Изменить текст', 'Без цвета'],
+  uk: ['Змінити текст', 'Без кольору'], tr: ['Metni düzenle', 'Renk yok'], ar: ['تعديل النص', 'بدون لون'], he: ['עריכת טקסט', 'ללא צבע'],
+  fa: ['ویرایش متن', 'بدون رنگ'], ur: ['متن میں ترمیم', 'کوئی رنگ نہیں'], hi: ['टेक्स्ट बदलें', 'कोई रंग नहीं'], bn: ['লেখা সম্পাদনা', 'রং নেই'],
+  id: ['Edit teks', 'Tanpa warna'], ms: ['Edit teks', 'Tiada warna'], fil: ['I-edit ang teksto', 'Walang kulay'], vi: ['Sửa chữ', 'Không màu'],
+  th: ['แก้ไขข้อความ', 'ไม่มีสี'], 'zh-Hans': ['编辑文字', '无颜色'], 'zh-Hant': ['編輯文字', '無顏色'], ja: ['文字を編集', '色なし'],
+  ko: ['텍스트 편집', '색상 없음'], sw: ['Hariri maandishi', 'Bila rangi'],
+};
+for (const code in EDT) Object.assign(S[code], { imgEditText: EDT[code][0], noColor: EDT[code][1] });
+
 
 /* ============================================================
    VARIANTES POR PAÍS
