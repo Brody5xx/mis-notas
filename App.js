@@ -293,6 +293,16 @@ function fmtDate(t) {
   }
 }
 
+/* Progreso de las listas de tareas de una nota: { done, total } o null */
+function checklistProgress(n) {
+  if (!n.html || !n.content || n.content.indexOf('checklist') === -1) return null;
+  let done = 0, total = 0;
+  (n.content.match(/<ul[^>]*class="[^"]*checklist[^"]*"[^>]*>[\s\S]*?<\/ul>/gi) || []).forEach(ul => {
+    (ul.match(/<li\b[^>]*>/gi) || []).forEach(li => { total++; if (/class="[^"]*\bdone\b/.test(li)) done++; });
+  });
+  return total ? { done, total } : null;
+}
+
 /* Texto simple de una nota (para vista previa y búsqueda) */
 function toPlain(n) {
   if (!n.html) return n.content || '';
@@ -522,6 +532,10 @@ export default function App() {
   const [cropOpen, setCropOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [toastUndo, setToastUndo] = useState(null);       // acción "Deshacer" del aviso
+  const [appLock, setAppLock] = useState(false);          // pedir PIN al abrir la app
+  const [colorOpen, setColorOpen] = useState(false);      // elegir color de la nota
+  const bgAt = useRef(0);                                  // cuándo se fue la app al fondo
   const [wallpaper, setWallpaper] = useState(null);   // tu imagen de fondo
   const [wallBlur, setWallBlur] = useState(8);        // desenfoque del fondo
   const [newOpen, setNewOpen] = useState(false);      // catálogo de nota nueva
@@ -575,6 +589,11 @@ export default function App() {
         setFolders(data.folders || []);
         if (data.sortBy) setSortBy(data.sortBy);
         if (data.pinHash) setPinHash(data.pinHash);
+        if (data.appLock && data.pinHash) {
+          setAppLock(true);
+          pinOkRef.current = null;
+          setPinPad({ mode: 'app', title: tr('appLockedTitle') });
+        }
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -584,15 +603,23 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash }).catch(() => showToast(tr('saveFail')));
+      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock }).catch(() => showToast(tr('saveFail')));
     }, 500);
     return () => clearTimeout(t);
-  }, [notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, loaded]);
+  }, [notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock, loaded]);
 
-  function showToast(msg) {
+  /* Aviso abajo. Si se pasa "undo", muestra el botón Deshacer por 4 segundos */
+  function showToast(msg, undo) {
     setToastMsg(msg);
+    setToastUndo(() => undo || null);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMsg(''), 1800);
+    toastTimer.current = setTimeout(() => { setToastMsg(''); setToastUndo(null); }, undo ? 4000 : 1800);
+  }
+  function runUndo() {
+    const fn = toastUndo;
+    clearTimeout(toastTimer.current);
+    setToastMsg(''); setToastUndo(null);
+    fn && fn();
   }
 
   /* ---------- Acciones con notas ---------- */
@@ -806,9 +833,10 @@ export default function App() {
 
   function moveToTrash() {
     if (isEmpty(current)) { closeEditor(); return; }
-    patch(current.id, { deleted: true }, false);
+    const id = current.id;
+    patch(id, { deleted: true }, false);
     setCurrentId(null);
-    showToast(tr('movedTrash'));
+    showToast(tr('movedTrash'), () => patch(id, { deleted: false }, false));
   }
 
   function restore() {
@@ -851,15 +879,19 @@ export default function App() {
   }
   function trashSelected() {
     const ids = selIds;
+    const wasPinned = {};
+    notes.forEach(n => { if (selected[n.id]) wasPinned[n.id] = !!n.pinned; });
     setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: true, pinned: false } : n)));
     clearSelection();
-    showToast(ids.length === 1 ? tr('movedTrash') : tr('nMovedTrash', { n: ids.length }));
+    showToast(ids.length === 1 ? tr('movedTrash') : tr('nMovedTrash', { n: ids.length }),
+      () => setNotes(ns => ns.map(n => (n.id in wasPinned ? { ...n, deleted: false, pinned: wasPinned[n.id] } : n))));
   }
   function restoreSelected() {
     const ids = selIds;
     setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: false } : n)));
     clearSelection();
-    showToast(ids.length === 1 ? tr('noteRecovered') : tr('nRecovered', { n: ids.length }));
+    showToast(ids.length === 1 ? tr('noteRecovered') : tr('nRecovered', { n: ids.length }),
+      () => setNotes(ns => ns.map(n => (ids.includes(n.id) ? { ...n, deleted: true } : n))));
   }
   function destroySelected() {
     const ids = selIds;
@@ -963,6 +995,20 @@ export default function App() {
     }
   }, [currentId]);
 
+  // Bloqueo de la app: si estuvo fuera más de 1 minuto, pide el PIN al volver
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'background') { bgAt.current = Date.now(); return; }
+      if (st === 'active' && appLock && pinHash && bgAt.current && Date.now() - bgAt.current > 60000) {
+        bgAt.current = 0;
+        pinOkRef.current = null;
+        setPinEntry('');
+        setPinPad({ mode: 'app', title: tr('appLockedTitle') });
+      }
+    });
+    return () => sub.remove();
+  }, [appLock, pinHash]);
+
   // Si sales de la app con una nota abierta, se guarda el registro
   useEffect(() => {
     const sub = AppState.addEventListener('change', st => {
@@ -1018,6 +1064,24 @@ export default function App() {
     showToast(f ? tr('movedTo', { name: f.name }) : tr('removedFromFolder'));
   }
 
+  /* ---------- Bloquear toda la app con PIN ---------- */
+  function toggleAppLock() {
+    setMenuOpen(false);
+    if (appLock) {
+      askPin('unlock', tr('pinToUnlock'), () => { setAppLock(false); showToast(tr('appLockOff')); });
+      return;
+    }
+    const on = () => { setAppLock(true); showToast(tr('appLockOn')); };
+    if (!pinHash) askPin('set1', tr('pinCreate'), on);
+    else askPin('unlock', tr('pinCurrent'), on);
+  }
+
+  /* ---------- Color de la nota ---------- */
+  function setNoteColor(col) {
+    patch(current.id, { color: col || undefined }, false);
+    setColorOpen(false);
+  }
+
   /* ---------- PIN ---------- */
   function askPin(mode, title, onOk) {
     pinOkRef.current = onOk;
@@ -1032,7 +1096,7 @@ export default function App() {
     setTimeout(() => {
       const pad = pinPad;
       if (!pad) return;
-      if (pad.mode === 'unlock') {
+      if (pad.mode === 'unlock' || pad.mode === 'app') {
         if (hashPin(next) === pinHash) { setPinPad(null); setPinEntry(''); pinOkRef.current && pinOkRef.current(); }
         else { setPinEntry(''); showToast(tr('pinWrong')); }
       } else if (pad.mode === 'set1') {
@@ -1131,7 +1195,7 @@ export default function App() {
         webRef.current.injectJavaScript('window.closeCrop && window.closeCrop(); true;');
         return true;
       }
-      if (pinPad) { setPinPad(null); return true; }
+      if (pinPad) { if (pinPad.mode !== 'app') setPinPad(null); return pinPad.mode !== 'app' || false; }
       if (selMode && !currentId) { clearSelection(); return true; }
       if (histView) { setHistView(null); return true; }
       if (histOpen) { setHistOpen(false); return true; }
@@ -1194,8 +1258,15 @@ export default function App() {
   }, [notes]);
 
   const toast = toastMsg ? (
-    <View style={s.toastWrap} pointerEvents="none">
-      <Glass t={c} strong radius={20}><Text style={s.toastText}>{toastMsg}</Text></Glass>
+    <View style={s.toastWrap} pointerEvents="box-none">
+      <Glass t={c} strong radius={20} inner={toastUndo ? { flexDirection: 'row', alignItems: 'center' } : null}>
+        <Text style={[s.toastText, toastUndo && { flexShrink: 1, paddingRight: 4 }]}>{toastMsg}</Text>
+        {toastUndo && (
+          <TouchableOpacity onPress={runUndo} hitSlop={10} style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+            <Text style={{ color: c.text, fontWeight: '800', fontSize: 15 }}>{tr('undoBtn')}</Text>
+          </TouchableOpacity>
+        )}
+      </Glass>
     </View>
   ) : null;
 
@@ -1315,8 +1386,10 @@ export default function App() {
 
   /* ---------- Teclado del PIN ---------- */
   const pinModal = (
-    <Modal visible={!!pinPad} transparent animationType="fade" onRequestClose={() => setPinPad(null)}>
-      <View style={[s.wallScrim, { backgroundColor: c.scrim }]}>
+    <Modal visible={!!pinPad} transparent animationType="fade"
+      onRequestClose={() => { if (!pinPad || pinPad.mode !== 'app') setPinPad(null); }}>
+      <View style={[s.wallScrim, { backgroundColor: pinPad && pinPad.mode === 'app' ? c.grad[0] : c.scrim }]}>
+        {pinPad && pinPad.mode === 'app' && <Background t={c} wall={wallpaper} blur={20} />}
         {pinPad && (
           <Glass t={c} strong radius={30} style={{ width: '100%', maxWidth: 340 }} inner={{ padding: 22, alignItems: 'center' }}>
             <Feather name="lock" size={28} color={c.text} />
@@ -1342,9 +1415,11 @@ export default function App() {
                 )
               ))}
             </View>
-            <TouchableOpacity onPress={() => setPinPad(null)} style={{ padding: 10, marginTop: 4 }}>
-              <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
-            </TouchableOpacity>
+            {pinPad.mode !== 'app' && (
+              <TouchableOpacity onPress={() => setPinPad(null)} style={{ padding: 10, marginTop: 4 }}>
+                <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
+              </TouchableOpacity>
+            )}
           </Glass>
         )}
       </View>
@@ -1480,6 +1555,11 @@ export default function App() {
             right={<Feather name="chevron-right" size={18} color={c.muted} />} />
           <Row icon={current.locked ? 'unlock' : 'lock'} s={s} t={c}
             label={current.locked ? tr('unlock') : tr('lockPin')} onPress={toggleLock} />
+          <TouchableOpacity onPress={() => { setOptsOpen(false); setColorOpen(true); }} activeOpacity={0.6} style={s.row}>
+            <View style={[s.colorDot, { backgroundColor: current.color || 'transparent', borderColor: current.color || c.muted }]} />
+            <Text style={s.rowText}>{tr('noteColor')}</Text>
+            <Feather name="chevron-right" size={18} color={c.muted} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => { setOptsOpen(false); togglePin(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.pinned ? 'pin-off-outline' : 'pin-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.pinned ? tr('unpin') : tr('pinTop')}</Text>
@@ -1489,6 +1569,22 @@ export default function App() {
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
+        </Sheet>
+
+        {/* Color de la nota */}
+        <Sheet visible={colorOpen} onClose={() => setColorOpen(false)} title={tr('noteColor')} s={s} t={c}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'center' }}>
+            <TouchableOpacity onPress={() => setNoteColor(null)} activeOpacity={0.7}
+              style={[s.colorBig, { borderColor: c.text, alignItems: 'center', justifyContent: 'center' }]}>
+              <Feather name={current.color ? 'slash' : 'check'} size={20} color={c.text} />
+            </TouchableOpacity>
+            {FOLDER_COLORS.map(col => (
+              <TouchableOpacity key={col} onPress={() => setNoteColor(col)} activeOpacity={0.7}
+                style={[s.colorBig, { backgroundColor: col, borderColor: current.color === col ? c.text : 'transparent', alignItems: 'center', justifyContent: 'center' }]}>
+                {current.color === col && <Feather name="check" size={20} color="#fff" />}
+              </TouchableOpacity>
+            ))}
+          </View>
         </Sheet>
 
         {/* Mover a carpeta */}
@@ -1744,6 +1840,12 @@ export default function App() {
               style={isGrid ? { width: cardW } : null}
             >
               <Glass t={c} radius={22} style={selected[item.id] && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
+                {!!item.color && (
+                  <>
+                    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: item.color, opacity: 0.16 }]} />
+                    <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: 2, backgroundColor: item.color }} />
+                  </>
+                )}
                 {selMode && (
                   <View style={[s.selCheck, { borderColor: c.text }, selected[item.id] && { backgroundColor: c.text }]}>
                     {selected[item.id] && <Feather name="check" size={15} color={c.inv} />}
@@ -1787,6 +1889,17 @@ export default function App() {
                     return f ? <View style={[s.folderDot, { backgroundColor: f.color }]} /> : null;
                   })()}
                   <Text style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(sortBy === 'created' ? (item.created || item.updated) : item.updated)}</Text>
+                  {(() => {
+                    const pr = !item.locked && checklistProgress(item);
+                    if (!pr) return null;
+                    const full = pr.done === pr.total;
+                    return (
+                      <View style={[s.progPill, { borderColor: c.border }, full && { backgroundColor: c.text, borderColor: c.text }]}>
+                        <Feather name="check-square" size={11} color={full ? c.inv : c.muted} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: full ? c.inv : c.muted, marginLeft: 4 }}>{pr.done}/{pr.total}</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </Glass>
             </TouchableOpacity>
@@ -1927,6 +2040,16 @@ export default function App() {
               <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={toggleAppLock}>
+              <Feather name="shield" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.navText}>{tr('lockApp')}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('lockAppHint')}</Text>
+              </View>
+              <View style={[s.toggle, { borderColor: c.text }, appLock && { backgroundColor: c.text }]}>
+                <View style={[s.toggleKnob, { backgroundColor: appLock ? c.inv : c.text }, appLock && { alignSelf: 'flex-end' }]} />
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setLangOpen(true); }}>
               <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('language')}</Text>
@@ -2039,6 +2162,9 @@ function makeStyles(c) {
     folderInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, marginTop: 6 },
     folderInput: { flex: 1, color: c.text, fontSize: 16, paddingVertical: 12 },
     folderDot: { width: 8, height: 8, borderRadius: 4 },
+    colorDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, marginRight: 14 },
+    colorBig: { width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
+    progPill: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 'auto' },
     lockedBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
     pinDots: { flexDirection: 'row', gap: 16, marginVertical: 18 },
     pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2 },

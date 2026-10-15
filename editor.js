@@ -344,7 +344,23 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     try { return d.toLocaleString(LOC, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
     catch (e) { return d.toLocaleString(); }
   }
-  function modText(t){ return ${J('modified')}.replace('{d}', fmtDate(t)); }
+  /* Cuántas palabras tiene la nota (sirve también para chino, japonés, tailandés...) */
+  function countWords(){
+    var t = (document.getElementById('ed').innerText || '').replace(/\u200B/g, '').trim();
+    if (!t) return 0;
+    try {
+      if (window.Intl && Intl.Segmenter) {
+        var n = 0, it = new Intl.Segmenter(LOC, { granularity: 'word' }).segment(t)[Symbol.iterator](), x;
+        while (!(x = it.next()).done) if (x.value.isWordLike) n++;
+        return n;
+      }
+    } catch (e) {}
+    return t.split(/\s+/).length;
+  }
+  function modText(t){
+    var w = countWords();
+    return ${J('modified')}.replace('{d}', fmtDate(t)) + (w ? '  ·  ' + (w === 1 ? ${J('nWords1')} : ${J('nWords')}).replace('{n}', w) : '');
+  }
   $('meta').textContent = modText(${Number(updated) || Date.now()});
 
   /* ¿El texto tocado está en el título o en la nota? */

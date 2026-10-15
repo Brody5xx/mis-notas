@@ -2896,6 +2896,56 @@ S.ko = {
   nothingUndo: '실행 취소할 항목이 없습니다', undone: '↶ 실행 취소했습니다', nothingRedo: '다시 실행할 항목이 없습니다', redone: '↷ 다시 실행했습니다',
 };
 
+/* Textos nuevos: Deshacer, contador de palabras, color de nota y bloqueo de la app */
+const EXTRA = {
+  es: ['Deshacer', '{n} palabra', '{n} palabras', 'Color de la nota', 'Bloquear la app con PIN', 'Pide el PIN al abrir la app', 'Escribe tu PIN para entrar', 'La app pedirá el PIN al abrirla', 'Bloqueo de la app quitado'],
+  en: ['Undo', '{n} word', '{n} words', 'Note color', 'Lock the app with PIN', 'Asks for the PIN when opening the app', 'Enter your PIN to get in', 'The app will ask for the PIN when opened', 'App lock removed'],
+  pt: ['Desfazer', '{n} palavra', '{n} palavras', 'Cor da nota', 'Bloquear o app com PIN', 'Pede o PIN ao abrir o app', 'Digite seu PIN para entrar', 'O app vai pedir o PIN ao abrir', 'Bloqueio do app removido'],
+  fr: ['Annuler', '{n} mot', '{n} mots', 'Couleur de la note', "Verrouiller l'app par PIN", "Demande le PIN à l'ouverture de l'app", 'Saisissez votre PIN pour entrer', "L'app demandera le PIN à l'ouverture", "Verrou de l'app retiré"],
+  de: ['Rückgängig', '{n} Wort', '{n} Wörter', 'Notizfarbe', 'App mit PIN sperren', 'Fragt beim Öffnen der App nach der PIN', 'Gib deine PIN ein, um fortzufahren', 'Die App fragt beim Öffnen nach der PIN', 'App-Sperre entfernt'],
+  it: ['Annulla', '{n} parola', '{n} parole', 'Colore della nota', "Blocca l'app con PIN", "Chiede il PIN all'apertura dell'app", 'Inserisci il PIN per entrare', "L'app chiederà il PIN all'apertura", "Blocco dell'app rimosso"],
+  ca: ['Desfés', '{n} paraula', '{n} paraules', 'Color de la nota', "Bloqueja l'app amb PIN", "Demana el PIN en obrir l'app", 'Escriu el PIN per entrar', "L'app demanarà el PIN en obrir-la", "Bloqueig de l'app tret"],
+  nl: ['Ongedaan maken', '{n} woord', '{n} woorden', 'Kleur van notitie', 'App vergrendelen met pincode', 'Vraagt om de pincode bij het openen', 'Voer je pincode in om verder te gaan', 'De app vraagt om de pincode bij het openen', 'App-vergrendeling verwijderd'],
+  sv: ['Ångra', '{n} ord', '{n} ord', 'Anteckningens färg', 'Lås appen med PIN', 'Ber om PIN när appen öppnas', 'Ange din PIN för att komma in', 'Appen ber om PIN när den öppnas', 'Applåset borttaget'],
+  nb: ['Angre', '{n} ord', '{n} ord', 'Notatfarge', 'Lås appen med PIN', 'Ber om PIN når appen åpnes', 'Skriv inn PIN for å komme inn', 'Appen ber om PIN når den åpnes', 'Applåsen fjernet'],
+  da: ['Fortryd', '{n} ord', '{n} ord', 'Notens farve', 'Lås appen med PIN', 'Beder om PIN, når appen åbnes', 'Indtast din PIN for at komme ind', 'Appen beder om PIN, når den åbnes', 'Applås fjernet'],
+  fi: ['Kumoa', '{n} sana', '{n} sanaa', 'Muistiinpanon väri', 'Lukitse sovellus PIN-koodilla', 'Kysyy PIN-koodia sovellusta avattaessa', 'Anna PIN päästäksesi sisään', 'Sovellus kysyy PIN-koodia avattaessa', 'Sovelluksen lukitus poistettu'],
+  pl: ['Cofnij', '{n} słowo', 'Słowa: {n}', 'Kolor notatki', 'Blokuj aplikację PIN-em', 'Prosi o PIN przy otwieraniu aplikacji', 'Wpisz PIN, aby wejść', 'Aplikacja poprosi o PIN przy otwarciu', 'Blokada aplikacji usunięta'],
+  cs: ['Zpět', '{n} slovo', 'Slova: {n}', 'Barva poznámky', 'Zamknout aplikaci PIN kódem', 'Při otevření aplikace vyžaduje PIN', 'Zadejte PIN pro vstup', 'Aplikace bude při otevření vyžadovat PIN', 'Zámek aplikace odstraněn'],
+  sk: ['Späť', '{n} slovo', 'Slová: {n}', 'Farba poznámky', 'Zamknúť aplikáciu PIN kódom', 'Pri otvorení aplikácie vyžaduje PIN', 'Zadajte PIN na vstup', 'Aplikácia bude pri otvorení vyžadovať PIN', 'Zámok aplikácie odstránený'],
+  hu: ['Visszavonás', '{n} szó', '{n} szó', 'Jegyzet színe', 'App zárolása PIN-kóddal', 'Megnyitáskor kéri a PIN-kódot', 'Add meg a PIN-kódot a belépéshez', 'Az app megnyitáskor kéri a PIN-kódot', 'App zárolása eltávolítva'],
+  ro: ['Anulează', '{n} cuvânt', 'Cuvinte: {n}', 'Culoarea notiței', 'Blochează aplicația cu PIN', 'Cere PIN-ul la deschiderea aplicației', 'Introdu PIN-ul pentru a intra', 'Aplicația va cere PIN-ul la deschidere', 'Blocarea aplicației a fost eliminată'],
+  hr: ['Poništi', '{n} riječ', 'Riječi: {n}', 'Boja bilješke', 'Zaključaj aplikaciju PIN-om', 'Traži PIN pri otvaranju aplikacije', 'Unesite PIN za ulaz', 'Aplikacija će tražiti PIN pri otvaranju', 'Zaključavanje aplikacije uklonjeno'],
+  el: ['Αναίρεση', '{n} λέξη', '{n} λέξεις', 'Χρώμα σημείωσης', 'Κλείδωμα εφαρμογής με PIN', 'Ζητά το PIN όταν ανοίγει η εφαρμογή', 'Πληκτρολογήστε το PIN για είσοδο', 'Η εφαρμογή θα ζητά PIN όταν ανοίγει', 'Το κλείδωμα της εφαρμογής αφαιρέθηκε'],
+  bg: ['Отмени', '{n} дума', '{n} думи', 'Цвят на бележката', 'Заключи приложението с ПИН', 'Иска ПИН при отваряне на приложението', 'Въведете ПИН, за да влезете', 'Приложението ще иска ПИН при отваряне', 'Заключването на приложението е махнато'],
+  ru: ['Отменить', '{n} слово', 'Слов: {n}', 'Цвет заметки', 'Блокировать приложение PIN-кодом', 'Запрашивает PIN при открытии приложения', 'Введите PIN, чтобы войти', 'Приложение будет запрашивать PIN при открытии', 'Блокировка приложения снята'],
+  uk: ['Скасувати', '{n} слово', 'Слів: {n}', 'Колір нотатки', 'Блокувати застосунок PIN-кодом', 'Запитує PIN під час відкриття застосунку', 'Введіть PIN, щоб увійти', 'Застосунок запитуватиме PIN під час відкриття', 'Блокування застосунку знято'],
+  tr: ['Geri al', '{n} kelime', '{n} kelime', 'Not rengi', 'Uygulamayı PIN ile kilitle', 'Uygulama açılırken PIN ister', 'Girmek için PIN’inizi girin', 'Uygulama açılırken PIN isteyecek', 'Uygulama kilidi kaldırıldı'],
+  ar: ['تراجع', 'كلمة واحدة', 'الكلمات: {n}', 'لون الملاحظة', 'قفل التطبيق برمز PIN', 'يطلب رمز PIN عند فتح التطبيق', 'أدخل رمز PIN للدخول', 'سيطلب التطبيق رمز PIN عند فتحه', 'تمت إزالة قفل التطبيق'],
+  he: ['ביטול', 'מילה אחת', '{n} מילים', 'צבע הפתק', 'נעילת האפליקציה ב-PIN', 'מבקש PIN בפתיחת האפליקציה', 'הזן PIN כדי להיכנס', 'האפליקציה תבקש PIN בפתיחה', 'נעילת האפליקציה הוסרה'],
+  fa: ['واگرد', '{n} واژه', '{n} واژه', 'رنگ یادداشت', 'قفل برنامه با PIN', 'هنگام باز کردن برنامه PIN می‌خواهد', 'برای ورود PIN را وارد کنید', 'برنامه هنگام باز شدن PIN می‌خواهد', 'قفل برنامه برداشته شد'],
+  ur: ['واپس', '{n} لفظ', '{n} الفاظ', 'نوٹ کا رنگ', 'ایپ کو PIN سے مقفل کریں', 'ایپ کھولتے وقت PIN مانگتا ہے', 'داخل ہونے کے لیے PIN درج کریں', 'ایپ کھلتے وقت PIN مانگے گی', 'ایپ کا تالا ہٹا دیا'],
+  hi: ['वापस लें', '{n} शब्द', '{n} शब्द', 'नोट का रंग', 'ऐप को PIN से लॉक करें', 'ऐप खोलते समय PIN माँगता है', 'अंदर जाने के लिए PIN डालें', 'ऐप खोलने पर PIN माँगा जाएगा', 'ऐप लॉक हटाया'],
+  bn: ['ফিরিয়ে নিন', '{n}টি শব্দ', '{n}টি শব্দ', 'নোটের রং', 'PIN দিয়ে অ্যাপ লক করুন', 'অ্যাপ খুললে PIN চায়', 'ঢুকতে আপনার PIN দিন', 'অ্যাপ খুললে PIN চাইবে', 'অ্যাপ লক সরানো হয়েছে'],
+  id: ['Urungkan', '{n} kata', '{n} kata', 'Warna catatan', 'Kunci aplikasi dengan PIN', 'Meminta PIN saat aplikasi dibuka', 'Masukkan PIN untuk masuk', 'Aplikasi akan meminta PIN saat dibuka', 'Kunci aplikasi dilepas'],
+  ms: ['Buat asal', '{n} perkataan', '{n} perkataan', 'Warna nota', 'Kunci apl dengan PIN', 'Meminta PIN apabila apl dibuka', 'Masukkan PIN untuk masuk', 'Apl akan meminta PIN apabila dibuka', 'Kunci apl dibuang'],
+  fil: ['I-undo', '{n} salita', '{n} salita', 'Kulay ng tala', 'Ikandado ang app gamit ang PIN', 'Hihingi ng PIN pagbukas ng app', 'Ilagay ang PIN para makapasok', 'Hihingi ang app ng PIN pagbukas', 'Inalis ang kandado ng app'],
+  vi: ['Hoàn tác', '{n} từ', '{n} từ', 'Màu ghi chú', 'Khóa ứng dụng bằng PIN', 'Yêu cầu PIN khi mở ứng dụng', 'Nhập mã PIN để vào', 'Ứng dụng sẽ yêu cầu PIN khi mở', 'Đã bỏ khóa ứng dụng'],
+  th: ['เลิกทำ', '{n} คำ', '{n} คำ', 'สีของโน้ต', 'ล็อกแอปด้วย PIN', 'ขอ PIN เมื่อเปิดแอป', 'ใส่ PIN เพื่อเข้าใช้', 'แอปจะขอ PIN เมื่อเปิด', 'ปลดล็อกแอปแล้ว'],
+  'zh-Hans': ['撤销', '{n} 个字词', '{n} 个字词', '笔记颜色', '用 PIN 锁定应用', '打开应用时需要输入 PIN', '输入 PIN 以进入', '打开应用时将要求输入 PIN', '已取消应用锁'],
+  'zh-Hant': ['復原', '{n} 個字詞', '{n} 個字詞', '筆記顏色', '用 PIN 鎖定 App', '開啟 App 時需要輸入 PIN', '輸入 PIN 以進入', '開啟 App 時將要求輸入 PIN', '已取消 App 鎖定'],
+  ja: ['元に戻す', '{n} 語', '{n} 語', 'メモの色', 'PIN でアプリをロック', 'アプリを開くときに PIN を求めます', 'PIN を入力して開く', 'アプリを開くときに PIN を求めます', 'アプリのロックを解除しました'],
+  ko: ['실행 취소', '{n}단어', '{n}단어', '메모 색상', 'PIN으로 앱 잠그기', '앱을 열 때 PIN을 요구합니다', '들어가려면 PIN을 입력하세요', '앱을 열 때 PIN을 요구합니다', '앱 잠금을 해제했습니다'],
+  sw: ['Tendua', 'Neno {n}', 'Maneno {n}', 'Rangi ya dokezo', 'Funga programu kwa PIN', 'Huomba PIN unapofungua programu', 'Weka PIN yako kuingia', 'Programu itaomba PIN inapofunguliwa', 'Kufuli ya programu imeondolewa'],
+};
+for (const code in EXTRA) {
+  const v = EXTRA[code];
+  Object.assign(S[code], {
+    undoBtn: v[0], nWords1: v[1], nWords: v[2], noteColor: v[3], lockApp: v[4],
+    lockAppHint: v[5], appLockedTitle: v[6], appLockOn: v[7], appLockOff: v[8],
+  });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS
