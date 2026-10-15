@@ -2897,15 +2897,15 @@ S.ko = {
 };
 
 
-/* Lista de idiomas (código, nombre en su propio idioma) */
+/* Lista de idiomas (código, bandera + nombre en su propio idioma) */
 export const LANGS = [
-  ['es', 'Español'], ['en', 'English'], ['pt', 'Português'], ['fr', 'Français'], ['de', 'Deutsch'], ['it', 'Italiano'],
-  ['ca', 'Català'], ['nl', 'Nederlands'], ['sv', 'Svenska'], ['nb', 'Norsk'], ['da', 'Dansk'], ['fi', 'Suomi'],
-  ['pl', 'Polski'], ['cs', 'Čeština'], ['sk', 'Slovenčina'], ['hu', 'Magyar'], ['ro', 'Română'], ['hr', 'Hrvatski'],
-  ['el', 'Ελληνικά'], ['bg', 'Български'], ['ru', 'Русский'], ['uk', 'Українська'], ['tr', 'Türkçe'],
-  ['ar', 'العربية'], ['he', 'עברית'], ['fa', 'فارسی'], ['ur', 'اردو'], ['hi', 'हिन्दी'], ['bn', 'বাংলা'],
-  ['id', 'Bahasa Indonesia'], ['ms', 'Bahasa Melayu'], ['fil', 'Filipino'], ['vi', 'Tiếng Việt'], ['th', 'ไทย'],
-  ['zh-Hans', '中文（简体）'], ['zh-Hant', '中文（繁體）'], ['ja', '日本語'], ['ko', '한국어'], ['sw', 'Kiswahili'],
+  ['es', '🇪🇸 Español'], ['en', '🇺🇸 English'], ['pt', '🇧🇷 Português'], ['fr', '🇫🇷 Français'], ['de', '🇩🇪 Deutsch'], ['it', '🇮🇹 Italiano'],
+  ['ca', '🇦🇩 Català'], ['nl', '🇳🇱 Nederlands'], ['sv', '🇸🇪 Svenska'], ['nb', '🇳🇴 Norsk'], ['da', '🇩🇰 Dansk'], ['fi', '🇫🇮 Suomi'],
+  ['pl', '🇵🇱 Polski'], ['cs', '🇨🇿 Čeština'], ['sk', '🇸🇰 Slovenčina'], ['hu', '🇭🇺 Magyar'], ['ro', '🇷🇴 Română'], ['hr', '🇭🇷 Hrvatski'],
+  ['el', '🇬🇷 Ελληνικά'], ['bg', '🇧🇬 Български'], ['ru', '🇷🇺 Русский'], ['uk', '🇺🇦 Українська'], ['tr', '🇹🇷 Türkçe'],
+  ['ar', '🇸🇦 العربية'], ['he', '🇮🇱 עברית'], ['fa', '🇮🇷 فارسی'], ['ur', '🇵🇰 اردو'], ['hi', '🇮🇳 हिन्दी'], ['bn', '🇧🇩 বাংলা'],
+  ['id', '🇮🇩 Bahasa Indonesia'], ['ms', '🇲🇾 Bahasa Melayu'], ['fil', '🇵🇭 Filipino'], ['vi', '🇻🇳 Tiếng Việt'], ['th', '🇹🇭 ไทย'],
+  ['zh-Hans', '🇨🇳 中文（简体）'], ['zh-Hant', '🇹🇼 中文（繁體）'], ['ja', '🇯🇵 日本語'], ['ko', '🇰🇷 한국어'], ['sw', '🇰🇪 Kiswahili'],
 ].filter(l => S[l[0]]);
 
 /* Idioma del teléfono, por ejemplo "es-MX" o "en_US" */
