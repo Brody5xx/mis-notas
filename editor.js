@@ -118,7 +118,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw.on{box-shadow:0 0 0 3px ${c.card},0 0 0 6px #ffffff}
 
   /* ===== Fotos dentro de la nota ===== */
-  .imgwrap{margin:10px auto;width:100%;max-width:100%;position:relative;transform-origin:center center}
+  .imgwrap{margin:10px auto;width:100%;max-width:100%;position:relative;transform-origin:center center;clear:both}
+  #ed::after{content:'';display:block;clear:both}
   .imgwrap.sel:not([data-anchor]){touch-action:none;cursor:move}
   /* Guías rojas y medida al mover una foto */
   #gx,#gy{position:fixed;background:#ff3b30;z-index:7;pointer-events:none;display:none}
@@ -1207,8 +1208,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     y = Math.round(Math.max(minY, y));
     w.dataset.x = x.toFixed(1);
     w.dataset.y = y;
-    w.style.marginLeft = x + '%';
-    w.style.marginRight = '0';
+    // Texto al lado: si la foto está hacia la izquierda, se escribe a su derecha;
+    // si está hacia la derecha, se escribe a su izquierda. En el centro va sola.
+    var cx = x + wp / 2, side = wp <= 75 ? (cx < 47 ? 'l' : cx > 53 ? 'r' : '') : '';
+    w.dataset.wrap = side;
+    if (side === 'l') {
+      w.style.float = 'left'; w.style.marginLeft = x + '%'; w.style.marginRight = '14px';
+    } else if (side === 'r') {
+      w.style.float = 'right'; w.style.marginRight = (100 - wp - x) + '%'; w.style.marginLeft = '14px';
+    } else {
+      w.style.float = ''; w.style.marginLeft = x + '%'; w.style.marginRight = '0';
+    }
     applyVMargins(w);
   }
   function anchoredOthers(w){
