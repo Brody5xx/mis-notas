@@ -3115,7 +3115,7 @@ for (const code in SPELL) {
 /* Textos nuevos: borrar todo el contenido de la nota
    [Opción del menú, Título del aviso, Mensaje del aviso, Botón, Aviso al terminar] */
 const CLEAR = {
-  es: ['Borrar todo el contenido', '¿Borrar todo el contenido?', 'Se eliminarán el título, el texto, las fotos y los dibujos de esta nota. Si cambias de opinión, puedes recuperarlo con Deshacer.', 'Borrar todo', '✓ Contenido borrado'],
+  es: ['Vaciar chat', '¿Vaciar chat?', 'Se eliminarán el título, el texto, las fotos y los dibujos de este chat. Si cambias de opinión, puedes recuperarlo con Deshacer.', 'Vaciar', '✓ Chat vaciado'],
   en: ['Clear all content', 'Clear all content?', 'The title, text, photos and drawings in this note will be deleted. If you change your mind, you can get it back with Undo.', 'Clear all', '✓ Content cleared'],
   pt: ['Apagar todo o conteúdo', 'Apagar todo o conteúdo?', 'O título, o texto, as fotos e os desenhos desta nota serão apagados. Se mudar de ideia, pode recuperar com Desfazer.', 'Apagar tudo', '✓ Conteúdo apagado'],
   fr: ['Effacer tout le contenu', 'Effacer tout le contenu ?', 'Le titre, le texte, les photos et les dessins de cette note seront supprimés. Si vous changez d’avis, vous pourrez les récupérer avec Annuler.', 'Tout effacer', '✓ Contenu effacé'],
