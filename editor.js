@@ -165,8 +165,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     border:0.5px solid transparent !important;
     background:linear-gradient(${glass},${glass}) padding-box,
                linear-gradient(135deg,${c.stroke[0]},${c.stroke[1]} 50%,${c.stroke[2]}) border-box !important;
-    -webkit-backdrop-filter:blur(16px) brightness(1.1) saturate(1.5) !important;
-    backdrop-filter:blur(16px) brightness(1.1) saturate(1.5) !important;
+    -webkit-backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
+    backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
     box-shadow:inset 0 2px 2px ${c.hi},inset 0 -2px 2px ${c.lo},0 14px 36px rgba(0,0,0,.30) !important;
   }
   .chip{border-color:${c.border} !important}
