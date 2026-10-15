@@ -171,6 +171,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #imgbar .drow{display:flex;align-items:center;justify-content:space-between;gap:2px}
   #imgbar .db{height:40px;padding:0 6px;min-width:36px;font-size:14px}
   #imgbar .rotrow{padding:0 2px 2px}
+  #imgbar .presets{justify-content:space-between;padding:2px 0 0;gap:3px}
+  #imgbar .presets button{flex:1;min-width:0;height:30px;border-radius:15px;border:1px solid ${c.border};background:transparent;
+          color:${c.text};font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;padding:0}
+  #imgbar .presets button.on{background:#ff3b30;border-color:#ff3b30;color:#fff}
+  #imgbar .db.pm{min-width:34px;width:34px;height:34px;padding:0;border-radius:17px;font-size:22px;font-weight:700;
+          border:1px solid ${c.border};touch-action:manipulation}
   #imgbar .lbl{font-size:13px;font-weight:700;color:${c.text};font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
   #rotRange{flex:1;min-width:60px;accent-color:#ff3b30;height:30px;touch-action:none}
   /* Editor de foto: escribir y dibujar encima */
@@ -357,10 +363,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
  </div>
+ <div class="drow presets" id="rotPresets">
+  <button data-deg="0">0°</button><button data-deg="45">45°</button><button data-deg="90">90°</button><button data-deg="135">135°</button>
+  <button data-deg="180">180°</button><button data-deg="225">225°</button><button data-deg="270">270°</button><button data-deg="315">315°</button>
+ </div>
  <div class="drow rotrow">
   <span class="lbl" id="rotLbl">↻ 0°</span>
-  <input type="range" id="rotRange" min="-180" max="180" step="1" value="0">
-  <button class="db" data-img="rot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg> 90°</button>
+  <button class="db pm" id="rotMinus">−</button>
+  <input type="range" id="rotRange" min="0" max="359" step="1" value="0">
+  <button class="db pm" id="rotPlus">+</button>
   <span class="lbl" id="pctLabel">100%</span>
  </div>
 </div>
@@ -1120,10 +1131,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     pctEl.textContent = sc + '%';
   }
   /* Giro de la foto en grados (-180 a 180) */
-  function getRot(w){ return +w.dataset.rot || 0; }
+  function getRot(w){ var d = +w.dataset.rot || 0; return ((Math.round(d) % 360) + 360) % 360; }
   function setRot(w, deg){
-    deg = Math.round(((deg % 360) + 540) % 360 - 180);
-    if (deg === -180) deg = 180;
+    deg = ((Math.round(deg) % 360) + 360) % 360;          // de 0° a 359°
     w.dataset.rot = deg;
     w.style.transform = deg ? 'rotate(' + deg + 'deg)' : '';
     if (w === selImg) syncRot();
@@ -1237,10 +1247,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
     if (a === 'text' || a === 'draw') { openImgEdit(selImg.querySelector('img'), a); return; }
     if (a === 'reset') { setScale(selImg, 100); setRot(selImg, 0); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
-    if (a === 'rot') {
-      var d = setRot(selImg, Math.round((getRot(selImg) + 90) / 90) * 90);
-      placeRsz(); changedNow(); showMv('↻ <b>' + d + '°</b>');
-    }
+
   });
 
   /* =========================================================
@@ -1331,17 +1338,44 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* ---------- Barrita para girar la foto (como la del volumen) ---------- */
   var rotRange = $('rotRange'), rotLbl = $('rotLbl');
-  function syncRot(){ if (!selImg) return; var d = getRot(selImg); rotRange.value = d; rotLbl.textContent = '↻ ' + d + '°'; }
+  function syncRot(){
+    if (!selImg) return;
+    var d = getRot(selImg); rotRange.value = d; rotLbl.textContent = '↻ ' + d + '°';
+    Array.prototype.forEach.call($('rotPresets').children, function(b){ b.classList.toggle('on', +b.dataset.deg === d); });
+  }
+  function rotTo(d, snap){
+    if (!selImg) return;
+    d = setRot(selImg, d);
+    placeRsz(); showGuides(selImg, snap, snap);
+    showMv('↻ <b>' + d + '°</b>', true);
+  }
+  function rotDone(){ hideGuides(); hideMv(); changedNow(); }
+  /* Botones de grados: la foto va directo a ese ángulo */
+  $('rotPresets').addEventListener('click', function(e){
+    var b = e.target.closest('[data-deg]'); if (!b || !selImg) return;
+    rotTo(+b.dataset.deg, true); rotDone();
+  });
+  /* − y +: un grado cada toque (déjalo presionado para que siga) */
+  function holdBtn(btn, step){
+    var t1 = null, t2 = null;
+    function stop(){ clearTimeout(t1); clearInterval(t2); if (t1 !== null) { t1 = null; rotDone(); } }
+    btn.addEventListener('pointerdown', function(e){
+      e.preventDefault();
+      if (!selImg) return;
+      rotTo(getRot(selImg) + step, false);
+      t1 = setTimeout(function(){ t2 = setInterval(function(){ rotTo(getRot(selImg) + step, false); }, 70); }, 400);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(ev){ btn.addEventListener(ev, stop); });
+  }
+  holdBtn($('rotMinus'), -1);
+  holdBtn($('rotPlus'), 1);
   rotRange.addEventListener('input', function(){
     if (!selImg) return;
     var d = +rotRange.value, near = Math.round(d / 90) * 90, snap = Math.abs(d - near) < 4;
-    if (snap) d = near;                                    // se pega en 0°, 90°, 180°
-    d = setRot(selImg, d);
-    rotLbl.textContent = '↻ ' + d + '°';
-    placeRsz(); showGuides(selImg, snap, snap);
-    showMv('↻ <b>' + d + '°</b>', true);
+    if (snap) d = near;                                    // se pega en 0°, 90°, 180°, 270°
+    rotTo(d, snap);
   });
-  rotRange.addEventListener('change', function(){ hideGuides(); hideMv(); changedNow(); });
+  rotRange.addEventListener('change', rotDone);
 
   var mvTimer = null;
   function showMv(html, stay){
