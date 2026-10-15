@@ -10,7 +10,7 @@ import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml } from './editor';
-import { LANGS, makeT, detectLang, localeOf } from './idiomas';
+import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
 let tr = makeT(detectLang());
@@ -510,6 +510,7 @@ export default function App() {
   const [translucent, setTranslucent] = useState(false);  // ver la pantalla de inicio detrás
   const [lang, setLang] = useState('auto');                // 'auto' = idioma del teléfono
   const [langOpen, setLangOpen] = useState(false);
+  const [langGroup, setLangGroup] = useState(null);       // idioma desplegado en la lista
   const langCode = lang === 'auto' ? detectLang() : lang;
   applyLang(langCode);
   const [view, setView] = useState('all');        // 'all', 'fav', 'trash'
@@ -1361,18 +1362,33 @@ export default function App() {
     </Sheet>
   );
 
-  /* ---------- Elegir idioma ---------- */
-  const langName = (LANGS.find(l => l[0] === langCode) || ['', ''])[1];
+  /* ---------- Elegir idioma (con variantes por país que se despliegan) ---------- */
+  const langName = langLabel(langCode);
+  const pickLang = code => { setLang(code); setLangOpen(false); setLangGroup(null); };
+  const check = on => (on ? <Feather name="check" size={20} color={c.text} /> : null);
   const langSheet = (
-    <Sheet visible={langOpen} onClose={() => setLangOpen(false)} title={tr('language')} s={s} t={c}>
-      <Row icon="smartphone" label={tr('langAuto')} s={s} t={c}
-        onPress={() => { setLang('auto'); setLangOpen(false); }}
-        right={lang === 'auto' ? <Feather name="check" size={20} color={c.text} /> : null} />
-      {LANGS.map(([code, name]) => (
-        <Row key={code} label={name} s={s} t={c}
-          onPress={() => { setLang(code); setLangOpen(false); }}
-          right={lang === code ? <Feather name="check" size={20} color={c.text} /> : null} />
-      ))}
+    <Sheet visible={langOpen} onClose={() => { setLangOpen(false); setLangGroup(null); }} title={tr('language')} s={s} t={c}>
+      <Row icon="smartphone" label={tr('langAuto')} s={s} t={c} onPress={() => pickLang('auto')} right={check(lang === 'auto')} />
+      {LANG_GROUPS.map(([base, name, vars]) => {
+        const mine = lang !== 'auto' && groupOf(lang) === base;
+        if (!vars.length) return <Row key={base} label={name} s={s} t={c} onPress={() => pickLang(base)} right={check(lang === base)} />;
+        const open = langGroup === base;
+        return (
+          <View key={base}>
+            <Row label={name} s={s} t={c} onPress={() => setLangGroup(open ? null : base)}
+              right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {mine && !open ? <Feather name="check" size={18} color={c.text} /> : null}
+                <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
+              </View>} />
+            {open && vars.map(([code, flag, region]) => (
+              <TouchableOpacity key={code} onPress={() => pickLang(code)} activeOpacity={0.6} style={[s.row, { paddingLeft: 44 }]}>
+                <Text style={[s.rowText, { fontSize: 15 }]} numberOfLines={1}>{flag + '  ' + region}</Text>
+                {check(lang === code)}
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+      })}
     </Sheet>
   );
 

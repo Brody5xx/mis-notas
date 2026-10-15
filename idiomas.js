@@ -2897,16 +2897,119 @@ S.ko = {
 };
 
 
-/* Lista de idiomas (código, bandera + nombre en su propio idioma) */
-export const LANGS = [
-  ['es', '🇪🇸 Español'], ['en', '🇺🇸 English'], ['pt', '🇧🇷 Português'], ['fr', '🇫🇷 Français'], ['de', '🇩🇪 Deutsch'], ['it', '🇮🇹 Italiano'],
-  ['ca', '🇦🇩 Català'], ['nl', '🇳🇱 Nederlands'], ['sv', '🇸🇪 Svenska'], ['nb', '🇳🇴 Norsk'], ['da', '🇩🇰 Dansk'], ['fi', '🇫🇮 Suomi'],
-  ['pl', '🇵🇱 Polski'], ['cs', '🇨🇿 Čeština'], ['sk', '🇸🇰 Slovenčina'], ['hu', '🇭🇺 Magyar'], ['ro', '🇷🇴 Română'], ['hr', '🇭🇷 Hrvatski'],
-  ['el', '🇬🇷 Ελληνικά'], ['bg', '🇧🇬 Български'], ['ru', '🇷🇺 Русский'], ['uk', '🇺🇦 Українська'], ['tr', '🇹🇷 Türkçe'],
-  ['ar', '🇸🇦 العربية'], ['he', '🇮🇱 עברית'], ['fa', '🇮🇷 فارسی'], ['ur', '🇵🇰 اردو'], ['hi', '🇮🇳 हिन्दी'], ['bn', '🇧🇩 বাংলা'],
-  ['id', '🇮🇩 Bahasa Indonesia'], ['ms', '🇲🇾 Bahasa Melayu'], ['fil', '🇵🇭 Filipino'], ['vi', '🇻🇳 Tiếng Việt'], ['th', '🇹🇭 ไทย'],
-  ['zh-Hans', '🇨🇳 中文（简体）'], ['zh-Hant', '🇹🇼 中文（繁體）'], ['ja', '🇯🇵 日本語'], ['ko', '🇰🇷 한국어'], ['sw', '🇰🇪 Kiswahili'],
-].filter(l => S[l[0]]);
+/* ============================================================
+   VARIANTES POR PAÍS
+   Algunos idiomas se hablan en varios países. Cada variante usa los
+   textos de su idioma base, con fechas del país y, a veces, algunas
+   palabras distintas (por ejemplo "colour" en Reino Unido).
+   ============================================================ */
+const GB = s => s.replace(/avorite/g, 'avourite').replace(/olor/g, 'olour').replace(/\bTrash\b/g, 'Bin').replace(/\btrash\b/g, 'bin');
+const CA_EN = s => s.replace(/avorite/g, 'avourite').replace(/olor/g, 'olour');
+const CH_DE = s => s.replace(/ß/g, 'ss');
+const ES_ES = { shareFail: 'No se puede compartir desde aquí. Prueba en el móvil.', langAuto: 'Automático (idioma del móvil)' };
+const PT_PT = s => s.replace(/Registro/g, 'Registo').replace(/registro/g, 'registo')
+  .replace(/Lixeira/g, 'Reciclagem').replace(/lixeira/g, 'reciclagem')
+  .replace(/Excluir/g, 'Eliminar').replace(/excluir/g, 'eliminar').replace(/excluída/g, 'eliminada').replace(/excluídas/g, 'eliminadas')
+  .replace(/Compartilhar/g, 'Partilhar').replace(/compartilhar/g, 'partilhar')
+  .replace(/Papel de parede/g, 'Fundo do ecrã').replace(/celular/g, 'telemóvel')
+  .replace(/Digite seu/g, 'Introduza o seu').replace(/Digite um/g, 'Introduza um')
+  .replace(/Salvar/g, 'Guardar').replace(/salvar/g, 'guardar').replace(/\bsalvas\b/g, 'guardadas').replace(/\bsalva\b/g, 'guardada').replace(/\bsalvo\b/g, 'guardado').replace(/SALVAS/g, 'GUARDADAS');
+const PT_PT_OVER = {
+  done: 'Concluído', highlighter: 'Marcador',
+  recRestoreMsg: 'A nota terá tudo o que está no registo, incluindo o que apagou. O conteúdo atual será substituído.',
+  versionRestoreMsg: 'A nota voltará a ser como nesta versão. O que escreveu fica no Registo.',
+  bgMainHint: 'Aparecerá no ecrã principal.', translucentHint: 'O seu ecrã inicial aparece atrás (app instalada no Android)',
+  seeLater: 'Verá quando instalar a app no Android',
+  histIntro: 'O Registo guarda sozinho tudo o que escreve, mesmo que apague. As versões são guardadas quando quiser.',
+  recIntro: 'Tudo o que escreveu nesta nota, até o que apagou.', nowKeptInRec: 'O que tem agora fica guardado no Registo.',
+  noFav: 'Ainda não tem favoritos.',
+};
+
+/* Lista de idiomas: [código base, bandera + nombre, variantes por país]
+   Cada variante: [código, bandera, país (en ese idioma), cambios opcionales] */
+export const LANG_GROUPS = [
+  ['es', '🇪🇸 Español', [
+    ['es-ES', '🇪🇸', 'España', ES_ES], ['es-MX', '🇲🇽', 'México'], ['es-US', '🇺🇸', 'Estados Unidos'], ['es-AR', '🇦🇷', 'Argentina'],
+    ['es-BO', '🇧🇴', 'Bolivia'], ['es-CL', '🇨🇱', 'Chile'], ['es-CO', '🇨🇴', 'Colombia'], ['es-CR', '🇨🇷', 'Costa Rica'],
+    ['es-CU', '🇨🇺', 'Cuba'], ['es-EC', '🇪🇨', 'Ecuador'], ['es-SV', '🇸🇻', 'El Salvador'], ['es-GQ', '🇬🇶', 'Guinea Ecuatorial'],
+    ['es-GT', '🇬🇹', 'Guatemala'], ['es-HN', '🇭🇳', 'Honduras'], ['es-NI', '🇳🇮', 'Nicaragua'], ['es-PA', '🇵🇦', 'Panamá'],
+    ['es-PY', '🇵🇾', 'Paraguay'], ['es-PE', '🇵🇪', 'Perú'], ['es-PR', '🇵🇷', 'Puerto Rico'], ['es-DO', '🇩🇴', 'República Dominicana'],
+    ['es-UY', '🇺🇾', 'Uruguay'], ['es-VE', '🇻🇪', 'Venezuela'],
+  ]],
+  ['en', '🇺🇸 English', [
+    ['en-US', '🇺🇸', 'United States'], ['en-GB', '🇬🇧', 'United Kingdom', GB], ['en-CA', '🇨🇦', 'Canada', CA_EN],
+    ['en-AU', '🇦🇺', 'Australia', GB], ['en-IE', '🇮🇪', 'Ireland', GB], ['en-NZ', '🇳🇿', 'New Zealand', GB],
+    ['en-IN', '🇮🇳', 'India', GB], ['en-ZA', '🇿🇦', 'South Africa', GB], ['en-PH', '🇵🇭', 'Philippines'], ['en-SG', '🇸🇬', 'Singapore', GB],
+  ]],
+  ['pt', '🇧🇷 Português', [
+    ['pt-BR', '🇧🇷', 'Brasil'], ['pt-PT', '🇵🇹', 'Portugal', PT_PT, PT_PT_OVER],
+    ['pt-AO', '🇦🇴', 'Angola', PT_PT, PT_PT_OVER], ['pt-MZ', '🇲🇿', 'Moçambique', PT_PT, PT_PT_OVER],
+  ]],
+  ['fr', '🇫🇷 Français', [
+    ['fr-FR', '🇫🇷', 'France'], ['fr-CA', '🇨🇦', 'Canada'], ['fr-BE', '🇧🇪', 'Belgique'], ['fr-CH', '🇨🇭', 'Suisse'],
+    ['fr-SN', '🇸🇳', 'Sénégal'], ['fr-CI', '🇨🇮', 'Côte d’Ivoire'], ['fr-HT', '🇭🇹', 'Haïti'],
+  ]],
+  ['de', '🇩🇪 Deutsch', [['de-DE', '🇩🇪', 'Deutschland'], ['de-AT', '🇦🇹', 'Österreich'], ['de-CH', '🇨🇭', 'Schweiz', CH_DE]]],
+  ['it', '🇮🇹 Italiano', [['it-IT', '🇮🇹', 'Italia'], ['it-CH', '🇨🇭', 'Svizzera']]],
+  ['ca', '🇦🇩 Català', [['ca-AD', '🇦🇩', 'Andorra'], ['ca-ES', '🇪🇸', 'Espanya']]],
+  ['nl', '🇳🇱 Nederlands', [['nl-NL', '🇳🇱', 'Nederland'], ['nl-BE', '🇧🇪', 'België']]],
+  ['sv', '🇸🇪 Svenska', [['sv-SE', '🇸🇪', 'Sverige'], ['sv-FI', '🇫🇮', 'Finland']]],
+  ['nb', '🇳🇴 Norsk', []], ['da', '🇩🇰 Dansk', []], ['fi', '🇫🇮 Suomi', []],
+  ['pl', '🇵🇱 Polski', []], ['cs', '🇨🇿 Čeština', []], ['sk', '🇸🇰 Slovenčina', []], ['hu', '🇭🇺 Magyar', []],
+  ['ro', '🇷🇴 Română', [['ro-RO', '🇷🇴', 'România'], ['ro-MD', '🇲🇩', 'Moldova']]],
+  ['hr', '🇭🇷 Hrvatski', [['hr-HR', '🇭🇷', 'Hrvatska'], ['hr-BA', '🇧🇦', 'Bosna i Hercegovina']]],
+  ['el', '🇬🇷 Ελληνικά', [['el-GR', '🇬🇷', 'Ελλάδα'], ['el-CY', '🇨🇾', 'Κύπρος']]],
+  ['bg', '🇧🇬 Български', []],
+  ['ru', '🇷🇺 Русский', [['ru-RU', '🇷🇺', 'Россия'], ['ru-BY', '🇧🇾', 'Беларусь'], ['ru-KZ', '🇰🇿', 'Казахстан'], ['ru-KG', '🇰🇬', 'Кыргызстан']]],
+  ['uk', '🇺🇦 Українська', []],
+  ['tr', '🇹🇷 Türkçe', [['tr-TR', '🇹🇷', 'Türkiye'], ['tr-CY', '🇨🇾', 'Kıbrıs']]],
+  ['ar', '🇸🇦 العربية', [
+    ['ar-SA', '🇸🇦', 'السعودية'], ['ar-EG', '🇪🇬', 'مصر'], ['ar-AE', '🇦🇪', 'الإمارات'], ['ar-MA', '🇲🇦', 'المغرب'],
+    ['ar-DZ', '🇩🇿', 'الجزائر'], ['ar-TN', '🇹🇳', 'تونس'], ['ar-IQ', '🇮🇶', 'العراق'], ['ar-JO', '🇯🇴', 'الأردن'],
+    ['ar-LB', '🇱🇧', 'لبنان'], ['ar-SY', '🇸🇾', 'سوريا'], ['ar-KW', '🇰🇼', 'الكويت'], ['ar-QA', '🇶🇦', 'قطر'],
+    ['ar-OM', '🇴🇲', 'عُمان'], ['ar-BH', '🇧🇭', 'البحرين'], ['ar-YE', '🇾🇪', 'اليمن'], ['ar-LY', '🇱🇾', 'ليبيا'], ['ar-SD', '🇸🇩', 'السودان'],
+  ]],
+  ['he', '🇮🇱 עברית', []],
+  ['fa', '🇮🇷 فارسی', [['fa-IR', '🇮🇷', 'ایران'], ['fa-AF', '🇦🇫', 'افغانستان']]],
+  ['ur', '🇵🇰 اردو', [['ur-PK', '🇵🇰', 'پاکستان'], ['ur-IN', '🇮🇳', 'بھارت']]],
+  ['hi', '🇮🇳 हिन्दी', []],
+  ['bn', '🇧🇩 বাংলা', [['bn-BD', '🇧🇩', 'বাংলাদেশ'], ['bn-IN', '🇮🇳', 'ভারত']]],
+  ['id', '🇮🇩 Bahasa Indonesia', []],
+  ['ms', '🇲🇾 Bahasa Melayu', [['ms-MY', '🇲🇾', 'Malaysia'], ['ms-SG', '🇸🇬', 'Singapura'], ['ms-BN', '🇧🇳', 'Brunei']]],
+  ['fil', '🇵🇭 Filipino', []], ['vi', '🇻🇳 Tiếng Việt', []], ['th', '🇹🇭 ไทย', []],
+  ['zh', '🇨🇳 中文', [
+    ['zh-Hans', '🇨🇳', '普通话 · 简体（中国大陆）'], ['zh-SG', '🇸🇬', '普通话 · 简体（新加坡）'],
+    ['zh-Hant', '🇹🇼', '國語 · 繁體（台灣）'], ['zh-HK', '🇭🇰', '粵語 · 繁體（香港）'], ['zh-MO', '🇲🇴', '粵語 · 繁體（澳門）'],
+  ]],
+  ['ja', '🇯🇵 日本語', []], ['ko', '🇰🇷 한국어', []],
+  ['sw', '🇰🇪 Kiswahili', [['sw-KE', '🇰🇪', 'Kenya'], ['sw-TZ', '🇹🇿', 'Tanzania'], ['sw-UG', '🇺🇬', 'Uganda']]],
+];
+
+/* Mapa de cada variante → su idioma base y sus cambios */
+const VAR = {};
+const BASE_OF = { 'zh-SG': 'zh-Hans', 'zh-HK': 'zh-Hant', 'zh-MO': 'zh-Hant' };
+for (const [base, , vars] of LANG_GROUPS) {
+  for (const [code, flag, region, fix, over] of vars) {
+    VAR[code] = { base: BASE_OF[code] || (base === 'zh' ? code : base), flag, region, fix, over, group: base };
+  }
+}
+
+/* Nombre para mostrar: "🇲🇽 Español (México)" */
+export function langLabel(code) {
+  const v = VAR[code];
+  if (v) {
+    const g = LANG_GROUPS.find(x => x[0] === v.group);
+    if (v.group === 'zh') return v.flag + ' ' + v.region;
+    return v.flag + ' ' + g[1].replace(/^\S+\s/, '') + ' (' + v.region + ')';
+  }
+  const g = LANG_GROUPS.find(x => x[0] === code);
+  return g ? g[1] : code;
+}
+/* El grupo (idioma) al que pertenece un código */
+export function groupOf(code) { return VAR[code] ? VAR[code].group : code.startsWith('zh') ? 'zh' : code; }
+
+/* Lista simple (por compatibilidad) */
+export const LANGS = LANG_GROUPS.map(g => [g[0], g[1]]);
 
 /* Idioma del teléfono, por ejemplo "es-MX" o "en_US" */
 function deviceLocale() {
@@ -2924,32 +3027,49 @@ function deviceLocale() {
 }
 
 let detected = null;
-/* Elige el idioma de la app según el teléfono (si no lo tenemos, inglés) */
+/* Elige el idioma de la app según el teléfono (si no lo tenemos, inglés).
+   Si existe la variante del país (por ejemplo es-MX), usa esa. */
 export function detectLang() {
   if (detected) return detected;
-  const low = String(deviceLocale() || '').replace(/_/g, '-').toLowerCase();
+  const raw = String(deviceLocale() || '').replace(/_/g, '-');
+  const low = raw.toLowerCase();
+  const parts = low.split('-');
   let code;
-  if (low.startsWith('zh')) code = /hant|tw|hk|mo/.test(low) ? 'zh-Hant' : 'zh-Hans';
-  else {
-    const base = low.split('-')[0];
-    code = ({ no: 'nb', nn: 'nb', tl: 'fil', iw: 'he', in: 'id' })[base] || base;
+  if (parts[0] === 'zh') {
+    code = /hk/.test(low) ? 'zh-HK' : /mo/.test(low) ? 'zh-MO' : /sg/.test(low) ? 'zh-SG' : /hant|tw/.test(low) ? 'zh-Hant' : 'zh-Hans';
+  } else {
+    const base = ({ no: 'nb', nn: 'nb', tl: 'fil', iw: 'he', in: 'id' })[parts[0]] || parts[0];
+    const region = (parts.slice(1).find(p => /^[a-z]{2}$/.test(p)) || '').toUpperCase();
+    if (region && VAR[base + '-' + region]) code = base + '-' + region;
+    else code = base;
   }
-  detected = S[code] ? code : 'en';
+  detected = (VAR[code] || S[code]) ? code : 'en';
   return detected;
 }
 
-/* Código para mostrar fechas en ese idioma */
+/* Código para mostrar fechas en ese idioma y país */
 export function localeOf(code) {
-  return ({ 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', fil: 'fil-PH', nb: 'nb-NO' })[code] || code;
+  const fixed = { 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', 'zh-SG': 'zh-SG', 'zh-HK': 'zh-HK', 'zh-MO': 'zh-MO', fil: 'fil-PH', nb: 'nb-NO' };
+  return fixed[code] || code;
 }
 
 /* Devuelve la función tr('clave', { n: 3 }) para un idioma.
    Si falta un texto usa el inglés, y si no, el español.
    Si n es 1 y existe la clave terminada en "1", usa esa (singular). */
 const cache = {};
+/* Textos de una variante: los del idioma base con sus cambios */
+function dictOf(code) {
+  const v = VAR[code];
+  if (!v) return S[code] || S.en;
+  const base = S[v.base] || S.en;
+  if (!v.fix && !v.over) return base;
+  const out = {};
+  for (const k in base) out[k] = typeof v.fix === 'function' ? v.fix(base[k]) : base[k];
+  return Object.assign(out, typeof v.fix === 'object' ? v.fix : null, v.over || null);
+}
 export function makeT(code) {
   if (cache[code]) return cache[code];
-  const L = S[code] || S.en, E = S.en, ES = S.es;
+  const L = dictOf(code), E = S.en, ES = S.es;
   const pick = k => (L[k] != null ? L[k] : E[k] != null ? E[k] : ES[k] != null ? ES[k] : k);
   const t = (k, v) => {
     let s = v && v.n === 1 && (L[k + '1'] != null || E[k + '1'] != null) ? pick(k + '1') : pick(k);
