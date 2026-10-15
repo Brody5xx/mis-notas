@@ -13,7 +13,12 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale }) {
+  /* Textos traducidos: H = para HTML, J = para JavaScript, C = para CSS */
+  const T = (k, v) => (tr ? tr(k, v) : k);
+  const H = (k, v) => String(T(k, v)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const J = (k, v) => JSON.stringify(String(T(k, v))).replace(/</g, '\\u003c');
+  const C = (k, v) => '"' + String(T(k, v)).replace(/["\\]/g, '\\$&').replace(/\n/g, ' ') + '"';
   const safeInk = JSON.stringify(ink || []).replace(/</g, '\\u003c');
   const safeContent = JSON.stringify(content).replace(/</g, '\\u003c');
   const safeTitle = JSON.stringify(titleHtml || '').replace(/</g, '\\u003c');
@@ -29,7 +34,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:transparent;color:${c.text};font-family:-apple-system,Roboto,"Segoe UI",sans-serif}
   #ttl{outline:none;padding:14px 20px 2px;font-size:26px;font-weight:700;line-height:1.25;word-wrap:break-word}
-  #ttl:empty:before{content:'Título';color:${c.muted}}
+  #ttl:empty:before{content:${C('ttlPh')};color:${c.muted}}
   #meta{padding:4px 20px 0;font-size:13px;color:${c.muted}}
   #ed ul,#ed ol{margin:4px 0;padding-left:26px}
   #ed li{margin:2px 0}
@@ -41,7 +46,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
        font-size:13px;font-weight:900;line-height:14px;text-align:center}
   #ed ul.checklist>li.done{text-decoration:line-through;opacity:.55}
   #ed{outline:none;padding:12px 20px 230px;min-height:80vh;font-size:17px;line-height:1.5;word-wrap:break-word}
-  #ed:empty:before{content:'Empieza a escribir...';color:${c.muted}}
+  #ed:empty:before{content:${C('edPh')};color:${c.muted}}
   ::selection{background:rgba(255,255,255,0.28)}
 
   /* ===== Barra flotante de vidrio (abajo) ===== */
@@ -201,9 +206,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
        border:0.5px solid rgba(255,255,255,.35);box-shadow:inset 0 2px 2px rgba(255,255,255,.2)}
 </style></head><body>
 
-<div id="ttl" contenteditable="${editable}"></div>
+<div id="ttl" dir="auto" contenteditable="${editable}"></div>
 <div id="meta"></div>
-<div id="ed" contenteditable="${editable}"></div>
+<div id="ed" dir="auto" contenteditable="${editable}"></div>
 <canvas id="ink"></canvas>
 <canvas id="live"></canvas>
 <input type="file" id="file" accept="image/*" style="display:none">
@@ -245,7 +250,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Panel de tamaño -->
 <div class="panel" id="sizePanel">
-  <div class="ptitle"><span>Tamaño de letra</span><button class="pclose" data-close="1">Listo</button></div>
+  <div class="ptitle"><span>${H('sizeTitle')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sizeTop"><span id="sizeBig">17</span><span id="sample" style="font-size:17px">Aa</span></div>
   <input type="range" id="range" min="5" max="100" step="1" value="17">
   <div class="chips" id="chips">${chips}</div>
@@ -253,20 +258,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Panel de resaltador / contorno -->
 <div class="panel" id="fxPanel">
-  <div class="ptitle"><span id="fxTitle">Resaltador</span><button class="pclose" data-close="1">Listo</button></div>
+  <div class="ptitle"><span id="fxTitle">${H('highlighter')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sws" id="fxSws">${swatches}</div>
-  <button class="fxNone" id="fxNone">Quitar</button>
+  <button class="fxNone" id="fxNone">${H('removeIt')}</button>
 </div>
 
 <!-- Panel de colores -->
 <div class="panel" id="colorPanel">
   <div class="ptitle">
-    <span id="ctitle">Color del lápiz</span>
+    <span id="ctitle">${H('penColor')}</span>
     <div class="ctabs" id="ctabs">
-      <button class="ctab on" data-ctab="text" title="Color de letra"><svg width="26" height="26" viewBox="0 0 24 24"><defs><linearGradient id="rb" x1="0" x2="1"><stop offset="0" stop-color="#ff3b30"/><stop offset=".25" stop-color="#ffcc00"/><stop offset=".5" stop-color="#34c759"/><stop offset=".75" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs><text x="12" y="16.5" text-anchor="middle" font-size="16" font-weight="800" font-family="Arial,sans-serif" fill="currentColor">A</text><rect x="4" y="19" width="16" height="3.2" rx="1.6" fill="url(#rb)"/></svg></button>
-      <button class="ctab" data-ctab="ol" title="Contorno de letras"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="12" y="17.3" text-anchor="middle" font-size="15" font-weight="900" font-family="Arial,sans-serif" fill="currentColor" stroke="#ff7a2a" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">A</text></svg></button>
+      <button class="ctab on" data-ctab="text" title="${H('letterColor')}"><svg width="26" height="26" viewBox="0 0 24 24"><defs><linearGradient id="rb" x1="0" x2="1"><stop offset="0" stop-color="#ff3b30"/><stop offset=".25" stop-color="#ffcc00"/><stop offset=".5" stop-color="#34c759"/><stop offset=".75" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs><text x="12" y="16.5" text-anchor="middle" font-size="16" font-weight="800" font-family="Arial,sans-serif" fill="currentColor">A</text><rect x="4" y="19" width="16" height="3.2" rx="1.6" fill="url(#rb)"/></svg></button>
+      <button class="ctab" data-ctab="ol" title="${H('outline')}"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="12" y="17.3" text-anchor="middle" font-size="15" font-weight="900" font-family="Arial,sans-serif" fill="currentColor" stroke="#ff7a2a" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">A</text></svg></button>
     </div>
-    <button class="pclose" data-close="1">Listo</button>
+    <button class="pclose" data-close="1">${H('done')}</button>
   </div>
   <div class="cwrap" id="cwrap">
     <canvas id="wheel" width="440" height="440"></canvas>
@@ -276,23 +281,23 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <div class="crow">
     <span id="cprev"></span>
     <div class="cbright">
-      <span class="clabel">Brillo</span>
+      <span class="clabel">${H('brightness')}</span>
       <input type="range" id="bright" min="0" max="100" value="100">
     </div>
   </div>
   <div class="cquick" id="sws">
-    <button class="sw" data-color="${c.text}" style="background:${c.text}" title="Normal"></button>
+    <button class="sw" data-color="${c.text}" style="background:${c.text}" title="${H('normal')}"></button>
     <button class="sw" data-color="#ffffff" style="background:#ffffff"></button>
     <button class="sw" data-color="#9e9e9e" style="background:#9e9e9e"></button>
     <button class="sw" data-color="#000000" style="background:#000000"></button>
     <span class="clabel" id="chex"></span>
   </div>
-  <button class="fxNone" id="olNone">Quitar contorno</button>
+  <button class="fxNone" id="olNone">${H('removeOutline')}</button>
 </div>
 
 <!-- Barra de opciones de foto -->
 <div class="dock hide" id="imgbar">
-  <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Recortar</button>
+  <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> ${H('crop')}</button>
   <span class="lbl" id="pctLabel">100%</span>
   <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> 100%</button>
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
@@ -306,15 +311,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 </div>
 
 <div id="crop">
-  <div id="cropTitle">Mueve las esquinas para recortar</div>
+  <div id="cropTitle">${H('cropHint')}</div>
   <div id="cropArea">
     <img id="cropImg">
     <div id="box"><div class="h" data-c="tl"></div><div class="h" data-c="tr"></div><div class="h" data-c="bl"></div><div class="h" data-c="br"></div></div>
   </div>
   <div id="cropBtns">
-    <button id="cropCancel">Cancelar</button>
-    <button id="cropReset">Restablecer</button>
-    <button class="ok" id="cropOk">Listo</button>
+    <button id="cropCancel">${H('cancel')}</button>
+    <button id="cropReset">${H('resetIt')}</button>
+    <button class="ok" id="cropOk">${H('done')}</button>
   </div>
 </div>
 <div id="tip"></div>
@@ -333,12 +338,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   cur = ed;
 
   /* Fecha de modificación (se actualiza sola) */
-  var MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var LOC = ${JSON.stringify(locale || 'es')};
   function fmtDate(t){
-    var d = new Date(t), hh = ('0' + d.getHours()).slice(-2), mm = ('0' + d.getMinutes()).slice(-2);
-    return d.getDate() + ' ' + MESES[d.getMonth()] + ' ' + d.getFullYear() + ', ' + hh + ':' + mm;
+    var d = new Date(t);
+    try { return d.toLocaleString(LOC, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return d.toLocaleString(); }
   }
-  $('meta').textContent = 'Modificado: ' + fmtDate(${Number(updated) || Date.now()});
+  function modText(t){ return ${J('modified')}.replace('{d}', fmtDate(t)); }
+  $('meta').textContent = modText(${Number(updated) || Date.now()});
 
   /* ¿El texto tocado está en el título o en la nota? */
   function owner(node){
@@ -364,7 +371,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     record();                                   // guardar el paso para Deshacer
     var p = payload();
     send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink });
-    $('meta').textContent = 'Modificado: ' + fmtDate(Date.now());
+    $('meta').textContent = modText(Date.now());
   }
   function changed(){
     dirty = true; clearTimeout(sendTimer);
@@ -579,7 +586,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     changedNow();
     sizeNum.textContent = v;
     markChip(v);
-    showTip('✓ Tamaño ' + v);
+    showTip(${J('sizeTip')}.replace('{n}', v));
   }
   function markChip(v){
     sizePanel.querySelectorAll('.chip').forEach(function(ch){ ch.classList.toggle('on', +ch.dataset.size === v); });
@@ -634,7 +641,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     keepSelection();
     changedNow();
     colorDot.style.background = col;
-    if (!quiet) showTip('✓ Color aplicado');
+    if (!quiet) showTip(${J('colorApplied')});
   }
   $('sws').addEventListener('click', function(e){
     var sw = e.target.closest('.sw');
@@ -763,7 +770,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       document.execCommand('hiliteColor', false, bg);
     }
     keepSelection(); changedNow();
-    showTip(col ? '✓ Resaltado' : 'Resaltado quitado');
+    showTip(col ? ${J('hlOn')} : ${J('hlOff')});
   }
   function applyOutline(col){
     restore();
@@ -785,7 +792,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       reselect(made);
     }
     keepSelection(); changedNow();
-    showTip(col ? '✓ Contorno aplicado' : 'Contorno quitado');
+    showTip(col ? ${J('olOn')} : ${J('olOff')});
   }
   function openFx(mode, btn){
     var open = fxPanel.classList.contains('show');
@@ -796,8 +803,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       fxMode = mode;
       togglePanel(fxPanel, btn);
     }
-    $('fxTitle').textContent = mode === 'hl' ? 'Resaltador' : 'Contorno de letras';
-    $('fxNone').textContent = mode === 'hl' ? 'Quitar resaltado' : 'Quitar contorno';
+    $('fxTitle').textContent = mode === 'hl' ? ${J('highlighter')} : ${J('outline')};
+    $('fxNone').textContent = mode === 'hl' ? ${J('removeHl')} : ${J('removeOutline')};
     fxPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.remove('on'); });
   }
   $('fxSws').addEventListener('click', function(e){
@@ -847,7 +854,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     return null;
   }
   function applyList(kind){
-    if (cur === ttl) { showTip('Las listas van en la nota, no en el título'); return; }
+    if (cur === ttl) { showTip(${J('listsNotTitle')}); return; }
     restore();
     var s = window.getSelection();
     var L = s.rangeCount ? listOf(s.anchorNode) : null;
@@ -856,7 +863,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (curKind === kind) {
       // tocar otra vez el mismo botón: quitar la lista
       document.execCommand(kind === 'ol' ? 'insertOrderedList' : 'insertUnorderedList', false, null);
-      showTip('Lista quitada');
+      showTip(${J('listRemoved')});
     } else {
       if (curKind === 'check' && kind === 'ul') { L.classList.remove('checklist'); }
       else if (curKind === 'ul' && kind === 'check') { L.classList.add('checklist'); }
@@ -868,7 +875,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         if (L2 && kind === 'check') L2.classList.add('checklist');
         if (L2 && kind === 'ul') L2.classList.remove('checklist');
       }
-      showTip(kind === 'ol' ? '✓ Lista numerada' : kind === 'check' ? '✓ Checklist' : '✓ Viñetas');
+      showTip(kind === 'ol' ? ${J('olList')} : kind === 'check' ? ${J('checklist')} : ${J('bullets')});
     }
     keepSelection(); changedNow(); updateState();
   }
@@ -901,7 +908,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   });
   ed.addEventListener('click', function(e){ if (checkboxHit(e)) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 
-  var names = { bold: 'Negrita', italic: 'Cursiva', underline: 'Subrayado' };
+  var names = { bold: ${J('bold')}, italic: ${J('italic')}, underline: ${J('underline')} };
   dock.addEventListener('click', function(e){
     var t = e.target.closest('button');
     if (!t) return;
@@ -967,18 +974,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       ed.insertAdjacentHTML('beforeend', html);
     }
     changedNow();
-    showTip('✓ Foto agregada');
+    showTip(${J('photoAdded')});
   }
   fileInput.addEventListener('change', function(){
     var f = fileInput.files && fileInput.files[0];
     fileInput.value = '';
     if (!f) return;
-    showTip('Agregando foto...');
+    showTip(${J('addingPhoto')});
     var r = new FileReader();
     r.onload = function(){
       var im = new Image();
       im.onload = function(){ insertImage(shrink(im, 1280, 0.8)); };
-      im.onerror = function(){ showTip('No se pudo abrir la foto'); };
+      im.onerror = function(){ showTip(${J('photoOpenFail')}); };
       im.src = r.result;
     };
     r.readAsDataURL(f);
@@ -1042,11 +1049,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (a === 'del') {
       var w = selImg; selectImg(null);
       w.parentNode.removeChild(w);
-      changedNow(); showTip('Foto quitada');
+      changedNow(); showTip(${J('photoRemoved')});
       return;
     }
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
-    if (a === 'reset') { setScale(selImg, 100); placeRsz(); changedNow(); showTip('✓ Tamaño normal (100%)'); }
+    if (a === 'reset') { setScale(selImg, 100); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
   });
 
   var rdrag = null;
@@ -1142,9 +1149,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       window.getSelection().removeAllRanges();
       sizeInk();
-      showTip('Modo dibujo · 2 dedos para moverte');
+      showTip(${J('drawMode')});
     } else {
-      showTip('Modo texto');
+      showTip(${J('textMode')});
     }
   }
   function setTool(t){
@@ -1167,22 +1174,22 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (d === 'color') { togglePanel(colorPanel, b); return; }
     if (d === 'size') {
       penSize = (penSize + 1) % 3; showPenSize();
-      showTip(['Trazo fino', 'Trazo medio', 'Trazo grueso'][penSize]);
+      showTip([${J('penFine')}, ${J('penMedium')}, ${J('penThick')}][penSize]);
       return;
     }
     if (d === 'undo') {
       if (!strokes.length) return;
-      strokes.pop(); redraw(); changedNow(); showTip('Trazo borrado');
+      strokes.pop(); redraw(); changedNow(); showTip(${J('strokeErased')});
       return;
     }
     if (d === 'clear') {
       if (!strokes.length) return;
       if (!clearArmed) {
-        clearArmed = true; showTip('Toca otra vez para borrar todo el dibujo');
+        clearArmed = true; showTip(${J('tapAgainClear')});
         clearTimeout(clearTimer); clearTimer = setTimeout(function(){ clearArmed = false; }, 2500);
         return;
       }
-      clearArmed = false; strokes = []; redraw(); changedNow(); showTip('Dibujo borrado');
+      clearArmed = false; strokes = []; redraw(); changedNow(); showTip(${J('drawingCleared')});
     }
   });
 
@@ -1331,7 +1338,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ctx.drawImage(cimg, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
     target.onload = placeRsz;
     target.src = canvasToData(cv, ctx, 0.85);
-    window.closeCrop(); changedNow(); showTip('✓ Foto recortada');
+    window.closeCrop(); changedNow(); showTip(${J('photoCropped')});
   };
 
   /* =========================================================
@@ -1370,19 +1377,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   window.undoNow = function(){
     if (dirty) changedNow();                     // guarda lo último que escribiste
-    if (!undoStack.length) { showTip('No hay nada que deshacer'); return; }
+    if (!undoStack.length) { showTip(${J('nothingUndo')}); return; }
     redoStack.push(lastSnap);
     lastSnap = undoStack.pop();
     applySnap(lastSnap);
-    showTip('↶ Deshecho');
+    showTip(${J('undone')});
   };
   window.redoNow = function(){
     if (dirty) changedNow();
-    if (!redoStack.length) { showTip('No hay nada que rehacer'); return; }
+    if (!redoStack.length) { showTip(${J('nothingRedo')}); return; }
     undoStack.push(lastSnap);
     lastSnap = redoStack.pop();
     applySnap(lastSnap);
-    showTip('↷ Rehecho');
+    showTip(${J('redone')});
   };
   lastSnap = snap();
   notifyUndo();

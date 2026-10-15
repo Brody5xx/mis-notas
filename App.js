@@ -10,6 +10,12 @@ import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml } from './editor';
+import { LANGS, makeT, detectLang, localeOf } from './idiomas';
+
+/* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
+let tr = makeT(detectLang());
+let LOCALE = localeOf(detectLang());
+function applyLang(code) { tr = makeT(code); LOCALE = localeOf(code); }
 
 /* En el teléfono las notas se guardan en un archivo (sin límite de tamaño,
    necesario para las fotos). En la vista previa de Replit se usa AsyncStorage. */
@@ -73,17 +79,18 @@ const THEMES = {
     seeTint: 'rgba(70,70,70,0.30)',
   },
 };
-const TITLES = { all: 'Todas las notas', fav: 'Favoritos', trash: 'Papelera' };
+const TITLE_KEYS = ['all', 'fav', 'trash'];
 
 /* Carpetas, orden y etiquetas */
 const FOLDER_COLORS = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1',
                        '#1e88e5', '#3949ab', '#8e24aa', '#d81b60', '#757575'];
 const SORTS = [
-  ['updated', 'clock', 'Última modificación'],
-  ['created', 'calendar', 'Fecha de creación'],
-  ['alpha', 'type', 'Alfabético (A-Z)'],
+  ['updated', 'clock', 'sortUpdated'],
+  ['created', 'calendar', 'sortCreated'],
+  ['alpha', 'type', 'sortAlpha'],
 ];
-const TAG_RE = /#([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-z0-9_ÁÉÍÓÚÜÑáéíóúüñ-]*)/g;
+/* Etiquetas en cualquier idioma: # seguido de letras (no espacios ni signos) */
+const TAG_RE = /#([^\s#.,;:!?¡¿()\[\]{}"'<>\/\\。、，！？]+)/g;
 
 /* PIN: se guarda solo una "huella" del número, no el número en sí */
 function hashPin(p) {
@@ -102,11 +109,10 @@ function confirmAsk(title, msg, okText, onOk) {
     return;
   }
   Alert.alert(title, msg, [
-    { text: 'Cancelar', style: 'cancel' },
+    { text: tr('cancel'), style: 'cancel' },
     { text: okText, style: 'destructive', onPress: onOk },
   ]);
 }
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /* ============================================================
    GUARDAR Y CARGAR
@@ -279,9 +285,12 @@ async function saveData(data) {
    ============================================================ */
 function fmtDate(t) {
   const d = new Date(t);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+  try {
+    return d.toLocaleString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    const p = x => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
 }
 
 /* Texto simple de una nota (para vista previa y búsqueda) */
@@ -369,7 +378,7 @@ function tagsOf(n) {
   const out = [];
   for (const m of text.matchAll(TAG_RE)) {
     const t = m[1].toLowerCase();
-    if (!out.includes(t)) out.push(t);
+    if (!/^\d+$/.test(t) && !out.includes(t)) out.push(t);
   }
   return out;
 }
@@ -499,6 +508,10 @@ export default function App() {
   const [layout, setLayout] = useState('grid');   // 'grid' o 'list'
   const [dark, setDark] = useState(true);
   const [translucent, setTranslucent] = useState(false);  // ver la pantalla de inicio detrás
+  const [lang, setLang] = useState('auto');                // 'auto' = idioma del teléfono
+  const [langOpen, setLangOpen] = useState(false);
+  const langCode = lang === 'auto' ? detectLang() : lang;
+  applyLang(langCode);
   const [view, setView] = useState('all');        // 'all', 'fav', 'trash'
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -556,6 +569,7 @@ export default function App() {
         setLayout(data.layout || 'grid');
         setDark(!!data.dark);
         setTranslucent(!!data.translucent);
+        if (data.lang) setLang(data.lang);
         if (typeof data.wallBlur === 'number') setWallBlur(data.wallBlur);
         setFolders(data.folders || []);
         if (data.sortBy) setSortBy(data.sortBy);
@@ -569,10 +583,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      saveData({ notes, layout, dark, translucent, wallBlur, folders, sortBy, pinHash }).catch(() => showToast('No se pudo guardar'));
+      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash }).catch(() => showToast(tr('saveFail')));
     }, 500);
     return () => clearTimeout(t);
-  }, [notes, layout, dark, translucent, wallBlur, folders, sortBy, pinHash, loaded]);
+  }, [notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, loaded]);
 
   function showToast(msg) {
     setToastMsg(msg);
@@ -665,7 +679,7 @@ export default function App() {
     const list = await loadHistory(id);
     if (sameVersion(list[0], v)) return list;            // ya está guardada igual
     const next = [v, ...list].slice(0, MAX_VERSIONS);
-    try { await saveHistory(id, next); } catch (e) { showToast('No se pudo guardar el historial'); }
+    try { await saveHistory(id, next); } catch (e) { showToast(tr('histSaveFail')); }
     return next;
   }
   /* ---------- Registro (todo lo que se escribe, nunca lo borrado) ---------- */
@@ -702,24 +716,24 @@ export default function App() {
   }
   function restoreRecord() {
     const id = current.id;
-    confirmAsk('Poner el registro en la nota',
-      'La nota tendrá todo lo del registro, incluido lo que habías borrado. Lo que tiene ahora se reemplaza.', 'Restaurar', () => {
+    confirmAsk(tr('recRestoreTitle'),
+      tr('recRestoreMsg'), tr('restore'), () => {
         flushEditor(() => {
           patch(id, { content: recordToHtml(recEntries), html: true });
           setHistOpen(false); setHistView(null);
           setEditorRev(r => r + 1);
-          showToast('✓ Registro restaurado en la nota');
+          showToast(tr('recRestored'));
         });
       });
   }
   function clearRecord() {
     const id = current.id;
-    confirmAsk('Vaciar registro', 'Se borra todo el registro de esta nota. La nota no cambia.', 'Vaciar', () => {
+    confirmAsk(tr('recClearTitle'), tr('recClearMsg'), tr('emptyIt'), () => {
       const n = notesRef.current.find(x => x.id === id);
       recCache.current[id] = { e: n ? noteTokens(n) : [], at: Date.now() };
       saveRecord(id, recCache.current[id]).catch(() => {});
       setRecEntries(recCache.current[id].e);
-      showToast('Registro vaciado');
+      showToast(tr('recCleared'));
     });
   }
   function openHistory() {
@@ -732,7 +746,7 @@ export default function App() {
         setHistOpen(true);
       });
     };
-    if (current.histLocked) askPin('unlock', 'Historial protegido', show);
+    if (current.histLocked) askPin('unlock', tr('histProtected'), show);
     else show();
   }
   function saveVersionNow() {
@@ -741,26 +755,26 @@ export default function App() {
       const n = notesRef.current.find(x => x.id === id);
       if (!n) return;
       const list = await loadHistory(id);
-      if (sameVersion(list[0], versionOf(n))) { showToast('Esta versión ya está guardada'); return; }
+      if (sameVersion(list[0], versionOf(n))) { showToast(tr('versionExists')); return; }
       setHistList(await addVersion(id, versionOf(n)));
-      showToast('✓ Versión guardada');
+      showToast(tr('versionSaved'));
     });
   }
   function restoreVersion(v) {
     const id = current.id;
-    confirmAsk('Restaurar versión', 'La nota volverá a como estaba en esta versión. Lo que escribiste queda en el Registro.', 'Restaurar', () => {
+    confirmAsk(tr('versionRestoreTitle'), tr('versionRestoreMsg'), tr('restore'), () => {
       flushEditor(() => {
         updateRecord(notesRef.current.find(x => x.id === id));
         patch(id, { title: v.title, titleHtml: v.titleHtml, content: v.content, html: v.html, ...(v.ink ? { ink: v.ink } : {}) });
         setHistOpen(false); setHistView(null);
         setEditorRev(r => r + 1);                          // recargar el editor con la versión
-        showToast('✓ Versión restaurada');
+        showToast(tr('versionRestored'));
       });
     });
   }
   function deleteVersion(v) {
     const id = current.id;
-    confirmAsk('Borrar versión', '¿Borrar esta versión del historial?', 'Borrar', async () => {
+    confirmAsk(tr('versionDelTitle'), tr('versionDelMsg'), tr('del'), async () => {
       const next = (await loadHistory(id)).filter(x => x.at !== v.at);
       await saveHistory(id, next);
       setHistList(next); setHistView(null);
@@ -769,37 +783,37 @@ export default function App() {
   function toggleHistLock() {
     const id = current.id;
     if (current.histLocked) {
-      askPin('unlock', 'Escribe tu PIN para quitar la protección', () => {
-        patch(id, { histLocked: false }, false); showToast('Historial sin PIN');
+      askPin('unlock', tr('pinToUnprotect'), () => {
+        patch(id, { histLocked: false }, false); showToast(tr('histNoPin'));
       });
       return;
     }
-    const lockIt = () => { patch(id, { histLocked: true }, false); showToast('Historial protegido con PIN'); };
-    if (!pinHash) askPin('set1', 'Crea un PIN de 4 números', lockIt);
+    const lockIt = () => { patch(id, { histLocked: true }, false); showToast(tr('histWithPin')); };
+    if (!pinHash) askPin('set1', tr('pinCreate'), lockIt);
     else lockIt();
   }
 
   function toggleFav() {
     patch(current.id, { fav: !current.fav }, false);
-    showToast(current.fav ? 'Quitada de favoritos' : 'Añadida a favoritos');
+    showToast(current.fav ? tr('favRemoved') : tr('favAdded'));
   }
 
   function togglePin() {
     patch(current.id, { pinned: !current.pinned }, false);
-    showToast(current.pinned ? 'Nota desfijada' : 'Nota fijada arriba');
+    showToast(current.pinned ? tr('unpinned') : tr('pinnedTop'));
   }
 
   function moveToTrash() {
     if (isEmpty(current)) { closeEditor(); return; }
     patch(current.id, { deleted: true }, false);
     setCurrentId(null);
-    showToast('Movida a la papelera');
+    showToast(tr('movedTrash'));
   }
 
   function restore() {
     patch(current.id, { deleted: false }, false);
     setCurrentId(null);
-    showToast('Nota restaurada');
+    showToast(tr('noteRestored'));
   }
 
   /* Borra los archivos aparte de una nota (fondo, historial y registro) */
@@ -824,64 +838,64 @@ export default function App() {
   async function shareSelected() {
     const list = notes.filter(n => selected[n.id]);
     const text = list.map(n => {
-      const t = (n.title || '').trim() || 'Sin título';
-      return n.locked ? `${t}\n(Nota bloqueada)` : `${t}\n${toPlain(n)}`.trim();
+      const t = (n.title || '').trim() || tr('untitled');
+      return n.locked ? `${t}\n(${tr('lockedNote')})` : `${t}\n${toPlain(n)}`.trim();
     }).join('\n\n────────\n\n');
     try {
-      await Share.share({ message: text, title: list.length === 1 ? (list[0].title || 'Nota') : 'Mis notas' });
+      await Share.share({ message: text, title: list.length === 1 ? (list[0].title || tr('note')) : tr('myNotes') });
       clearSelection();
     } catch (e) {
-      showToast('No se puede compartir desde aquí. Prueba en el teléfono.');
+      showToast(tr('shareFail'));
     }
   }
   function trashSelected() {
     const ids = selIds;
     setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: true, pinned: false } : n)));
     clearSelection();
-    showToast(ids.length === 1 ? 'Movida a la papelera' : `${ids.length} notas movidas a la papelera`);
+    showToast(ids.length === 1 ? tr('movedTrash') : tr('nMovedTrash', { n: ids.length }));
   }
   function restoreSelected() {
     const ids = selIds;
     setNotes(ns => ns.map(n => (selected[n.id] ? { ...n, deleted: false } : n)));
     clearSelection();
-    showToast(ids.length === 1 ? 'Nota recuperada' : `${ids.length} notas recuperadas`);
+    showToast(ids.length === 1 ? tr('noteRecovered') : tr('nRecovered', { n: ids.length }));
   }
   function destroySelected() {
     const ids = selIds;
-    confirmAsk('Eliminar para siempre',
-      ids.length === 1 ? '¿Eliminar esta nota para siempre? No se puede deshacer.' : `¿Eliminar ${ids.length} notas para siempre? No se puede deshacer.`,
-      'Eliminar', () => {
+    confirmAsk(tr('delForeverTitle'),
+      ids.length === 1 ? tr('delOneMsg') : tr('delManyMsg', { n: ids.length }),
+      tr('remove'), () => {
         setNotes(ns => ns.filter(n => !ids.includes(n.id)));
         ids.forEach(purgeFiles);
         clearSelection();
-        showToast(ids.length === 1 ? 'Nota eliminada' : `${ids.length} notas eliminadas`);
+        showToast(ids.length === 1 ? tr('noteDeleted') : tr('nDeleted', { n: ids.length }));
       });
   }
   function restoreAllTrash() {
     const n = notes.filter(x => x.deleted).length;
     if (!n) return;
     setNotes(ns => ns.map(x => (x.deleted ? { ...x, deleted: false } : x)));
-    showToast(n === 1 ? 'Nota recuperada' : `${n} notas recuperadas`);
+    showToast(n === 1 ? tr('noteRecovered') : tr('nRecovered', { n }));
   }
   function emptyTrash() {
     const ids = notes.filter(x => x.deleted).map(x => x.id);
     if (!ids.length) return;
-    confirmAsk('Vaciar papelera',
-      `Se eliminarán ${ids.length === 1 ? '1 nota' : ids.length + ' notas'} para siempre. No se puede deshacer.`, 'Vaciar', () => {
+    confirmAsk(tr('emptyTrash'),
+      ids.length === 1 ? tr('emptyTrashMsg1') : tr('emptyTrashMsg', { n: ids.length }), tr('emptyIt'), () => {
         setNotes(ns => ns.filter(x => !x.deleted));
         ids.forEach(purgeFiles);
         clearSelection();
-        showToast('Papelera vacía');
+        showToast(tr('trashEmptied'));
       });
   }
 
   function destroy() {
     const id = current.id;
-    confirmAsk('Eliminar nota', '¿Eliminar esta nota para siempre? No se puede deshacer.', 'Eliminar', () => {
+    confirmAsk(tr('deleteNote'), tr('delOneMsg'), tr('remove'), () => {
       setNotes(ns => ns.filter(n => n.id !== id));
       purgeFiles(id);
       setCurrentId(null);
-      showToast('Nota eliminada');
+      showToast(tr('noteDeleted'));
     });
   }
 
@@ -901,14 +915,14 @@ export default function App() {
         await saveWallpaper(data, wallFor);
         setNoteWall(data);
         patch(wallFor, { hasWall: true }, false);
-        showToast('Fondo aplicado solo a esta nota');
+        showToast(tr('bgNoteApplied'));
       } else {
         await saveWallpaper(data);
         setWallpaper(data);
-        showToast('Fondo de pantalla aplicado');
+        showToast(tr('bgApplied'));
       }
     } catch (e) {
-      showToast('No se pudo usar esa imagen');
+      showToast(tr('imageFail'));
     }
   }
 
@@ -917,11 +931,11 @@ export default function App() {
       await saveWallpaper(null, wallFor).catch(() => {});
       setNoteWall(null);
       patch(wallFor, { hasWall: false }, false);
-      showToast('Fondo de la nota quitado');
+      showToast(tr('bgNoteRemoved'));
     } else {
       await saveWallpaper(null).catch(() => {});
       setWallpaper(null);
-      showToast('Fondo original restaurado');
+      showToast(tr('bgRestored'));
     }
   }
 
@@ -929,8 +943,8 @@ export default function App() {
   function toggleTranslucent() {
     const on = !translucent;
     setTranslucent(on);
-    if (on && !CAN_SEE) showToast('Se verá cuando instales la app en Android');
-    else showToast(on ? 'Modo translúcido activado' : 'Modo translúcido apagado');
+    if (on && !CAN_SEE) showToast(tr('seeLater'));
+    else showToast(on ? tr('seeOn') : tr('seeOff'));
   }
 
   // Al abrir una nota: recordar cómo estaba (para el historial) y reiniciar deshacer
@@ -975,32 +989,32 @@ export default function App() {
   }
   function saveFolder() {
     const name = (folderEdit.name || '').trim();
-    if (!name) { showToast('Escribe un nombre para la carpeta'); return; }
+    if (!name) { showToast(tr('folderNameNeeded')); return; }
     if (folderEdit.id) {
       setFolders(fs => fs.map(f => (f.id === folderEdit.id ? { ...f, name, color: folderEdit.color } : f)));
-      showToast('Carpeta actualizada');
+      showToast(tr('folderUpdated'));
     } else {
       const f = { id: 'f' + Date.now().toString(36), name, color: folderEdit.color };
       setFolders(fs => [...fs, f]);
-      if (folderEdit.assignTo) { patch(folderEdit.assignTo, { folderId: f.id }, false); showToast('Nota movida a ' + name); }
-      else showToast('Carpeta creada');
+      if (folderEdit.assignTo) { patch(folderEdit.assignTo, { folderId: f.id }, false); showToast(tr('movedTo', { name })); }
+      else showToast(tr('folderCreated'));
     }
     setFolderEdit(null);
   }
   function deleteFolder(f) {
-    confirmAsk('Eliminar carpeta', 'Las notas de "' + f.name + '" no se borran: quedan en "Todas las notas".', 'Eliminar', () => {
+    confirmAsk(tr('deleteFolder'), tr('deleteFolderMsg', { name: f.name, all: tr('all') }), tr('remove'), () => {
       setFolders(fs => fs.filter(x => x.id !== f.id));
       setNotes(ns => ns.map(n => (n.folderId === f.id ? { ...n, folderId: undefined } : n)));
       if (view === 'f:' + f.id) setView('all');
       setFolderEdit(null);
-      showToast('Carpeta eliminada');
+      showToast(tr('folderDeleted'));
     });
   }
   function moveTo(folderId) {
     patch(current.id, { folderId: folderId || undefined }, false);
     setMoveOpen(false);
     const f = folders.find(x => x.id === folderId);
-    showToast(f ? 'Movida a ' + f.name : 'Quitada de la carpeta');
+    showToast(f ? tr('movedTo', { name: f.name }) : tr('removedFromFolder'));
   }
 
   /* ---------- PIN ---------- */
@@ -1019,16 +1033,16 @@ export default function App() {
       if (!pad) return;
       if (pad.mode === 'unlock') {
         if (hashPin(next) === pinHash) { setPinPad(null); setPinEntry(''); pinOkRef.current && pinOkRef.current(); }
-        else { setPinEntry(''); showToast('PIN incorrecto'); }
+        else { setPinEntry(''); showToast(tr('pinWrong')); }
       } else if (pad.mode === 'set1') {
-        setPinPad({ mode: 'set2', title: 'Confirma tu PIN', first: next });
+        setPinPad({ mode: 'set2', title: tr('pinConfirm'), first: next });
         setPinEntry('');
       } else if (pad.mode === 'set2') {
         if (next === pad.first) {
           setPinHash(hashPin(next)); setPinPad(null); setPinEntry('');
           pinOkRef.current && pinOkRef.current();
         } else {
-          setPinPad({ mode: 'set1', title: 'Los PIN no coinciden. Crea tu PIN otra vez' });
+          setPinPad({ mode: 'set1', title: tr('pinMismatch') });
           setPinEntry('');
         }
       }
@@ -1038,29 +1052,29 @@ export default function App() {
     setOptsOpen(false);
     const id = current.id;
     if (current.locked) {
-      askPin('unlock', 'Escribe tu PIN para quitar el bloqueo', () => {
-        patch(id, { locked: false }, false); showToast('Bloqueo quitado');
+      askPin('unlock', tr('pinToUnlock'), () => {
+        patch(id, { locked: false }, false); showToast(tr('lockRemoved'));
       });
       return;
     }
     const lockIt = () => {
       patch(id, { locked: true }, false);
       setUnlocked(u => ({ ...u, [id]: true }));      // sigue abierta hasta que salgas
-      showToast('Nota bloqueada con PIN');
+      showToast(tr('noteLockedPin'));
     };
-    if (!pinHash) askPin('set1', 'Crea un PIN de 4 números', lockIt);
+    if (!pinHash) askPin('set1', tr('pinCreate'), lockIt);
     else lockIt();
   }
   function changePin() {
     setMenuOpen(false);
-    if (!pinHash) { askPin('set1', 'Crea un PIN de 4 números', () => showToast('PIN creado')); return; }
-    askPin('unlock', 'Escribe tu PIN actual', () => {
-      setTimeout(() => askPin('set1', 'Escribe tu PIN nuevo', () => showToast('PIN cambiado')), 200);
+    if (!pinHash) { askPin('set1', tr('pinCreate'), () => showToast(tr('pinCreated'))); return; }
+    askPin('unlock', tr('pinCurrent'), () => {
+      setTimeout(() => askPin('set1', tr('pinNew'), () => showToast(tr('pinChanged'))), 200);
     });
   }
   function openNote(n) {
     if (n.locked && !unlocked[n.id]) {
-      askPin('unlock', 'Nota bloqueada', () => {
+      askPin('unlock', tr('lockedNote'), () => {
         setUnlocked(u => ({ ...u, [n.id]: true }));
         setCurrentId(n.id);
       });
@@ -1105,9 +1119,9 @@ export default function App() {
     return buildEditorHtml({
       id: current.id, content: toHtml(current), titleHtml: toTitleHtml(current),
       updated: current.updated, editable: !current.deleted, c,
-      kind: current.kind, ink: current.ink,
+      kind: current.kind, ink: current.ink, tr, locale: LOCALE,
     });
-  }, [currentId, dark, current && current.deleted, editorRev]);
+  }, [currentId, dark, langCode, current && current.deleted, editorRev]);
 
   /* ---------- Botón "atrás" de Android ---------- */
   useEffect(() => {
@@ -1139,7 +1153,7 @@ export default function App() {
 
   const viewFolder = view.startsWith('f:') ? folders.find(f => f.id === view.slice(2)) : null;
   const viewTag = view.startsWith('t:') ? view.slice(2) : null;
-  const viewTitle = viewFolder ? viewFolder.name : viewTag ? '#' + viewTag : (TITLES[view] || TITLES.all);
+  const viewTitle = viewFolder ? viewFolder.name : viewTag ? '#' + viewTag : tr(TITLE_KEYS.includes(view) ? view : 'all');
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1193,20 +1207,20 @@ export default function App() {
       <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setWallOpen(false)}>
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
           <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
-            <Text style={s.wallTitle}>{wallFor ? 'Fondo de esta nota' : 'Fondo de pantalla'}</Text>
-            <Text style={s.wallHint}>{wallFor ? 'Solo se verá dentro de esta nota.' : 'Se verá en el menú principal.'}</Text>
+            <Text style={s.wallTitle}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
+            <Text style={s.wallHint}>{wallFor ? tr('bgNoteHint') : tr('bgMainHint')}</Text>
 
             <View style={s.wallPreview}>
               <Background t={c} wall={wallData} blur={wallBlurNow} />
-              <Text style={[s.wallPreviewText, { color: c.text }]}>Vista previa</Text>
+              <Text style={[s.wallPreviewText, { color: c.text }]}>{tr('preview')}</Text>
             </View>
 
             {!wallFor && (
               <TouchableOpacity onPress={toggleTranslucent} style={[s.row, { paddingHorizontal: 4, marginBottom: 12 }]} activeOpacity={0.7}>
                 <Feather name="smartphone" size={18} color={c.text} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.rowText}>Translúcido</Text>
-                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Se ve tu pantalla de inicio detrás (app instalada en Android)</Text>
+                  <Text style={s.rowText}>{tr('translucent')}</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('translucentHint')}</Text>
                 </View>
                 <View style={[s.toggle, { borderColor: c.text }, translucent && { backgroundColor: c.text }]}>
                   <View style={[s.toggleKnob, { backgroundColor: translucent ? c.inv : c.text }, translucent && { alignSelf: 'flex-end' }]} />
@@ -1216,14 +1230,14 @@ export default function App() {
 
             <TouchableOpacity onPress={pickWallpaper} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
               <Feather name="image" size={18} color={c.inv} />
-              <Text style={[s.wallBtnText, { color: c.inv }]}>Elegir de la galería</Text>
+              <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('pickGallery')}</Text>
             </TouchableOpacity>
 
             {wallData && (
               <>
-                <Text style={s.wallLabel}>Desenfoque</Text>
+                <Text style={s.wallLabel}>{tr('blur')}</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {[['Nada', -1], ['Poco', 0], ['Suave', 8], ['Fuerte', 20]].map(([label, v]) => (
+                  {[[tr('blurNone'), -1], [tr('blurLow'), 0], [tr('blurSoft'), 8], [tr('blurStrong'), 20]].map(([label, v]) => (
                     <TouchableOpacity
                       key={v}
                       onPress={() => (wallFor ? patch(wallFor, { wallBlur: v }, false) : setWallBlur(v))}
@@ -1235,13 +1249,13 @@ export default function App() {
                 </View>
                 <TouchableOpacity onPress={removeWallpaper} activeOpacity={0.7} style={s.wallRemove}>
                   <Feather name="x" size={16} color={c.muted} />
-                  <Text style={{ color: c.muted, fontSize: 15, marginLeft: 6 }}>{wallFor ? 'Quitar fondo de la nota' : 'Quitar mi fondo'}</Text>
+                  <Text style={{ color: c.muted, fontSize: 15, marginLeft: 6 }}>{wallFor ? tr('removeNoteBg') : tr('removeMyBg')}</Text>
                 </TouchableOpacity>
               </>
             )}
 
             <TouchableOpacity onPress={() => setWallOpen(false)} style={{ alignSelf: 'center', padding: 10, marginTop: 6 }}>
-              <Text style={{ color: c.text, fontSize: 16, fontWeight: '600' }}>Listo</Text>
+              <Text style={{ color: c.text, fontSize: 16, fontWeight: '600' }}>{tr('done')}</Text>
             </TouchableOpacity>
           </Glass>
         </Pressable>
@@ -1256,20 +1270,20 @@ export default function App() {
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
           {folderEdit && (
             <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
-              <Text style={s.wallTitle}>{folderEdit.id ? 'Editar carpeta' : 'Nueva carpeta'}</Text>
+              <Text style={s.wallTitle}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
               <View style={[s.folderInputWrap, { borderColor: c.border }]}>
                 <Feather name="folder" size={20} color={folderEdit.color} />
                 <TextInput
                   style={s.folderInput}
                   value={folderEdit.name}
                   onChangeText={tx => setFolderEdit(f => ({ ...f, name: tx }))}
-                  placeholder="Nombre de la carpeta"
+                  placeholder={tr('folderName')}
                   placeholderTextColor={c.muted}
                   autoFocus
                   maxLength={40}
                 />
               </View>
-              <Text style={s.wallLabel}>Color</Text>
+              <Text style={s.wallLabel}>{tr('color')}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                 {FOLDER_COLORS.map(col => (
                   <TouchableOpacity
@@ -1280,16 +1294,16 @@ export default function App() {
                 ))}
               </View>
               <TouchableOpacity onPress={saveFolder} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text, marginTop: 20 }]}>
-                <Text style={[s.wallBtnText, { color: c.inv }]}>Guardar</Text>
+                <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('save')}</Text>
               </TouchableOpacity>
               {folderEdit.id && (
                 <TouchableOpacity onPress={() => deleteFolder(folderEdit)} style={s.wallRemove}>
                   <Feather name="trash-2" size={16} color="#e53935" />
-                  <Text style={{ color: '#e53935', fontSize: 15, marginLeft: 6 }}>Eliminar carpeta</Text>
+                  <Text style={{ color: '#e53935', fontSize: 15, marginLeft: 6 }}>{tr('deleteFolder')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => setFolderEdit(null)} style={{ alignSelf: 'center', padding: 10, marginTop: 4 }}>
-                <Text style={{ color: c.muted, fontSize: 16 }}>Cancelar</Text>
+                <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
               </TouchableOpacity>
             </Glass>
           )}
@@ -1307,7 +1321,7 @@ export default function App() {
             <Feather name="lock" size={28} color={c.text} />
             <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{pinPad.title}</Text>
             {(pinPad.mode === 'set1') && (
-              <Text style={[s.wallHint, { textAlign: 'center' }]}>Guárdalo bien: si lo olvidas no se puede recuperar.</Text>
+              <Text style={[s.wallHint, { textAlign: 'center' }]}>{tr('pinKeepSafe')}</Text>
             )}
             <View style={s.pinDots}>
               {[0, 1, 2, 3].map(i => (
@@ -1328,7 +1342,7 @@ export default function App() {
               ))}
             </View>
             <TouchableOpacity onPress={() => setPinPad(null)} style={{ padding: 10, marginTop: 4 }}>
-              <Text style={{ color: c.muted, fontSize: 16 }}>Cancelar</Text>
+              <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
             </TouchableOpacity>
           </Glass>
         )}
@@ -1338,11 +1352,26 @@ export default function App() {
 
   /* ---------- Elegir orden ---------- */
   const sortSheet = (
-    <Sheet visible={sortOpen} onClose={() => setSortOpen(false)} title="Ordenar por" s={s} t={c}>
+    <Sheet visible={sortOpen} onClose={() => setSortOpen(false)} title={tr('sortBy')} s={s} t={c}>
       {SORTS.map(([k, icon, label]) => (
-        <Row key={k} icon={icon} label={label} s={s} t={c}
+        <Row key={k} icon={icon} label={tr(label)} s={s} t={c}
           onPress={() => { setSortBy(k); setSortOpen(false); }}
           right={sortBy === k ? <Feather name="check" size={20} color={c.text} /> : null} />
+      ))}
+    </Sheet>
+  );
+
+  /* ---------- Elegir idioma ---------- */
+  const langName = (LANGS.find(l => l[0] === langCode) || ['', ''])[1];
+  const langSheet = (
+    <Sheet visible={langOpen} onClose={() => setLangOpen(false)} title={tr('language')} s={s} t={c}>
+      <Row icon="smartphone" label={tr('langAuto')} s={s} t={c}
+        onPress={() => { setLang('auto'); setLangOpen(false); }}
+        right={lang === 'auto' ? <Feather name="check" size={20} color={c.text} /> : null} />
+      {LANGS.map(([code, name]) => (
+        <Row key={code} label={name} s={s} t={c}
+          onPress={() => { setLang(code); setLangOpen(false); }}
+          right={lang === code ? <Feather name="check" size={20} color={c.text} /> : null} />
       ))}
     </Sheet>
   );
@@ -1395,7 +1424,7 @@ export default function App() {
           <View style={{ paddingHorizontal: 20, paddingTop: inTrash ? 10 : 0 }}>
             {inTrash && (
               <Glass t={c} radius={16} style={{ marginBottom: 12 }} inner={{ padding: 12 }}>
-                <Text style={s.bannerText}>Esta nota está en la papelera. Restáurala para editarla.</Text>
+                <Text style={s.bannerText}>{tr('inTrashBanner')}</Text>
               </Glass>
             )}
             {/* El título y la fecha ahora están dentro del editor */}
@@ -1428,33 +1457,33 @@ export default function App() {
         {wallModal}
 
         {/* Opciones de la nota */}
-        <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title="Opciones de la nota" s={s} t={c}>
+        <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
           <Row icon="folder" iconColor={(folders.find(f => f.id === current.folderId) || {}).color} s={s} t={c}
-            label={'Carpeta: ' + ((folders.find(f => f.id === current.folderId) || {}).name || 'Ninguna')}
+            label={tr('folderLabel', { name: (folders.find(f => f.id === current.folderId) || {}).name || tr('none') })}
             onPress={() => { setOptsOpen(false); setMoveOpen(true); }}
             right={<Feather name="chevron-right" size={18} color={c.muted} />} />
           <Row icon={current.locked ? 'unlock' : 'lock'} s={s} t={c}
-            label={current.locked ? 'Quitar bloqueo' : 'Bloquear con PIN'} onPress={toggleLock} />
+            label={current.locked ? tr('unlock') : tr('lockPin')} onPress={toggleLock} />
           <TouchableOpacity onPress={() => { setOptsOpen(false); togglePin(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.pinned ? 'pin-off-outline' : 'pin-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
-            <Text style={s.rowText}>{current.pinned ? 'Desfijar' : 'Fijar arriba'}</Text>
+            <Text style={s.rowText}>{current.pinned ? tr('unpin') : tr('pinTop')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => { setOptsOpen(false); toggleFav(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
-            <Text style={s.rowText}>{current.fav ? 'Quitar de favoritos' : 'Añadir a favoritos'}</Text>
+            <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
-          <Row icon="trash-2" label="Mover a la papelera" danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
+          <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
         </Sheet>
 
         {/* Mover a carpeta */}
-        <Sheet visible={moveOpen} onClose={() => setMoveOpen(false)} title="Mover a carpeta" s={s} t={c}>
-          <Row icon="inbox" label="Sin carpeta" s={s} t={c} onPress={() => moveTo(null)}
+        <Sheet visible={moveOpen} onClose={() => setMoveOpen(false)} title={tr('moveToFolder')} s={s} t={c}>
+          <Row icon="inbox" label={tr('noFolder')} s={s} t={c} onPress={() => moveTo(null)}
             right={!current.folderId ? <Feather name="check" size={20} color={c.text} /> : null} />
           {folders.map(f => (
             <Row key={f.id} icon="folder" iconColor={f.color} label={f.name} s={s} t={c} onPress={() => moveTo(f.id)}
               right={current.folderId === f.id ? <Feather name="check" size={20} color={c.text} /> : null} />
           ))}
-          <Row icon="plus" label="Nueva carpeta" s={s} t={c} onPress={() => openFolderEdit(null, current.id)} />
+          <Row icon="plus" label={tr('newFolder')} s={s} t={c} onPress={() => openFolderEdit(null, current.id)} />
         </Sheet>
 
         {/* Historial de versiones */}
@@ -1466,13 +1495,13 @@ export default function App() {
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <MaterialCommunityIcons name="history" size={24} color={c.text} />
-                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>Historial</Text>
+                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('history')}</Text>
                       <TouchableOpacity onPress={() => setHistOpen(false)} hitSlop={10}>
                         <Feather name="x" size={22} color={c.muted} />
                       </TouchableOpacity>
                     </View>
                     <Text style={[s.wallHint, { marginTop: 6 }]}>
-                      El Registro guarda solo todo lo que escribes, aunque lo borres. Las versiones se guardan cuando tú quieras.
+                      {tr('histIntro')}
                     </Text>
                     <TouchableOpacity onPress={openRecord} activeOpacity={0.7}>
                       <Glass t={c} radius={18} style={{ marginBottom: 12 }} inner={s.histRow}>
@@ -1480,9 +1509,9 @@ export default function App() {
                           <Feather name="book-open" size={18} color={c.inv} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={s.recTitle}>Registro</Text>
+                          <Text style={s.recTitle}>{tr('record')}</Text>
                           <Text style={s.histDate}>
-                            {((recCache.current[current.id] || {}).e || []).length} renglón(es) · se actualiza solo
+                            {tr('recLines', { n: ((recCache.current[current.id] || {}).e || []).length })}
                           </Text>
                         </View>
                         <Feather name="chevron-right" size={18} color={c.muted} />
@@ -1490,20 +1519,20 @@ export default function App() {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={saveVersionNow} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="save" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>Guardar versión ahora</Text>
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('saveVersionNow')}</Text>
                     </TouchableOpacity>
-                    <Text style={[s.sideHeaderText, { marginTop: 16, marginBottom: 8, marginLeft: 4 }]}>VERSIONES GUARDADAS</Text>
+                    <Text style={[s.sideHeaderText, { marginTop: 16, marginBottom: 8, marginLeft: 4 }]}>{tr('savedVersions')}</Text>
                     <ScrollView style={{ maxHeight: 260 }}>
                       {histList.length === 0 && (
-                        <Text style={[s.emptyText, { paddingVertical: 16 }]}>Toca "Guardar versión ahora" para guardar una copia exacta de la nota.</Text>
+                        <Text style={[s.emptyText, { paddingVertical: 16 }]}>{tr('noVersions', { btn: tr('saveVersionNow') })}</Text>
                       )}
                       {histList.map((v, i) => (
                         <TouchableOpacity key={v.at} onPress={() => setHistView(v)} activeOpacity={0.7}>
                           <Glass t={c} radius={16} style={{ marginBottom: 8 }} inner={s.histRow}>
                             <View style={{ flex: 1 }}>
-                              <Text style={s.histDate}>{fmtDate(v.at)}{i === 0 ? '  · más reciente' : ''}</Text>
+                              <Text style={s.histDate}>{fmtDate(v.at)}{i === 0 ? '  · ' + tr('latest') : ''}</Text>
                               <Text style={s.histPrev} numberOfLines={2}>
-                                {(v.title ? v.title + ' — ' : '') + (toPlain(v) || (v.ink && v.ink.length ? 'Dibujo' : 'Vacía'))}
+                                {(v.title ? v.title + ' — ' : '') + (toPlain(v) || (v.ink && v.ink.length ? tr('drawing') : tr('emptyNote')))}
                               </Text>
                             </View>
                             <Feather name="chevron-right" size={18} color={c.muted} />
@@ -1513,7 +1542,7 @@ export default function App() {
                     </ScrollView>
                     <TouchableOpacity onPress={toggleHistLock} style={[s.row, { paddingHorizontal: 4, paddingBottom: 4 }]} activeOpacity={0.7}>
                       <Feather name={current.histLocked ? 'lock' : 'unlock'} size={18} color={c.text} style={{ marginRight: 12 }} />
-                      <Text style={s.rowText}>{current.histLocked ? 'Historial protegido con PIN' : 'Proteger historial con PIN'}</Text>
+                      <Text style={s.rowText}>{current.histLocked ? tr('histWithPin') : tr('protectHist')}</Text>
                       <View style={[s.toggle, { borderColor: c.text }, current.histLocked && { backgroundColor: c.text }]}>
                         <View style={[s.toggleKnob, { backgroundColor: current.histLocked ? c.inv : c.text },
                           current.histLocked && { alignSelf: 'flex-end' }]} />
@@ -1526,21 +1555,21 @@ export default function App() {
                       <TouchableOpacity onPress={() => setHistView(null)} hitSlop={10}>
                         <Feather name="arrow-left" size={22} color={c.text} />
                       </TouchableOpacity>
-                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>Registro</Text>
+                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('record')}</Text>
                       <TouchableOpacity onPress={clearRecord} hitSlop={10}>
                         <Feather name="trash-2" size={20} color="#e53935" />
                       </TouchableOpacity>
                     </View>
-                    <Text style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>Todo lo que has escrito en esta nota, incluso lo que borraste.</Text>
+                    <Text style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
-                      {recEntries.length === 0 && <Text style={[s.emptyText, { paddingVertical: 16 }]}>El registro está vacío.</Text>}
+                      {recEntries.length === 0 && <Text style={[s.emptyText, { paddingVertical: 16 }]}>{tr('recEmpty')}</Text>}
                       {recEntries.map((e, i) => (e[0] === REC_IMG
                         ? <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />
                         : <Text key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
                     </ScrollView>
                     <TouchableOpacity onPress={restoreRecord} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="rotate-ccw" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>Poner todo en la nota</Text>
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('putAllInNote')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -1561,15 +1590,15 @@ export default function App() {
                       )}
                       <Text style={s.histViewText}>{toPlain(histView) || ' '}</Text>
                       {!!(histView.ink && histView.ink.length) && (
-                        <Text style={[s.histDate, { marginTop: 8 }]}>✏️ Incluye {histView.ink.length} trazo(s) de dibujo</Text>
+                        <Text style={[s.histDate, { marginTop: 8 }]}>{tr('includesStrokes', { n: histView.ink.length })}</Text>
                       )}
                     </ScrollView>
                     <TouchableOpacity onPress={() => restoreVersion(histView)} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="rotate-ccw" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>Restaurar esta versión</Text>
+                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('restoreThisVersion')}</Text>
                     </TouchableOpacity>
                     <Text style={[s.wallHint, { textAlign: 'center', marginTop: 10, marginBottom: 0 }]}>
-                      Lo que tienes ahora queda guardado en el Registro.
+                      {tr('nowKeptInRec')}
                     </Text>
                   </>
                 )}
@@ -1593,12 +1622,12 @@ export default function App() {
   const cardW = (width - 32 - 12 * (cols - 1)) / cols;
 
   const emptyMsg = query
-    ? ['search', 'Ninguna nota coincide con la búsqueda.']
-    : viewFolder ? ['folder', 'Esta carpeta está vacía.\nToca el lápiz para crear una nota aquí.']
-    : viewTag ? ['hash', 'Ninguna nota tiene esta etiqueta.']
-    : ({ all: ['file-text', 'No hay notas todavía.\nToca el lápiz para crear la primera.'],
-        fav: ['star', 'Aún no tienes favoritos.'],
-        trash: ['trash-2', 'La papelera está vacía.'] }[view] || ['file-text', '']);
+    ? ['search', tr('noMatch')]
+    : viewFolder ? ['folder', tr('folderEmpty')]
+    : viewTag ? ['hash', tr('tagEmpty')]
+    : ({ all: ['file-text', tr('noNotes')],
+        fav: ['star', tr('noFav')],
+        trash: ['trash-2', tr('trashEmpty')] }[view] || ['file-text', '']);
 
   return (
     <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
@@ -1618,7 +1647,7 @@ export default function App() {
           <TouchableOpacity onPress={selectAll} activeOpacity={0.7}>
             <Glass t={c} radius={22} inner={s.selAll}>
               <Feather name={selIds.length === visible.length ? 'minus-square' : 'check-square'} size={18} color={c.text} />
-              <Text style={s.selAllText}>{selIds.length === visible.length ? 'Ninguna' : 'Todas'}</Text>
+              <Text style={s.selAllText}>{selIds.length === visible.length ? tr('none') : tr('selAll')}</Text>
             </Glass>
           </TouchableOpacity>
         </View>
@@ -1649,20 +1678,20 @@ export default function App() {
                 {viewFolder && <Feather name="folder" size={26} color={viewFolder.color} style={{ marginRight: 10 }} />}
                 <Text style={[s.heroTitle, { flexShrink: 1 }]} numberOfLines={1}>{viewTitle}</Text>
               </View>
-              <Text style={s.heroCount}>{visible.length} {visible.length === 1 ? 'nota' : 'notas'}</Text>
+              <Text style={s.heroCount}>{tr('nNotes', { n: visible.length })}</Text>
             </View>
             {view === 'trash' && counts.trash > 0 && !selMode && (
               <View style={s.trashBtns}>
                 <TouchableOpacity onPress={restoreAllTrash} activeOpacity={0.75} style={{ flex: 1 }}>
                   <Glass t={c} radius={18} inner={s.trashBtn}>
                     <Feather name="rotate-ccw" size={18} color={c.text} />
-                    <Text style={s.trashBtnText}>Recuperar todo</Text>
+                    <Text style={s.trashBtnText}>{tr('recoverAll')}</Text>
                   </Glass>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={emptyTrash} activeOpacity={0.75} style={{ flex: 1 }}>
                   <Glass t={c} radius={18} inner={s.trashBtn}>
                     <Feather name="trash-2" size={18} color="#e53935" />
-                    <Text style={[s.trashBtnText, { color: '#e53935' }]}>Vaciar papelera</Text>
+                    <Text style={[s.trashBtnText, { color: '#e53935' }]}>{tr('emptyTrash')}</Text>
                   </Glass>
                 </TouchableOpacity>
               </View>
@@ -1673,7 +1702,7 @@ export default function App() {
                   style={s.search}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Buscar notas..."
+                  placeholder={tr('searchPh')}
                   placeholderTextColor={c.muted}
                   autoFocus={searchFocus.current}
                   onFocus={() => { searchFocus.current = false; }}
@@ -1714,7 +1743,7 @@ export default function App() {
                         textDecorationLine: g.underline ? 'underline' : 'none',
                         ...(g.outline ? { textShadowColor: g.outline, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } } : {}),
                       }}>{g.text}</Text>
-                    )) : 'Sin título'}
+                    )) : tr('untitled')}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 4 }}>
                     {item.pinned && <MaterialCommunityIcons name="pin" size={14} color={c.muted} />}
@@ -1726,7 +1755,7 @@ export default function App() {
                 {item.locked ? (
                   <View style={s.lockedBox}>
                     <Feather name="lock" size={22} color={c.muted} />
-                    <Text style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>Nota bloqueada</Text>
+                    <Text style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>{tr('lockedNote')}</Text>
                   </View>
                 ) : (
                   <>
@@ -1757,22 +1786,22 @@ export default function App() {
               <>
                 <TouchableOpacity onPress={restoreSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="rotate-ccw" size={24} color={c.text} />
-                  <Text style={s.selActionText}>Recuperar</Text>
+                  <Text style={s.selActionText}>{tr('recover')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={destroySelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="trash-2" size={24} color="#e53935" />
-                  <Text style={[s.selActionText, { color: '#e53935' }]}>Eliminar</Text>
+                  <Text style={[s.selActionText, { color: '#e53935' }]}>{tr('remove')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <TouchableOpacity onPress={shareSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="share-2" size={24} color={c.text} />
-                  <Text style={s.selActionText}>Compartir</Text>
+                  <Text style={s.selActionText}>{tr('share')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={trashSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="trash-2" size={24} color={c.text} />
-                  <Text style={s.selActionText}>Papelera</Text>
+                  <Text style={s.selActionText}>{tr('trash')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1794,19 +1823,19 @@ export default function App() {
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.scrim }}>
           <Glass t={c} strong radius={28} style={s.sidebar}>
            <ScrollView contentContainerStyle={s.sidebarInner}>
-            <Text style={s.sideTitle}>Mis Notas</Text>
+            <Text style={s.sideTitle}>{tr('appName')}</Text>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); setMenuOpen(false); }} activeOpacity={0.7}>
                 {view === key ? (
                   <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
                     <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
-                    <Text style={[s.navText, { fontWeight: '700' }]}>{TITLES[key]}</Text>
+                    <Text style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
                     <Text style={s.navCount}>{counts[key]}</Text>
                   </Glass>
                 ) : (
                   <View style={[s.navItem, { marginBottom: 4 }]}>
                     <Feather name={icon} size={19} color={c.muted} style={s.navIcon} />
-                    <Text style={s.navText}>{TITLES[key]}</Text>
+                    <Text style={s.navText}>{tr(key)}</Text>
                     <Text style={s.navCount}>{counts[key]}</Text>
                   </View>
                 )}
@@ -1816,7 +1845,7 @@ export default function App() {
 
             {/* Carpetas */}
             <View style={s.sideHeader}>
-              <Text style={s.sideHeaderText}>CARPETAS</Text>
+              <Text style={s.sideHeaderText}>{tr('folders')}</Text>
               <TouchableOpacity onPress={() => openFolderEdit(null)} hitSlop={10}>
                 <Feather name="plus" size={20} color={c.text} />
               </TouchableOpacity>
@@ -1824,7 +1853,7 @@ export default function App() {
             {folders.length === 0 && (
               <TouchableOpacity style={s.navItem} onPress={() => openFolderEdit(null)} activeOpacity={0.7}>
                 <Feather name="folder-plus" size={19} color={c.muted} style={s.navIcon} />
-                <Text style={[s.navText, { color: c.muted }]}>Crear carpeta</Text>
+                <Text style={[s.navText, { color: c.muted }]}>{tr('createFolder')}</Text>
               </TouchableOpacity>
             )}
             {folders.map(f => {
@@ -1852,7 +1881,7 @@ export default function App() {
             {/* Etiquetas */}
             {allTags.length > 0 && (
               <>
-                <View style={s.sideHeader}><Text style={s.sideHeaderText}>ETIQUETAS</Text></View>
+                <View style={s.sideHeader}><Text style={s.sideHeaderText}>{tr('tags')}</Text></View>
                 {allTags.map(([tg, n]) => {
                   const on = view === 't:' + tg;
                   const body = (
@@ -1876,11 +1905,16 @@ export default function App() {
             <View style={s.sep} />
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); openWall(null); }}>
               <Feather name="image" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>Fondo de pantalla</Text>
+              <Text style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
               <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{pinHash ? 'Cambiar PIN' : 'Crear PIN de bloqueo'}</Text>
+              <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setLangOpen(true); }}>
+              <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('language')}</Text>
+              <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
             </TouchableOpacity>
            </ScrollView>
           </Glass>
@@ -1890,6 +1924,7 @@ export default function App() {
 
       {wallModal}
       {sortSheet}
+      {langSheet}
       {folderModal}
       {pinModal}
 

@@ -1,3 +1,4 @@
 App.js
 editor.js
+idiomas.js
 translucido-plugin.js
