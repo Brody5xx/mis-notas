@@ -268,11 +268,31 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw.on{box-shadow:0 0 0 3px rgba(0,0,0,.35),0 0 0 6px ${c.text} !important}
   #tip{background:rgba(20,20,40,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
        border:0.5px solid rgba(255,255,255,.35);box-shadow:inset 0 2px 2px rgba(255,255,255,.2)}
+  /* ===== Revisar ortografía ===== */
+  #spLayer{position:absolute;left:0;top:0;width:0;height:0;z-index:2;pointer-events:none}
+  .spm{position:absolute;border-bottom:2.5px solid #ff5252;pointer-events:none;border-radius:2px}
+  .spm.cur{background:rgba(255,82,82,.35);border-radius:5px}
+  body.spell #dock{display:none !important}
+  #spell{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:14px 16px 12px}
+  #spell .spHead{display:flex;align-items:center;justify-content:space-between;color:${c.muted};font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  #spell .spX{border:none;background:none;color:${c.text};font-size:20px;padding:2px 6px;line-height:1}
+  #spell .spWord{margin-top:6px;font-size:19px;font-weight:700;color:#ff6b6b;text-decoration:line-through;word-break:break-word}
+  #spell .spMsg{margin-top:4px;font-size:14px;color:${c.muted};line-height:1.35;max-height:3.2em;overflow:hidden}
+  #spell .spSug{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  #spell .spSug button{border:none;border-radius:18px;padding:9px 16px;font-size:16px;font-weight:700;background:${c.text};color:${c.inv}}
+  #spell .spNo{font-size:14px;color:${c.muted}}
+  #spell .spRow{display:flex;align-items:center;gap:6px;margin-top:12px}
+  #spell .spRow button{border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:18px;padding:8px 14px;font-size:14px}
+  #spell .spRow .grow{flex:1}
+  #spell .spRow .nav{width:40px;padding:8px 0;font-size:18px;line-height:1}
+  #spell .spInfo{display:flex;align-items:center;gap:10px;font-size:16px;color:${c.text};padding:6px 0 4px}
+  .spSpin{width:18px;height:18px;border-radius:50%;border:2.5px solid ${c.muted};border-top-color:${c.text};animation:spSpin .8s linear infinite}
+  @keyframes spSpin{to{transform:rotate(360deg)}}
 </style></head><body>
 
-<div id="ttl" dir="auto" contenteditable="${editable}"></div>
+<div id="ttl" dir="auto" spellcheck="false" autocorrect="off" contenteditable="${editable}"></div>
 <div id="meta"></div>
-<div id="ed" dir="auto" contenteditable="${editable}"></div>
+<div id="ed" dir="auto" spellcheck="false" contenteditable="${editable}"></div>
 <canvas id="ink"></canvas>
 <canvas id="live"></canvas>
 <input type="file" id="file" accept="image/*" style="display:none">
@@ -399,6 +419,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   </div>
 </div>
 <div id="tip"></div>
+<div id="spLayer"></div>
+<div class="panel" id="spell"></div>
 <div id="imged">
   <div id="ieHead"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
   <div id="ieText"><input id="ieInput" type="text" placeholder="${H('imgTextPh')}" maxlength="120"><button id="ieTextOk">✓</button></div>
@@ -2019,6 +2041,193 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       changedNow(); showTip(${J('imgEdited')});
     }
     closeImgEdit();
+  };
+
+  /* =========================================================
+     REVISAR ORTOGRAFÍA (como Google Docs)
+     El botón de arriba llama a spellStart(). El texto se manda a la
+     app, la app lo revisa por internet (LanguageTool) y devuelve los
+     errores con spellResult(). Luego se va de uno en uno.
+     ========================================================= */
+  var SP = { on: false, list: [], i: 0, ign: {}, req: 0, sent: '' };
+  var spEl = $('spell'), spLayer = $('spLayer'), spTimer = null;
+  function spEsc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  /* Todo el texto (título + nota) y en qué parte de la página está cada pedacito */
+  function spText(){
+    var segs = [], txt = '';
+    function nl(){ if (txt && txt.charAt(txt.length - 1) !== '\\n') txt += '\\n'; }
+    function walk(n){
+      if (n.nodeType === 3) { segs.push({ n: n, s: txt.length }); txt += n.data.replace(/[\\u200B\\u00A0\\uFEFF]/g, ' '); return; }
+      if (n.nodeType !== 1) return;
+      if (n.classList && n.classList.contains('imgwrap')) { nl(); txt += '\\n'; return; }
+      if (n.tagName === 'BR') { txt += '\\n'; return; }
+      var block = /^(DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE|PRE)$/.test(n.tagName);
+      if (block) nl();
+      for (var k = n.firstChild; k; k = k.nextSibling) walk(k);
+      if (block) nl();
+    }
+    walk(ttl); txt += '\\n\\n'; walk(ed);
+    return { t: txt, segs: segs };
+  }
+  function spPos(m, off, isEnd){
+    for (var k = m.segs.length - 1; k >= 0; k--) {
+      var g = m.segs[k], L = g.n.data.length;
+      if (isEnd ? (off > g.s && off <= g.s + L) : (off >= g.s && off < g.s + L)) return [g.n, off - g.s];
+    }
+    return null;
+  }
+  function spRange(m, x){
+    var a = spPos(m, x.off, false), b = spPos(m, x.off + x.len, true);
+    if (!a || !b) return null;
+    var r = document.createRange();
+    try { r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]); } catch (e) { return null; }
+    return r;
+  }
+  /* Si escribiste algo mientras revisas, se vuelve a buscar cada palabra */
+  function spSync(){
+    var m = spText();
+    SP.list = SP.list.filter(function(x){
+      if (m.t.substr(x.off, x.len) === x.word) return true;
+      var best = -1, i = m.t.indexOf(x.word, Math.max(0, x.off - 400));
+      while (i !== -1 && i < x.off + 400) {
+        if (best < 0 || Math.abs(i - x.off) < Math.abs(best - x.off)) best = i;
+        i = m.t.indexOf(x.word, i + 1);
+      }
+      if (best < 0) return false;
+      x.off = best; return true;
+    });
+    if (SP.i >= SP.list.length) SP.i = 0;
+    return m;
+  }
+  /* Rayita roja debajo de cada error; el de ahora, marcado */
+  function spDraw(){
+    if (!SP.on) { spLayer.innerHTML = ''; return; }
+    var m = spSync(), sx = window.scrollX, sy = window.scrollY, h = '';
+    SP.list.forEach(function(x, k){
+      var r = spRange(m, x); if (!r) return;
+      var rs = r.getClientRects();
+      for (var j = 0; j < rs.length; j++) {
+        var q = rs[j]; if (!q.width) continue;
+        h += '<div class="spm' + (k === SP.i ? ' cur' : '') + '" style="left:' + (q.left + sx - 1) + 'px;top:' + (q.top + sy) +
+             'px;width:' + (q.width + 2) + 'px;height:' + q.height + 'px"></div>';
+      }
+    });
+    spLayer.innerHTML = h;
+  }
+  function spCard(html){
+    spEl.innerHTML = '<div class="spHead"><span id="spHd">' + spEsc(${J('spellTitle')}) + '</span><button class="spX" data-sp="x">✕</button></div>' + html;
+    spEl.classList.add('show');
+  }
+  function spInfo(text, spin){ spCard('<div class="spInfo">' + (spin ? '<span class="spSpin"></span>' : '') + spEsc(text) + '</div>'); }
+  /* Llevar la palabra a la vista (sin que la tape la tarjeta) */
+  function spFocus(){
+    var m = spText(), x = SP.list[SP.i]; if (!x) return;
+    var r = spRange(m, x); if (!r) return;
+    var q = r.getBoundingClientRect(), top = spEl.getBoundingClientRect().top || window.innerHeight * 0.6;
+    if (q.top < 60 || q.bottom > top - 24) window.scrollTo({ top: Math.max(0, window.scrollY + q.top - Math.min(140, top / 3)), behavior: 'smooth' });
+  }
+  function spShow(){
+    spSync();
+    var n = SP.list.length, x = SP.list[SP.i];
+    if (!x) { spDraw(); spInfo(${J('spellDone')}); setTimeout(function(){ if (SP.on && !SP.list.length) spClose(); }, 1400); return; }
+    var sug = x.reps.length
+      ? x.reps.map(function(v, k){ return '<button data-rep="' + k + '">' + spEsc(v) + '</button>'; }).join('')
+      : '<span class="spNo">' + spEsc(${J('spellNoSugg')}) + '</span>';
+    spCard('<div class="spWord">' + spEsc(x.word) + '</div>' +
+      (x.msg ? '<div class="spMsg">' + spEsc(x.msg) + '</div>' : '') +
+      '<div class="spSug">' + sug + '</div>' +
+      '<div class="spRow"><button data-sp="ign">' + spEsc(${J('spellIgnore')}) + '</button>' +
+      '<button data-sp="all">' + spEsc(${J('spellIgnoreAll')}) + '</button><span class="grow"></span>' +
+      (n > 1 ? '<button class="nav" data-sp="prev">‹</button><button class="nav" data-sp="next">›</button>' : '') + '</div>');
+    $('spHd').textContent = ${J('spellTitle')} + '  ·  ' + ${J('spellOf')}.replace('{i}', SP.i + 1).replace('{n}', n);
+    spDraw();
+    spFocus();
+  }
+  function spClose(){
+    SP.on = false; SP.list = []; SP.req++;
+    spLayer.innerHTML = ''; spEl.classList.remove('show');
+    document.body.classList.remove('spell');
+    send({ type: 'spellOpen', open: false });
+  }
+  window.spellClose = function(){ if (SP.on) spClose(); };
+  /* Cambiar la palabra por la sugerencia elegida */
+  function spReplace(v){
+    var m = spText(), x = SP.list[SP.i]; if (!x) return;
+    var r = spRange(m, x);
+    SP.list.splice(SP.i, 1);
+    if (r) {
+      r.deleteContents();
+      var tn = document.createTextNode(v);
+      r.insertNode(tn);
+      var d = v.length - x.len;
+      SP.list.forEach(function(y){ if (y.off > x.off) y.off += d; });
+      changedNow();                       // se guarda (y se puede Deshacer)
+    }
+    spShow();
+  }
+  spEl.addEventListener('pointerdown', function(e){ e.preventDefault(); });   // no cerrar el teclado ni mover el cursor
+  spEl.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    var x = SP.list[SP.i];
+    if (b.hasAttribute('data-rep')) { if (x) spReplace(x.reps[+b.getAttribute('data-rep')]); return; }
+    var a = b.getAttribute('data-sp');
+    if (a === 'x') spClose();
+    else if (a === 'ign') { SP.list.splice(SP.i, 1); spShow(); }
+    else if (a === 'all') { if (x) { SP.ign[x.word] = 1; SP.list = SP.list.filter(function(y){ return y.word !== x.word; }); } spShow(); }
+    else if (a === 'next') { SP.i = (SP.i + 1) % SP.list.length; spShow(); }
+    else if (a === 'prev') { SP.i = (SP.i - 1 + SP.list.length) % SP.list.length; spShow(); }
+  });
+  /* Tocar una palabra marcada la elige */
+  function spPick(){
+    if (!SP.on || !SP.list.length) return;
+    var sel = window.getSelection(); if (!sel.rangeCount) return;
+    var m = spText(), node = sel.anchorNode, off = -1;
+    m.segs.forEach(function(g){ if (g.n === node) off = g.s + sel.anchorOffset; });
+    if (off < 0) return;
+    for (var k = 0; k < SP.list.length; k++) {
+      var x = SP.list[k];
+      if (off >= x.off && off <= x.off + x.len) { if (k !== SP.i) { SP.i = k; spShow(); } return; }
+    }
+  }
+  ed.addEventListener('click', function(){ setTimeout(spPick, 0); });
+  ttl.addEventListener('click', function(){ setTimeout(spPick, 0); });
+  function spLater(){ if (!SP.on) return; clearTimeout(spTimer); spTimer = setTimeout(function(){ if (SP.list.length) spShow(); else spDraw(); }, 350); }
+  ed.addEventListener('input', spLater);
+  ttl.addEventListener('input', spLater);
+  window.addEventListener('resize', function(){ if (SP.on) setTimeout(spDraw, 60); });
+
+  window.spellStart = function(){
+    if (!editable) return;
+    if (SP.on) { spClose(); return; }               // tocar otra vez = cerrar
+    if (dirty) changedNow();
+    closePanels(); selectImg(null);
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // bajar el teclado
+    var m = spText();
+    if (!m.t.replace(/\\s+/g, '')) { showTip(${J('spellNone')}); return; }
+    SP.on = true; SP.list = []; SP.i = 0; SP.req++; SP.sent = m.t;
+    document.body.classList.add('spell');
+    send({ type: 'spellOpen', open: true });
+    spInfo(${J('spellChecking')}, true);
+    send({ type: 'spell', text: m.t, req: SP.req });
+  };
+  window.spellResult = function(res){
+    if (!SP.on || !res || res.req !== SP.req) return;
+    if (!res.ok) { spInfo(${J('spellNoNet')}); return; }
+    var seen = {};
+    SP.list = (res.matches || []).filter(function(x){
+      var id = x.rule && x.rule.id || '';
+      return !(x.rule && x.rule.issueType === 'whitespace') && !/WHITESPACE|DOUBLE_PUNCTUATION/.test(id);
+    }).map(function(x){
+      return { off: x.offset, len: x.length, word: SP.sent.substr(x.offset, x.length),
+               msg: x.shortMessage || x.message || '',
+               reps: (x.replacements || []).map(function(r){ return r.value; }).filter(function(v){ return v != null; }).slice(0, 5) };
+    }).filter(function(x){
+      if (!x.word.trim() || x.word.indexOf('\\n') >= 0 || SP.ign[x.word] || seen[x.off]) return false;
+      seen[x.off] = 1; return true;
+    });
+    SP.i = 0;
+    if (!SP.list.length) { spInfo(${J('spellNone')}); setTimeout(function(){ if (SP.on && !SP.list.length) spClose(); }, 1600); return; }
+    spShow();
   };
 
   /* =========================================================

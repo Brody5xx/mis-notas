@@ -3062,6 +3062,56 @@ const EDT = {
 };
 for (const code in EDT) Object.assign(S[code], { imgEditText: EDT[code][0], noColor: EDT[code][1] });
 
+/* Textos nuevos: revisar ortografía
+   [Ortografía, Revisando..., No hay errores, Revisión terminada, Ignorar, Ignorar todas,
+    Sin internet, Sin sugerencias, "{i} de {n}"] */
+const SPELL = {
+  es: ['Ortografía', 'Revisando...', '✓ No hay errores', '✓ Revisión terminada', 'Ignorar', 'Ignorar todas', 'No se pudo revisar. Se necesita internet.', 'Sin sugerencias', '{i} de {n}'],
+  en: ['Spelling', 'Checking...', '✓ No mistakes found', '✓ Check finished', 'Ignore', 'Ignore all', 'Could not check. Internet is needed.', 'No suggestions', '{i} of {n}'],
+  pt: ['Ortografia', 'Verificando...', '✓ Nenhum erro', '✓ Revisão concluída', 'Ignorar', 'Ignorar todas', 'Não foi possível verificar. É preciso internet.', 'Sem sugestões', '{i} de {n}'],
+  fr: ['Orthographe', 'Vérification...', '✓ Aucune faute', '✓ Vérification terminée', 'Ignorer', 'Tout ignorer', 'Impossible de vérifier. Internet est nécessaire.', 'Aucune suggestion', '{i} sur {n}'],
+  de: ['Rechtschreibung', 'Wird geprüft...', '✓ Keine Fehler', '✓ Prüfung beendet', 'Ignorieren', 'Alle ignorieren', 'Prüfung nicht möglich. Internet wird benötigt.', 'Keine Vorschläge', '{i} von {n}'],
+  it: ['Ortografia', 'Controllo...', '✓ Nessun errore', '✓ Controllo terminato', 'Ignora', 'Ignora tutti', 'Impossibile controllare. Serve internet.', 'Nessun suggerimento', '{i} di {n}'],
+  ca: ['Ortografia', 'Revisant...', '✓ No hi ha errors', '✓ Revisió acabada', 'Ignora', 'Ignora-les totes', 'No s’ha pogut revisar. Cal internet.', 'Sense suggeriments', '{i} de {n}'],
+  nl: ['Spelling', 'Controleren...', '✓ Geen fouten', '✓ Controle klaar', 'Negeren', 'Alles negeren', 'Controleren lukt niet. Internet is nodig.', 'Geen suggesties', '{i} van {n}'],
+  sv: ['Stavning', 'Kontrollerar...', '✓ Inga fel', '✓ Kontrollen är klar', 'Ignorera', 'Ignorera alla', 'Kunde inte kontrollera. Internet behövs.', 'Inga förslag', '{i} av {n}'],
+  nb: ['Stavekontroll', 'Sjekker...', '✓ Ingen feil', '✓ Sjekken er ferdig', 'Ignorer', 'Ignorer alle', 'Kunne ikke sjekke. Internett trengs.', 'Ingen forslag', '{i} av {n}'],
+  da: ['Stavekontrol', 'Kontrollerer...', '✓ Ingen fejl', '✓ Kontrollen er færdig', 'Ignorer', 'Ignorer alle', 'Kunne ikke kontrollere. Der skal bruges internet.', 'Ingen forslag', '{i} af {n}'],
+  fi: ['Oikeinkirjoitus', 'Tarkistetaan...', '✓ Ei virheitä', '✓ Tarkistus valmis', 'Ohita', 'Ohita kaikki', 'Tarkistus ei onnistunut. Tarvitaan internet.', 'Ei ehdotuksia', '{i}/{n}'],
+  pl: ['Pisownia', 'Sprawdzanie...', '✓ Brak błędów', '✓ Sprawdzanie zakończone', 'Pomiń', 'Pomiń wszystkie', 'Nie udało się sprawdzić. Potrzebny jest internet.', 'Brak sugestii', '{i} z {n}'],
+  cs: ['Pravopis', 'Kontroluji...', '✓ Žádné chyby', '✓ Kontrola dokončena', 'Ignorovat', 'Ignorovat vše', 'Kontrola se nezdařila. Je potřeba internet.', 'Žádné návrhy', '{i} z {n}'],
+  sk: ['Pravopis', 'Kontrolujem...', '✓ Žiadne chyby', '✓ Kontrola dokončená', 'Ignorovať', 'Ignorovať všetky', 'Kontrola zlyhala. Je potrebný internet.', 'Žiadne návrhy', '{i} z {n}'],
+  hu: ['Helyesírás', 'Ellenőrzés...', '✓ Nincs hiba', '✓ Az ellenőrzés kész', 'Kihagyás', 'Összes kihagyása', 'Nem sikerült ellenőrizni. Internet szükséges.', 'Nincs javaslat', '{i}/{n}'],
+  ro: ['Ortografie', 'Se verifică...', '✓ Nicio greșeală', '✓ Verificare terminată', 'Ignoră', 'Ignoră tot', 'Nu s-a putut verifica. Este nevoie de internet.', 'Nicio sugestie', '{i} din {n}'],
+  hr: ['Pravopis', 'Provjera...', '✓ Nema pogrešaka', '✓ Provjera je gotova', 'Zanemari', 'Zanemari sve', 'Provjera nije uspjela. Potreban je internet.', 'Nema prijedloga', '{i} od {n}'],
+  el: ['Ορθογραφία', 'Έλεγχος...', '✓ Κανένα λάθος', '✓ Ο έλεγχος ολοκληρώθηκε', 'Παράβλεψη', 'Παράβλεψη όλων', 'Δεν έγινε έλεγχος. Χρειάζεται internet.', 'Καμία πρόταση', '{i} από {n}'],
+  bg: ['Правопис', 'Проверка...', '✓ Няма грешки', '✓ Проверката приключи', 'Пропусни', 'Пропусни всички', 'Неуспешна проверка. Нужен е интернет.', 'Няма предложения', '{i} от {n}'],
+  ru: ['Орфография', 'Проверка...', '✓ Ошибок нет', '✓ Проверка завершена', 'Пропустить', 'Пропустить все', 'Не удалось проверить. Нужен интернет.', 'Нет вариантов', '{i} из {n}'],
+  uk: ['Правопис', 'Перевірка...', '✓ Помилок немає', '✓ Перевірку завершено', 'Пропустити', 'Пропустити всі', 'Не вдалося перевірити. Потрібен інтернет.', 'Немає варіантів', '{i} з {n}'],
+  tr: ['Yazım', 'Denetleniyor...', '✓ Hata yok', '✓ Denetim bitti', 'Yoksay', 'Tümünü yoksay', 'Denetlenemedi. İnternet gerekli.', 'Öneri yok', '{i}/{n}'],
+  ar: ['التدقيق الإملائي', 'جارٍ التدقيق...', '✓ لا توجد أخطاء', '✓ انتهى التدقيق', 'تجاهل', 'تجاهل الكل', 'تعذر التدقيق. يلزم الاتصال بالإنترنت.', 'لا توجد اقتراحات', '{i} من {n}'],
+  he: ['איות', 'בודק...', '✓ אין שגיאות', '✓ הבדיקה הסתיימה', 'התעלם', 'התעלם מהכול', 'לא ניתן לבדוק. נדרש אינטרנט.', 'אין הצעות', '{i} מתוך {n}'],
+  fa: ['املا', 'در حال بررسی...', '✓ غلطی پیدا نشد', '✓ بررسی تمام شد', 'نادیده بگیر', 'نادیده گرفتن همه', 'بررسی نشد. اینترنت لازم است.', 'پیشنهادی نیست', '{i} از {n}'],
+  ur: ['املا', 'جانچ ہو رہی ہے...', '✓ کوئی غلطی نہیں', '✓ جانچ مکمل', 'نظرانداز کریں', 'سب نظرانداز کریں', 'جانچ نہیں ہو سکی۔ انٹرنیٹ چاہیے۔', 'کوئی تجویز نہیں', '{n} میں سے {i}'],
+  hi: ['वर्तनी', 'जाँच हो रही है...', '✓ कोई गलती नहीं', '✓ जाँच पूरी हुई', 'अनदेखा करें', 'सब अनदेखा करें', 'जाँच नहीं हो सकी। इंटरनेट चाहिए।', 'कोई सुझाव नहीं', '{n} में से {i}'],
+  bn: ['বানান', 'যাচাই হচ্ছে...', '✓ কোনো ভুল নেই', '✓ যাচাই শেষ', 'উপেক্ষা করুন', 'সব উপেক্ষা করুন', 'যাচাই করা গেল না। ইন্টারনেট লাগবে।', 'কোনো পরামর্শ নেই', '{n}টির মধ্যে {i}'],
+  id: ['Ejaan', 'Memeriksa...', '✓ Tidak ada kesalahan', '✓ Pemeriksaan selesai', 'Abaikan', 'Abaikan semua', 'Tidak bisa memeriksa. Perlu internet.', 'Tidak ada saran', '{i} dari {n}'],
+  ms: ['Ejaan', 'Menyemak...', '✓ Tiada kesilapan', '✓ Semakan selesai', 'Abaikan', 'Abaikan semua', 'Tidak dapat menyemak. Internet diperlukan.', 'Tiada cadangan', '{i} daripada {n}'],
+  fil: ['Baybay', 'Sinusuri...', '✓ Walang mali', '✓ Tapos na ang pagsusuri', 'Huwag pansinin', 'Huwag pansinin lahat', 'Hindi masuri. Kailangan ng internet.', 'Walang mungkahi', '{i} sa {n}'],
+  vi: ['Chính tả', 'Đang kiểm tra...', '✓ Không có lỗi', '✓ Đã kiểm tra xong', 'Bỏ qua', 'Bỏ qua tất cả', 'Không kiểm tra được. Cần có internet.', 'Không có gợi ý', '{i}/{n}'],
+  th: ['ตัวสะกด', 'กำลังตรวจ...', '✓ ไม่มีคำผิด', '✓ ตรวจเสร็จแล้ว', 'ข้าม', 'ข้ามทั้งหมด', 'ตรวจไม่ได้ ต้องใช้อินเทอร์เน็ต', 'ไม่มีคำแนะนำ', '{i} จาก {n}'],
+  'zh-Hans': ['拼写', '正在检查...', '✓ 没有错误', '✓ 检查完成', '忽略', '全部忽略', '无法检查，需要联网。', '没有建议', '第 {i} 个，共 {n} 个'],
+  'zh-Hant': ['拼字', '正在檢查...', '✓ 沒有錯誤', '✓ 檢查完成', '略過', '全部略過', '無法檢查，需要連網。', '沒有建議', '第 {i} 個，共 {n} 個'],
+  ja: ['スペル', 'チェック中...', '✓ 間違いはありません', '✓ チェック完了', '無視', 'すべて無視', 'チェックできません。インターネットが必要です。', '候補なし', '{i} / {n}'],
+  ko: ['맞춤법', '검사 중...', '✓ 틀린 곳이 없어요', '✓ 검사 완료', '무시', '모두 무시', '검사할 수 없어요. 인터넷이 필요해요.', '추천 없음', '{n}개 중 {i}'],
+  sw: ['Tahajia', 'Inakagua...', '✓ Hakuna makosa', '✓ Ukaguzi umekamilika', 'Puuza', 'Puuza zote', 'Imeshindwa kukagua. Intaneti inahitajika.', 'Hakuna mapendekezo', '{i} kati ya {n}'],
+};
+for (const code in SPELL) {
+  const v = SPELL[code];
+  Object.assign(S[code], { spellTitle: v[0], spellChecking: v[1], spellNone: v[2], spellDone: v[3], spellIgnore: v[4],
+    spellIgnoreAll: v[5], spellNoNet: v[6], spellNoSugg: v[7], spellOf: v[8] });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

@@ -16,6 +16,15 @@ import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './
 let tr = makeT(detectLang());
 let LOCALE = localeOf(detectLang());
 function applyLang(code) { tr = makeT(code); LOCALE = localeOf(code); }
+/* Idioma que entiende el revisor de ortografía (LanguageTool) */
+function spellLang(code) {
+  const c = String(code || 'es'), b = c.split('-')[0];
+  const exact = ['en-GB', 'en-AU', 'en-CA', 'en-NZ', 'en-ZA', 'pt-PT', 'pt-AO', 'pt-MZ', 'pt-BR', 'de-AT', 'de-CH', 'nl-BE'];
+  if (exact.includes(c)) return c;
+  const base = { es: 'es', en: 'en-US', pt: 'pt-BR', de: 'de-DE', ca: 'ca-ES', nl: 'nl', fr: 'fr', it: 'it', ar: 'ar', fa: 'fa',
+    sv: 'sv', da: 'da-DK', pl: 'pl-PL', ro: 'ro-RO', ru: 'ru-RU', sk: 'sk-SK', uk: 'uk-UA', el: 'el-GR', ja: 'ja-JP', zh: 'zh-CN', fil: 'tl-PH' };
+  return base[b] || 'auto';
+}
 
 /* En el teléfono las notas se guardan en un archivo (sin límite de tamaño,
    necesario para las fotos). En la vista previa de Replit se usa AsyncStorage. */
@@ -668,6 +677,7 @@ export default function App() {
   const [recEntries, setRecEntries] = useState([]);    // registro que se está mirando
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
+  const [spellOn, setSpellOn] = useState(false);   // revisando ortografía
   const webRef = useRef(null);
 
   const { width } = useWindowDimensions();
@@ -757,7 +767,7 @@ export default function App() {
       // Si la nota quedó vacía, se descarta
       setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n))));
       setCurrentId(cur => (cur === id ? null : cur));
-      setCropOpen(false);
+      setCropOpen(false); setSpellOn(false);
       setTitleColorOpen(false);
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
@@ -1259,6 +1269,41 @@ export default function App() {
     setSearchOpen(!searchOpen);
   }
 
+  /* ---------- Revisar ortografía (LanguageTool, por internet) ---------- */
+  function spellReply(data) {
+    if (Platform.OS === 'web') {
+      try { const w = iframeRef.current && iframeRef.current.contentWindow; if (w && w.spellResult) w.spellResult(data); } catch (e) {}
+    } else if (webRef.current) {
+      const js = JSON.stringify(data).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+      webRef.current.injectJavaScript(`window.spellResult && window.spellResult(${js}); true;`);
+    }
+  }
+  async function runSpell(m) {
+    let timer;
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      if (ctl) timer = setTimeout(() => ctl.abort(), 20000);
+      const body = 'language=' + encodeURIComponent(spellLang(langCode)) + '&text=' + encodeURIComponent(String(m.text || '').slice(0, 19000));
+      const r = await fetch('https://api.languagetool.org/v2/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+        body, ...(ctl ? { signal: ctl.signal } : {}),
+      });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      spellReply({
+        req: m.req, ok: true,
+        matches: (j.matches || []).map(x => ({
+          offset: x.offset, length: x.length, message: x.message, shortMessage: x.shortMessage,
+          replacements: (x.replacements || []).slice(0, 6).map(v => ({ value: v.value })),
+          rule: x.rule ? { id: x.rule.id, issueType: x.rule.issueType } : null,
+        })),
+      });
+    } catch (e) {
+      spellReply({ req: m.req, ok: false });
+    } finally { clearTimeout(timer); }
+  }
+
   /* ---------- Mensajes que llegan desde el editor ---------- */
   function onEditorMessage(data) {
     try {
@@ -1269,6 +1314,8 @@ export default function App() {
         updateRecord({ ...base, id: m.id, title: m.title || '', content: m.html, html: true });
       }
       if (m.type === 'crop') setCropOpen(!!m.open);
+      if (m.type === 'spellOpen') setSpellOn(!!m.open);
+      if (m.type === 'spell') runSpell(m);
       if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
     } catch (e) {}
   }
@@ -1296,6 +1343,7 @@ export default function App() {
   /* ---------- Botón "atrás" de Android ---------- */
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (spellOn) { callEditor('spellClose'); return true; }
       if (cropOpen && webRef.current) {
         webRef.current.injectJavaScript('window.closeCrop && window.closeCrop(); true;');
         return true;
@@ -1316,7 +1364,7 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, searchOpen, cropOpen, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
+  }, [currentId, menuOpen, searchOpen, cropOpen, spellOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
 
   /* ---------- Notas que se muestran ---------- */
   useEffect(() => { setSelected({}); }, [view]);
@@ -1598,6 +1646,9 @@ export default function App() {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => callEditor('redoNow')} style={s.undoBtn} activeOpacity={0.6}>
                   <MaterialCommunityIcons name="redo-variant" size={22} color={c.text} style={!undoState.canRedo && { opacity: 0.35 }} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => callEditor('spellStart')} style={[s.undoBtn, spellOn && { backgroundColor: c.text, borderRadius: 18 }]} activeOpacity={0.6}>
+                  <MaterialCommunityIcons name="spellcheck" size={22} color={spellOn ? c.inv : c.text} />
                 </TouchableOpacity>
               </Glass>
             )}
