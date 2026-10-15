@@ -7,6 +7,13 @@ BASE="https://raw.githubusercontent.com/Brody5xx/mis-notas/main"
 DIR="$HOME/workspace/artifacts/mobile"
 T=$(date +%s)
 
+# GitHub guarda una copia vieja por unos minutos. Para bajar SIEMPRE lo más
+# nuevo, se pide el código exacto del último cambio y se descarga desde ahí.
+SHA=$(curl -fsSL -H "Accept: application/vnd.github.sha" "https://api.github.com/repos/Brody5xx/mis-notas/commits/main?t=$T" 2>/dev/null)
+case "$SHA" in
+  ????????????????????????????????????????) BASE="https://raw.githubusercontent.com/Brody5xx/mis-notas/$SHA" ;;
+esac
+
 cd "$DIR" || { echo "No encontré la carpeta $DIR"; exit 1; }
 
 LISTA=$(curl -fsSL "$BASE/archivos.txt?t=$T") || { echo "No pude conectar con GitHub. Revisa tu internet."; exit 1; }
