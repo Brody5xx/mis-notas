@@ -118,7 +118,25 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw.on{box-shadow:0 0 0 3px ${c.card},0 0 0 6px #ffffff}
 
   /* ===== Fotos dentro de la nota ===== */
-  .imgwrap{margin:10px auto;width:100%;max-width:100%}
+  .imgwrap{margin:10px auto;width:100%;max-width:100%;position:relative}
+  .imgwrap.sel:not([data-anchor]){touch-action:none;cursor:move}
+  /* Guías rojas y medida al mover una foto */
+  #gx,#gy{position:fixed;background:#ff3b30;z-index:7;pointer-events:none;display:none}
+  #gx{left:0;right:0;height:1px}
+  #gy{top:0;bottom:0;width:1px}
+  #gx.snap,#gy.snap{background:#ff3b30;box-shadow:0 0 6px #ff3b30}
+  #mvinfo{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:8;display:none;pointer-events:none;
+          background:rgba(0,0,0,.72);color:#fff;font-size:14px;font-weight:700;padding:7px 14px;border-radius:16px;
+          font-variant-numeric:tabular-nums;white-space:nowrap}
+  #mvinfo b{color:#ff6b61;font-weight:800}
+  /* Botones de anclar debajo de la foto */
+  #anchorBar{position:absolute;display:none;z-index:6;gap:8px;transform:translateX(-50%);white-space:nowrap}
+  #anchorBar.show{display:flex}
+  #anchorBar button{border:1px solid rgba(255,255,255,.35);background:rgba(30,30,30,.72);color:#fff;font-size:14px;font-weight:700;
+          padding:8px 14px;border-radius:18px;display:flex;align-items:center;gap:6px;
+          -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  #anchorBar button.on{background:#fff;color:#111}
+  .imgwrap.sel[data-anchor]::after{content:'📌';position:absolute;top:-10px;left:-10px;font-size:18px;pointer-events:none}
   .imgwrap img{width:100%;height:auto;display:block;background:transparent}
   #rsz{position:absolute;display:none;pointer-events:none;border:2px solid ${c.accent};border-radius:10px;z-index:3}
   .rh{position:absolute;width:28px;height:28px;background:#fff;border:3px solid ${c.accent};border-radius:14px;
@@ -323,6 +341,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   </div>
 </div>
 <div id="tip"></div>
+<div id="gx"></div><div id="gy"></div><div id="mvinfo"></div>
+<div id="anchorBar">
+  <button id="anchorBtn"></button>
+  <button id="anchorSame"></button>
+</div>
 
 <script>
   function $(id){ return document.getElementById(id); }
@@ -1018,10 +1041,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     sc = Math.round(Math.min(MAX, Math.max(MIN, sc)));
     w.dataset.scale = sc;
     w.style.width = (sc * BASE) + '%';
+    if (w.dataset.x != null) setPos(w, +w.dataset.x, +w.dataset.y || 0);   // que no se salga al crecer
     pctLabel.textContent = sc + '%';
     pctEl.textContent = sc + '%';
   }
   function placeRsz(){
+    placeAnchorBar();
     if (!selImg) { rsz.style.display = 'none'; return; }
     var r = selImg.getBoundingClientRect();
     rsz.style.display = 'block';
@@ -1071,6 +1096,127 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
     if (a === 'reset') { setScale(selImg, 100); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
   });
+
+  /* =========================================================
+     MOVER FOTOS (horizontal y vertical) Y ANCLARLAS
+     - Toca la foto para elegirla y luego arrástrala.
+     - Al moverla salen dos líneas rojas y cuánto se movió.
+     - "Anclar" la deja fija. "Anclar igual" pone la foto en la
+       misma posición que la última foto anclada.
+     ========================================================= */
+  var gx = $('gx'), gy = $('gy'), mvinfo = $('mvinfo');
+  var anchorBar = $('anchorBar'), anchorBtn = $('anchorBtn'), anchorSame = $('anchorSame');
+  var PIN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76a2 2 0 0 0 1.11 1.79l1.78.9A2 2 0 0 1 19 15.24V17H5v-1.76a2 2 0 0 1 1.11-1.79l1.78-.9A2 2 0 0 0 9 10.76z"/><path d="M8 2h8"/></svg>';
+  function widthPct(w){ return getScale(w) * BASE; }
+  function posX(w){ return w.dataset.x != null ? +w.dataset.x : (100 - widthPct(w)) / 2; }   // borde izquierdo en %
+  function posY(w){ return +w.dataset.y || 0; }
+  function setPos(w, x, y){
+    var wp = widthPct(w);
+    x = Math.max(0, Math.min(100 - wp, x));
+    var minY = -(w.offsetTop - (parseFloat(w.style.top) || 0) - ed.offsetTop);   // que no suba más arriba de la nota
+    y = Math.round(Math.max(minY, y));
+    w.dataset.x = x.toFixed(1);
+    w.dataset.y = y;
+    w.style.marginLeft = x + '%';
+    w.style.marginRight = '0';
+    w.style.top = y ? y + 'px' : '';
+  }
+  function anchoredOthers(w){
+    return Array.prototype.filter.call(ed.querySelectorAll('.imgwrap[data-anchor]'), function(a){ return a !== w; });
+  }
+  /* La foto anclada más cercana antes de esta (o la última anclada) */
+  function refAnchor(w){
+    var list = anchoredOthers(w), before = null;
+    list.forEach(function(a){ if (a.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING) before = a; });
+    return before || list[list.length - 1] || null;
+  }
+  function placeAnchorBar(){
+    if (!selImg || mdrag) { anchorBar.classList.remove('show'); return; }
+    var on = !!selImg.dataset.anchor;
+    anchorBtn.innerHTML = PIN + (on ? ${J('unanchor')} : ${J('anchor')});
+    anchorBtn.classList.toggle('on', on);
+    var ref = !on && refAnchor(selImg);
+    anchorSame.style.display = ref ? 'flex' : 'none';
+    anchorSame.innerHTML = PIN + ${J('anchorSame')};
+    var r = selImg.getBoundingClientRect();
+    anchorBar.classList.add('show');
+    var below = r.bottom + 22 + 44 < window.innerHeight - 90;
+    anchorBar.style.left = (r.left + r.width / 2 + window.scrollX) + 'px';
+    anchorBar.style.top = (below ? r.bottom + 22 : r.top - 60) + window.scrollY + 'px';
+  }
+  anchorBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if (!selImg) return;
+    if (selImg.dataset.anchor) { delete selImg.dataset.anchor; showTip(${J('unanchored')}); }
+    else { setPos(selImg, posX(selImg), posY(selImg)); selImg.dataset.anchor = '1'; showTip(${J('anchored')}); }
+    changedNow(); placeRsz();
+  });
+  anchorSame.addEventListener('click', function(e){
+    e.stopPropagation();
+    var ref = selImg && refAnchor(selImg);
+    if (!ref) return;
+    setPos(selImg, posX(ref), posY(ref));
+    selImg.dataset.anchor = '1';
+    changedNow(); placeRsz();
+    showTip(${J('anchoredSame')});
+  });
+  ['pointerdown', 'click'].forEach(function(ev){ anchorBar.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+
+  function showGuides(w, snapX, snapY){
+    var r = w.getBoundingClientRect();
+    gy.style.left = Math.round(r.left + r.width / 2) + 'px';
+    gx.style.top = Math.round(r.top + r.height / 2) + 'px';
+    gx.style.display = gy.style.display = 'block';
+    gy.classList.toggle('snap', !!snapX); gx.classList.toggle('snap', !!snapY);
+  }
+  function hideGuides(){ gx.style.display = gy.style.display = 'none'; }
+  function fmtMove(v, unit){ return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + unit; }
+
+  var mdrag = null;
+  ed.addEventListener('pointerdown', function(e){
+    var w = e.target.closest ? e.target.closest('.imgwrap') : null;
+    if (!w || w !== selImg || !editable || document.body.classList.contains('drawing')) return;
+    if (w.dataset.anchor) { showTip(${J('isAnchored')}); return; }
+    e.preventDefault();
+    mdrag = { w: w, id: e.pointerId, sx: e.clientX, sy: e.clientY, x: posX(w), y: posY(w),
+              x0: w.dataset.ox != null ? +w.dataset.ox : posX(w), y0: w.dataset.oy != null ? +w.dataset.oy : 0,
+              cw: contentWidth(), moved: false };
+    if (w.dataset.ox == null) { w.dataset.ox = mdrag.x.toFixed(1); w.dataset.oy = 0; }   // dónde estaba al principio
+    try { w.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  window.addEventListener('pointermove', function(e){
+    if (!mdrag || e.pointerId !== mdrag.id) return;
+    var dx = e.clientX - mdrag.sx, dy = e.clientY - mdrag.sy;
+    if (!mdrag.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    if (!mdrag.moved) { mdrag.moved = true; anchorBar.classList.remove('show'); rsz.style.display = 'none'; }
+    e.preventDefault();
+    var w = mdrag.w, wp = widthPct(w), px = mdrag.cw / 100;
+    var nx = mdrag.x + dx / px, ny = mdrag.y + dy, snapX = false, snapY = false;
+    // Imán: al centro de la hoja y a la posición de las fotos ancladas
+    if (Math.abs(nx + wp / 2 - 50) * px < 8) { nx = 50 - wp / 2; snapX = true; }
+    anchoredOthers(w).forEach(function(a){
+      if (!snapX && Math.abs(nx - posX(a)) * px < 8) { nx = posX(a); snapX = true; }
+      if (!snapY && Math.abs(ny - posY(a)) < 8) { ny = posY(a); snapY = true; }
+    });
+    if (Math.abs(ny) < 6) { ny = 0; snapY = true; }
+    setPos(w, nx, ny);
+    showGuides(w, snapX, snapY);
+    var hx = Math.round((posX(w) - mdrag.x0) * px), vy = posY(w) - mdrag.y0;
+    mvinfo.innerHTML = '↔ <b>' + fmtMove(hx, ' px') + '</b> &nbsp; ↕ <b>' + fmtMove(vy, ' px') + '</b>';
+    mvinfo.style.display = 'block';
+  }, { passive: false });
+  function endMove(e){
+    if (!mdrag || (e && e.pointerId !== mdrag.id)) return;
+    var moved = mdrag.moved;
+    mdrag = null;
+    hideGuides();
+    setTimeout(function(){ if (!mdrag) mvinfo.style.display = 'none'; }, 900);
+    placeRsz();
+    if (moved) { changedNow(); showTip(${J('moveDone')}); }
+  }
+  window.addEventListener('pointerup', endMove);
+  window.addEventListener('pointercancel', endMove);
+  window.addEventListener('scroll', function(){ if (selImg && !mdrag) placeAnchorBar(); }, { passive: true });
 
   var rdrag = null;
   rsz.addEventListener('pointerdown', function(e){

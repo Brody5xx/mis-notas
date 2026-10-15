@@ -2946,6 +2946,58 @@ for (const code in EXTRA) {
   });
 }
 
+/* Textos nuevos: mover y anclar fotos
+   [Anclar, Desanclar, Anclar igual, Foto anclada, Foto desanclada, Anclada igual que la anterior,
+    Está anclada (toca Desanclar para moverla), Foto movida (toca Anclar para fijarla)] */
+const ANCHOR = {
+  es: ['Anclar', 'Desanclar', 'Anclar igual', '📌 Foto anclada', 'Foto desanclada', '📌 Anclada igual que la anterior', 'Está anclada. Toca Desanclar para moverla', 'Foto movida. Toca Anclar para fijarla'],
+  en: ['Anchor', 'Unanchor', 'Anchor the same', '📌 Photo anchored', 'Photo unanchored', '📌 Anchored like the previous one', 'It is anchored. Tap Unanchor to move it', 'Photo moved. Tap Anchor to fix it in place'],
+  pt: ['Ancorar', 'Desancorar', 'Ancorar igual', '📌 Foto ancorada', 'Foto desancorada', '📌 Ancorada igual à anterior', 'Está ancorada. Toque em Desancorar para movê-la', 'Foto movida. Toque em Ancorar para fixá-la'],
+  fr: ['Ancrer', 'Désancrer', 'Ancrer pareil', '📌 Photo ancrée', 'Photo désancrée', '📌 Ancrée comme la précédente', 'Elle est ancrée. Touchez Désancrer pour la déplacer', 'Photo déplacée. Touchez Ancrer pour la fixer'],
+  de: ['Verankern', 'Lösen', 'Gleich verankern', '📌 Foto verankert', 'Foto gelöst', '📌 Wie das vorherige verankert', 'Es ist verankert. Tippe auf Lösen, um es zu bewegen', 'Foto verschoben. Tippe auf Verankern, um es festzulegen'],
+  it: ['Ancora', 'Sblocca', 'Ancora uguale', '📌 Foto ancorata', 'Foto sbloccata', '📌 Ancorata come la precedente', 'È ancorata. Tocca Sblocca per spostarla', 'Foto spostata. Tocca Ancora per fissarla'],
+  ca: ['Ancora', 'Desancora', 'Ancora igual', '📌 Foto ancorada', 'Foto desancorada', '📌 Ancorada igual que l’anterior', 'Està ancorada. Toca Desancora per moure-la', 'Foto moguda. Toca Ancora per fixar-la'],
+  nl: ['Vastzetten', 'Losmaken', 'Hetzelfde vastzetten', '📌 Foto vastgezet', 'Foto losgemaakt', '📌 Vastgezet zoals de vorige', 'Hij staat vast. Tik op Losmaken om te verplaatsen', 'Foto verplaatst. Tik op Vastzetten om hem vast te zetten'],
+  sv: ['Förankra', 'Lossa', 'Förankra likadant', '📌 Foto förankrat', 'Foto lossat', '📌 Förankrat som det förra', 'Det är förankrat. Tryck på Lossa för att flytta det', 'Fotot flyttat. Tryck på Förankra för att låsa det'],
+  nb: ['Forankre', 'Løsne', 'Forankre likt', '📌 Bilde forankret', 'Bilde løsnet', '📌 Forankret som det forrige', 'Det er forankret. Trykk Løsne for å flytte det', 'Bildet flyttet. Trykk Forankre for å låse det'],
+  da: ['Forankr', 'Frigør', 'Forankr ens', '📌 Foto forankret', 'Foto frigjort', '📌 Forankret som det forrige', 'Det er forankret. Tryk på Frigør for at flytte det', 'Foto flyttet. Tryk på Forankr for at låse det'],
+  fi: ['Ankkuroi', 'Irrota', 'Ankkuroi samoin', '📌 Kuva ankkuroitu', 'Kuva irrotettu', '📌 Ankkuroitu kuten edellinen', 'Se on ankkuroitu. Siirrä se napauttamalla Irrota', 'Kuva siirretty. Lukitse se napauttamalla Ankkuroi'],
+  pl: ['Zakotwicz', 'Odkotwicz', 'Zakotwicz tak samo', '📌 Zdjęcie zakotwiczone', 'Zdjęcie odkotwiczone', '📌 Zakotwiczone jak poprzednie', 'Jest zakotwiczone. Dotknij Odkotwicz, aby je przesunąć', 'Zdjęcie przesunięte. Dotknij Zakotwicz, aby je przypiąć'],
+  cs: ['Ukotvit', 'Uvolnit', 'Ukotvit stejně', '📌 Fotka ukotvena', 'Fotka uvolněna', '📌 Ukotvena jako předchozí', 'Je ukotvená. Klepněte na Uvolnit a posuňte ji', 'Fotka přesunuta. Klepnutím na Ukotvit ji zafixujete'],
+  sk: ['Ukotviť', 'Uvoľniť', 'Ukotviť rovnako', '📌 Fotka ukotvená', 'Fotka uvoľnená', '📌 Ukotvená ako predchádzajúca', 'Je ukotvená. Ťuknite na Uvoľniť a posuňte ju', 'Fotka presunutá. Ťuknutím na Ukotviť ju zafixujete'],
+  hu: ['Rögzítés', 'Feloldás', 'Rögzítés ugyanígy', '📌 Fotó rögzítve', 'Fotó feloldva', '📌 Rögzítve, mint az előző', 'Rögzítve van. Mozgatáshoz koppints a Feloldásra', 'Fotó áthelyezve. Koppints a Rögzítésre a helyén tartáshoz'],
+  ro: ['Ancorează', 'Desprinde', 'Ancorează la fel', '📌 Fotografie ancorată', 'Fotografie desprinsă', '📌 Ancorată ca precedenta', 'Este ancorată. Atinge Desprinde pentru a o muta', 'Fotografie mutată. Atinge Ancorează pentru a o fixa'],
+  hr: ['Usidri', 'Otpusti', 'Usidri isto', '📌 Fotografija usidrena', 'Fotografija otpuštena', '📌 Usidrena kao prethodna', 'Usidrena je. Dodirnite Otpusti da je pomaknete', 'Fotografija pomaknuta. Dodirnite Usidri da je fiksirate'],
+  el: ['Αγκύρωση', 'Αποαγκύρωση', 'Ίδια αγκύρωση', '📌 Η φωτογραφία αγκυρώθηκε', 'Η φωτογραφία αποαγκυρώθηκε', '📌 Αγκυρώθηκε όπως η προηγούμενη', 'Είναι αγκυρωμένη. Πατήστε Αποαγκύρωση για να τη μετακινήσετε', 'Η φωτογραφία μετακινήθηκε. Πατήστε Αγκύρωση για να μείνει εκεί'],
+  bg: ['Закотви', 'Откотви', 'Закотви еднакво', '📌 Снимката е закотвена', 'Снимката е откотвена', '📌 Закотвена като предишната', 'Закотвена е. Докоснете Откотви, за да я местите', 'Снимката е преместена. Докоснете Закотви, за да я фиксирате'],
+  ru: ['Закрепить', 'Открепить', 'Закрепить так же', '📌 Фото закреплено', 'Фото откреплено', '📌 Закреплено как предыдущее', 'Фото закреплено. Нажмите «Открепить», чтобы двигать его', 'Фото перемещено. Нажмите «Закрепить», чтобы зафиксировать'],
+  uk: ['Закріпити', 'Відкріпити', 'Закріпити так само', '📌 Фото закріплено', 'Фото відкріплено', '📌 Закріплено як попереднє', 'Фото закріплене. Натисніть «Відкріпити», щоб рухати його', 'Фото переміщено. Натисніть «Закріпити», щоб зафіксувати'],
+  tr: ['Sabitle', 'Sabitlemeyi kaldır', 'Aynı şekilde sabitle', '📌 Fotoğraf sabitlendi', 'Fotoğraf serbest', '📌 Öncekiyle aynı sabitlendi', 'Sabitlenmiş. Taşımak için Sabitlemeyi kaldır’a dokunun', 'Fotoğraf taşındı. Yerinde tutmak için Sabitle’ye dokunun'],
+  ar: ['تثبيت', 'إلغاء التثبيت', 'تثبيت بالمثل', '📌 تم تثبيت الصورة', 'أُلغي تثبيت الصورة', '📌 ثُبّتت مثل السابقة', 'الصورة مثبّتة. اضغط إلغاء التثبيت لتحريكها', 'تم تحريك الصورة. اضغط تثبيت لتبقى مكانها'],
+  he: ['עיגון', 'ביטול עיגון', 'עיגון זהה', '📌 התמונה עוגנה', 'עיגון התמונה בוטל', '📌 עוגנה כמו הקודמת', 'התמונה מעוגנת. הקש ביטול עיגון כדי להזיז', 'התמונה הוזזה. הקש עיגון כדי לקבע אותה'],
+  fa: ['لنگر', 'برداشتن لنگر', 'لنگر مشابه', '📌 عکس لنگر شد', 'لنگر عکس برداشته شد', '📌 مثل قبلی لنگر شد', 'عکس لنگر شده است. برای جابه‌جایی، «برداشتن لنگر» را بزنید', 'عکس جابه‌جا شد. برای ثابت کردن، «لنگر» را بزنید'],
+  ur: ['اینکر کریں', 'اینکر ہٹائیں', 'ویسے ہی اینکر کریں', '📌 تصویر اینکر ہو گئی', 'تصویر کا اینکر ہٹ گیا', '📌 پچھلی جیسی اینکر ہو گئی', 'تصویر اینکر ہے۔ ہلانے کے لیے اینکر ہٹائیں دبائیں', 'تصویر ہل گئی۔ جمانے کے لیے اینکر کریں دبائیں'],
+  hi: ['एंकर करें', 'एंकर हटाएँ', 'वैसे ही एंकर करें', '📌 फ़ोटो एंकर हुई', 'फ़ोटो का एंकर हटा', '📌 पिछली जैसी एंकर हुई', 'यह एंकर है। हिलाने के लिए एंकर हटाएँ दबाएँ', 'फ़ोटो खिसकाई गई। जमाने के लिए एंकर करें दबाएँ'],
+  bn: ['নোঙর করুন', 'নোঙর সরান', 'একইভাবে নোঙর', '📌 ছবি নোঙর করা হয়েছে', 'ছবির নোঙর সরানো হয়েছে', '📌 আগেরটির মতো নোঙর করা হয়েছে', 'ছবিটি নোঙর করা। সরাতে "নোঙর সরান" চাপুন', 'ছবি সরানো হয়েছে। স্থির রাখতে "নোঙর করুন" চাপুন'],
+  id: ['Tambatkan', 'Lepas tambatan', 'Tambatkan sama', '📌 Foto ditambatkan', 'Tambatan foto dilepas', '📌 Ditambatkan seperti sebelumnya', 'Foto ditambatkan. Ketuk Lepas tambatan untuk memindahkan', 'Foto dipindahkan. Ketuk Tambatkan untuk mengunci posisinya'],
+  ms: ['Tambat', 'Lepas tambatan', 'Tambat sama', '📌 Foto ditambat', 'Tambatan foto dilepas', '📌 Ditambat seperti sebelumnya', 'Foto ditambat. Ketik Lepas tambatan untuk mengalihkannya', 'Foto dialihkan. Ketik Tambat untuk mengekalkan kedudukannya'],
+  fil: ['I-angkla', 'Alisin ang angkla', 'I-angkla nang pareho', '📌 Naka-angkla ang larawan', 'Inalis ang angkla ng larawan', '📌 Naka-angkla gaya ng nauna', 'Naka-angkla ito. Pindutin ang Alisin ang angkla para ilipat', 'Nailipat ang larawan. Pindutin ang I-angkla para manatili'],
+  vi: ['Neo', 'Bỏ neo', 'Neo giống vậy', '📌 Đã neo ảnh', 'Đã bỏ neo ảnh', '📌 Đã neo giống ảnh trước', 'Ảnh đang được neo. Chạm Bỏ neo để di chuyển', 'Đã di chuyển ảnh. Chạm Neo để giữ cố định'],
+  th: ['ตรึง', 'เลิกตรึง', 'ตรึงแบบเดียวกัน', '📌 ตรึงรูปแล้ว', 'เลิกตรึงรูปแล้ว', '📌 ตรึงเหมือนรูปก่อนหน้า', 'รูปถูกตรึงอยู่ แตะเลิกตรึงเพื่อย้าย', 'ย้ายรูปแล้ว แตะตรึงเพื่อให้อยู่กับที่'],
+  'zh-Hans': ['固定', '取消固定', '同样固定', '📌 图片已固定', '已取消固定图片', '📌 已按上一张固定', '图片已固定。点“取消固定”即可移动', '图片已移动。点“固定”让它保持在这里'],
+  'zh-Hant': ['固定', '取消固定', '同樣固定', '📌 圖片已固定', '已取消固定圖片', '📌 已依上一張固定', '圖片已固定。點「取消固定」即可移動', '圖片已移動。點「固定」讓它留在這裡'],
+  ja: ['固定', '固定を解除', '同じ位置に固定', '📌 写真を固定しました', '写真の固定を解除しました', '📌 前の写真と同じ位置に固定しました', '固定されています。動かすには「固定を解除」をタップ', '写真を移動しました。「固定」で位置を決めます'],
+  ko: ['고정', '고정 해제', '같은 위치에 고정', '📌 사진을 고정했습니다', '사진 고정을 해제했습니다', '📌 이전 사진과 같은 위치에 고정했습니다', '고정되어 있습니다. 옮기려면 고정 해제를 누르세요', '사진을 옮겼습니다. 고정을 눌러 위치를 정하세요'],
+  sw: ['Tia nanga', 'Ondoa nanga', 'Tia nanga vivyo hivyo', '📌 Picha imetiwa nanga', 'Nanga ya picha imeondolewa', '📌 Imetiwa nanga kama iliyotangulia', 'Imetiwa nanga. Gusa Ondoa nanga ili kuisogeza', 'Picha imesogezwa. Gusa Tia nanga ili ibaki hapo'],
+};
+for (const code in ANCHOR) {
+  const v = ANCHOR[code];
+  Object.assign(S[code], {
+    anchor: v[0], unanchor: v[1], anchorSame: v[2], anchored: v[3], unanchored: v[4],
+    anchoredSame: v[5], isAnchored: v[6], moveDone: v[7],
+  });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS
