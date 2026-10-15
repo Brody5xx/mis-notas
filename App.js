@@ -35,7 +35,7 @@ const THEMES = {
     text: '#ffffff', muted: 'rgba(255,255,255,0.68)', border: 'rgba(255,255,255,0.18)', accent: '#ff8a3d',
     fill: 'rgba(255,255,255,0.05)',            // vidrio casi transparente
     strong: 'rgba(40,36,40,0.80)',             // vidrio más sólido (menú, avisos)
-    stroke: ['rgba(255,180,225,0.75)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.08)', 'rgba(150,205,255,0.70)'],
+    stroke: ['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.40)'],
     rim: 'rgba(255,255,255,0.14)',             // brillo interno del borde
     rim2: 'rgba(255,255,255,0.06)',
     sheen: 'rgba(255,255,255,0.18)',           // brillo de esquina
@@ -56,7 +56,7 @@ const THEMES = {
     text: '#ffffff', muted: 'rgba(255,255,255,0.80)', border: 'rgba(255,255,255,0.40)', accent: '#ff7a2a',
     fill: 'rgba(255,255,255,0.06)',            // vidrio casi transparente, como los botones del iPhone
     strong: 'rgba(140,132,138,0.78)',          // vidrio más sólido (menú, avisos)
-    stroke: ['rgba(255,190,230,0.95)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.12)', 'rgba(160,215,255,0.90)'],
+    stroke: ['rgba(255,255,255,0.75)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.60)'],
     rim: 'rgba(255,255,255,0.24)',             // brillo interno del borde
     rim2: 'rgba(255,255,255,0.10)',
     sheen: 'rgba(255,255,255,0.32)',           // brillo de esquina

@@ -47,7 +47,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* ===== Barra flotante de vidrio (abajo) ===== */
   .dock{position:fixed;left:50%;bottom:calc(14px + var(--kb));transform:translateX(-50%);z-index:6;
         display:flex;align-items:center;gap:2px;padding:6px;border-radius:28px;max-width:calc(100% - 20px);
-        background:${glass};-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
+        background:${glass};-webkit-backdrop-filter:blur(18px) saturate(1);backdrop-filter:blur(18px) saturate(1);
         border:1px solid ${c.border};box-shadow:0 10px 30px rgba(0,0,0,.20),0 0 24px rgba(243,156,18,.10);
         overflow-x:auto;transition:opacity .2s,transform .2s}
   .dock::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
@@ -64,7 +64,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* ===== Paneles que salen encima de la barra ===== */
   .panel{position:fixed;left:12px;right:12px;bottom:calc(78px + var(--kb));z-index:7;padding:16px;border-radius:26px;
-         background:${glass};-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);
+         background:${glass};-webkit-backdrop-filter:blur(20px) saturate(1);backdrop-filter:blur(20px) saturate(1);
          border:1px solid ${c.border};box-shadow:0 16px 40px rgba(0,0,0,.25);
          opacity:0;transform:translateY(14px) scale(.97);pointer-events:none;transition:opacity .18s,transform .18s}
   .panel.show{opacity:1;transform:none;pointer-events:auto}
@@ -164,8 +164,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .dock,.panel{
     border:none !important;
     background:${glass} !important;
-    -webkit-backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
-    backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
+    -webkit-backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
+    backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1) !important;
     box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.22) !important;
   }
   /* borde de colores solo en la orilla (rosa arriba, azul abajo) */
