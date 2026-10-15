@@ -2998,6 +2998,54 @@ for (const code in ANCHOR) {
   });
 }
 
+/* Textos nuevos: escribir y dibujar sobre una foto
+   [Texto, Dibujar, Escribe el texto..., Toca la foto donde quieras el texto, Foto editada] */
+const IMGED = {
+  es: ['Texto', 'Dibujar', 'Escribe el texto...', 'Toca la foto donde quieras poner el texto. Arrástralo para moverlo.', '✓ Foto editada'],
+  en: ['Text', 'Draw', 'Type the text...', 'Tap the photo where you want the text. Drag it to move it.', '✓ Photo edited'],
+  pt: ['Texto', 'Desenhar', 'Digite o texto...', 'Toque na foto onde quer o texto. Arraste para movê-lo.', '✓ Foto editada'],
+  fr: ['Texte', 'Dessiner', 'Écrivez le texte...', 'Touchez la photo là où vous voulez le texte. Faites-le glisser pour le déplacer.', '✓ Photo modifiée'],
+  de: ['Text', 'Zeichnen', 'Text eingeben...', 'Tippe auf das Foto, wo der Text hin soll. Zum Verschieben ziehen.', '✓ Foto bearbeitet'],
+  it: ['Testo', 'Disegna', 'Scrivi il testo...', 'Tocca la foto dove vuoi il testo. Trascinalo per spostarlo.', '✓ Foto modificata'],
+  ca: ['Text', 'Dibuixa', 'Escriu el text...', 'Toca la foto on vulguis el text. Arrossega’l per moure’l.', '✓ Foto editada'],
+  nl: ['Tekst', 'Tekenen', 'Typ de tekst...', 'Tik op de foto waar je de tekst wilt. Sleep om te verplaatsen.', '✓ Foto bewerkt'],
+  sv: ['Text', 'Rita', 'Skriv texten...', 'Tryck på fotot där du vill ha texten. Dra för att flytta den.', '✓ Foto redigerat'],
+  nb: ['Tekst', 'Tegn', 'Skriv teksten...', 'Trykk på bildet der du vil ha teksten. Dra for å flytte den.', '✓ Bilde redigert'],
+  da: ['Tekst', 'Tegn', 'Skriv teksten...', 'Tryk på fotoet, hvor teksten skal være. Træk for at flytte den.', '✓ Foto redigeret'],
+  fi: ['Teksti', 'Piirrä', 'Kirjoita teksti...', 'Napauta kuvaa kohdasta, johon haluat tekstin. Siirrä vetämällä.', '✓ Kuva muokattu'],
+  pl: ['Tekst', 'Rysuj', 'Wpisz tekst...', 'Dotknij zdjęcia tam, gdzie ma być tekst. Przeciągnij, aby go przesunąć.', '✓ Zdjęcie edytowane'],
+  cs: ['Text', 'Kreslit', 'Napište text...', 'Klepněte na fotku tam, kde chcete text. Přetažením ho posunete.', '✓ Fotka upravena'],
+  sk: ['Text', 'Kresliť', 'Napíšte text...', 'Ťuknite na fotku tam, kde chcete text. Potiahnutím ho posuniete.', '✓ Fotka upravená'],
+  hu: ['Szöveg', 'Rajzolás', 'Írd be a szöveget...', 'Koppints a fotóra oda, ahová a szöveget szeretnéd. Húzással mozgathatod.', '✓ Fotó szerkesztve'],
+  ro: ['Text', 'Desenează', 'Scrie textul...', 'Atinge fotografia unde vrei textul. Trage-l pentru a-l muta.', '✓ Fotografie editată'],
+  hr: ['Tekst', 'Crtaj', 'Upišite tekst...', 'Dodirnite fotografiju gdje želite tekst. Povucite ga za pomicanje.', '✓ Fotografija uređena'],
+  el: ['Κείμενο', 'Σχέδιο', 'Γράψτε το κείμενο...', 'Πατήστε στη φωτογραφία όπου θέλετε το κείμενο. Σύρετέ το για να το μετακινήσετε.', '✓ Η φωτογραφία επεξεργάστηκε'],
+  bg: ['Текст', 'Рисувай', 'Напишете текста...', 'Докоснете снимката там, където искате текста. Плъзнете, за да го преместите.', '✓ Снимката е редактирана'],
+  ru: ['Текст', 'Рисовать', 'Введите текст...', 'Нажмите на фото там, где нужен текст. Перетащите, чтобы сдвинуть.', '✓ Фото изменено'],
+  uk: ['Текст', 'Малювати', 'Введіть текст...', 'Торкніться фото там, де потрібен текст. Перетягніть, щоб посунути.', '✓ Фото змінено'],
+  tr: ['Metin', 'Çiz', 'Metni yazın...', 'Metni koymak istediğiniz yere dokunun. Taşımak için sürükleyin.', '✓ Fotoğraf düzenlendi'],
+  ar: ['نص', 'رسم', 'اكتب النص...', 'اضغط على الصورة حيث تريد النص. اسحبه لتحريكه.', '✓ تم تعديل الصورة'],
+  he: ['טקסט', 'ציור', 'כתוב את הטקסט...', 'הקש על התמונה במקום שבו תרצה את הטקסט. גרור כדי להזיז.', '✓ התמונה נערכה'],
+  fa: ['متن', 'نقاشی', 'متن را بنویسید...', 'روی جایی از عکس که متن می‌خواهید بزنید. برای جابه‌جایی، آن را بکشید.', '✓ عکس ویرایش شد'],
+  ur: ['متن', 'ڈرا کریں', 'متن لکھیں...', 'تصویر پر وہاں دبائیں جہاں متن چاہیے۔ ہلانے کے لیے گھسیٹیں۔', '✓ تصویر میں ترمیم ہو گئی'],
+  hi: ['टेक्स्ट', 'ड्रॉ करें', 'टेक्स्ट लिखें...', 'फ़ोटो पर जहाँ टेक्स्ट चाहिए वहाँ दबाएँ। खिसकाने के लिए खींचें।', '✓ फ़ोटो बदली गई'],
+  bn: ['লেখা', 'আঁকুন', 'লেখাটি লিখুন...', 'ছবির যেখানে লেখা চান সেখানে চাপুন। সরাতে টেনে নিন।', '✓ ছবি সম্পাদিত'],
+  id: ['Teks', 'Gambar', 'Ketik teks...', 'Ketuk foto di tempat yang kamu mau. Seret untuk memindahkan.', '✓ Foto diedit'],
+  ms: ['Teks', 'Lukis', 'Taip teks...', 'Ketik foto di tempat yang anda mahu. Seret untuk mengalihkannya.', '✓ Foto diedit'],
+  fil: ['Teksto', 'Gumuhit', 'I-type ang teksto...', 'Pindutin ang larawan kung saan mo gusto ang teksto. I-drag para ilipat.', '✓ Na-edit ang larawan'],
+  vi: ['Chữ', 'Vẽ', 'Nhập chữ...', 'Chạm vào ảnh ở chỗ bạn muốn đặt chữ. Kéo để di chuyển.', '✓ Đã sửa ảnh'],
+  th: ['ข้อความ', 'วาด', 'พิมพ์ข้อความ...', 'แตะรูปตรงที่ต้องการใส่ข้อความ ลากเพื่อย้าย', '✓ แก้ไขรูปแล้ว'],
+  'zh-Hans': ['文字', '画笔', '输入文字...', '点按图片上要放文字的位置。拖动即可移动。', '✓ 图片已编辑'],
+  'zh-Hant': ['文字', '畫筆', '輸入文字...', '點一下圖片上要放文字的位置。拖曳即可移動。', '✓ 圖片已編輯'],
+  ja: ['文字', '描く', '文字を入力...', '文字を置きたい場所をタップ。ドラッグで移動できます。', '✓ 写真を編集しました'],
+  ko: ['텍스트', '그리기', '텍스트 입력...', '글자를 넣을 곳을 탭하세요. 끌어서 옮길 수 있어요.', '✓ 사진을 편집했습니다'],
+  sw: ['Maandishi', 'Chora', 'Andika maandishi...', 'Gusa picha mahali unapotaka maandishi. Buruta ili kuyasogeza.', '✓ Picha imehaririwa'],
+};
+for (const code in IMGED) {
+  const v = IMGED[code];
+  Object.assign(S[code], { imgText: v[0], imgDraw: v[1], imgTextPh: v[2], imgTapText: v[3], imgEdited: v[4] });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

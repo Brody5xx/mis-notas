@@ -166,6 +166,38 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #cropBtns{display:flex;justify-content:space-between;padding:14px 16px 26px}
   #cropBtns button{background:none;border:none;color:#fff;font-size:17px;padding:10px 14px}
   #cropBtns .ok{color:${c.accent};font-weight:700}
+  /* Barra de fotos en 2 filas: botones arriba, giro abajo */
+  #imgbar{flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 8px;border-radius:24px;row-gap:0}
+  #imgbar .drow{display:flex;align-items:center;justify-content:space-between;gap:2px}
+  #imgbar .db{height:40px;padding:0 6px;min-width:36px;font-size:14px}
+  #imgbar .rotrow{padding:0 2px 2px}
+  #imgbar .lbl{font-size:13px;font-weight:700;color:${c.text};font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
+  #rotRange{flex:1;min-width:60px;accent-color:#ff3b30;height:30px;touch-action:none}
+  /* Editor de foto: escribir y dibujar encima */
+  #imged{position:fixed;inset:0;background:#000;z-index:10;display:none;flex-direction:column}
+  #imged.show{display:flex}
+  #ieTop{display:flex;justify-content:center;gap:10px;padding:12px 12px 6px}
+  #ieTop button{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);
+          color:#fff;font-size:15px;font-weight:700;padding:8px 14px;border-radius:18px}
+  #ieTop button.on{background:#fff;color:#111}
+  #ieText{display:none;gap:8px;padding:6px 12px}
+  #ieText.show{display:flex}
+  #ieInput{flex:1;font-size:17px;padding:10px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.4);background:#1d1d1d;color:#fff;outline:none}
+  #ieTextOk{border:none;background:#fff;color:#111;font-size:18px;font-weight:800;border-radius:14px;padding:0 16px}
+  #ieHint{color:rgba(255,255,255,.7);text-align:center;font-size:13px;padding:2px 12px 4px;display:none}
+  #ieHint.show{display:block}
+  #ieArea{flex:1;position:relative;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center}
+  #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+  #ieColors{display:flex;gap:10px;justify-content:center;padding:10px 8px 4px;flex-wrap:wrap}
+  .iesw{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.45)}
+  .iesw.on{box-shadow:0 0 0 3px #000,0 0 0 5px #fff}
+  #ieSizeRow{display:flex;align-items:center;gap:10px;padding:4px 40px}
+  #ieSize{flex:1;accent-color:#fff}
+  .ieDot{background:#fff;border-radius:50%;display:inline-block}
+  .ieDot.small{width:6px;height:6px}.ieDot.big{width:16px;height:16px}
+  #ieBtns{display:flex;justify-content:space-between;padding:10px 16px 26px}
+  #ieBtns button{background:none;border:none;color:#fff;font-size:17px;padding:10px 14px}
+  #ieBtns .ok{color:#fff;font-weight:800}
 
   #tip{position:fixed;left:50%;top:14px;transform:translateX(-50%) translateY(-8px);background:rgba(20,20,20,.85);color:#fff;
        z-index:20;padding:8px 16px;border-radius:18px;font-size:14px;opacity:0;transition:opacity .2s,transform .2s;
@@ -317,12 +349,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Barra de opciones de foto -->
 <div class="dock hide" id="imgbar">
-  <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> ${H('crop')}</button>
-  <span class="lbl" id="pctLabel">100%</span>
+ <div class="drow">
+  <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>
+  <button class="db" data-img="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${H('imgText')}</button>
+  <button class="db" data-img="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> ${H('imgDraw')}</button>
   <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
-  <button class="db" data-img="rot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg> 90°</button>
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+ </div>
+ <div class="drow rotrow">
+  <span class="lbl" id="rotLbl">↻ 0°</span>
+  <input type="range" id="rotRange" min="-180" max="180" step="1" value="0">
+  <button class="db" data-img="rot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg> 90°</button>
+  <span class="lbl" id="pctLabel">100%</span>
+ </div>
 </div>
 
 <div id="rsz">
@@ -344,6 +384,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   </div>
 </div>
 <div id="tip"></div>
+<div id="imged">
+  <div id="ieTop">
+    <button data-ie="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> ${H('imgDraw')}</button>
+    <button data-ie="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${H('imgText')}</button>
+    <button data-ie="undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+  </div>
+  <div id="ieText"><input id="ieInput" type="text" placeholder="${H('imgTextPh')}" maxlength="120"><button id="ieTextOk">✓</button></div>
+  <div id="ieHint">${H('imgTapText')}</div>
+  <div id="ieArea"><canvas id="ieCanvas"></canvas></div>
+  <div id="ieColors"></div>
+  <div id="ieSizeRow"><span class="ieDot small"></span><input type="range" id="ieSize" min="1" max="10" value="4"><span class="ieDot big"></span></div>
+  <div id="ieBtns"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
+</div>
 <div id="gx"></div><div id="gy"></div><div id="mvinfo"></div>
 <div id="anchorBar">
   <button id="anchorBtn"></button>
@@ -1073,6 +1126,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (deg === -180) deg = 180;
     w.dataset.rot = deg;
     w.style.transform = deg ? 'rotate(' + deg + 'deg)' : '';
+    if (w === selImg) syncRot();
     fitRotSpace(w);
     return deg;
   }
@@ -1154,6 +1208,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (w) {
       w.classList.add('sel');
       pctLabel.textContent = getScale(w) + '%';
+      syncRot();
       var im = w.querySelector('img');
       if (im && !im.complete) im.onload = placeRsz;
     }
@@ -1180,6 +1235,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       return;
     }
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
+    if (a === 'text' || a === 'draw') { openImgEdit(selImg.querySelector('img'), a); return; }
     if (a === 'reset') { setScale(selImg, 100); setRot(selImg, 0); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
     if (a === 'rot') {
       var d = setRot(selImg, Math.round((getRot(selImg) + 90) / 90) * 90);
@@ -1272,6 +1328,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function hideGuides(){ gx.style.display = gy.style.display = 'none'; }
   function fmtMove(v, unit){ return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + unit; }
+
+  /* ---------- Barrita para girar la foto (como la del volumen) ---------- */
+  var rotRange = $('rotRange'), rotLbl = $('rotLbl');
+  function syncRot(){ if (!selImg) return; var d = getRot(selImg); rotRange.value = d; rotLbl.textContent = '↻ ' + d + '°'; }
+  rotRange.addEventListener('input', function(){
+    if (!selImg) return;
+    var d = +rotRange.value, near = Math.round(d / 90) * 90, snap = Math.abs(d - near) < 4;
+    if (snap) d = near;                                    // se pega en 0°, 90°, 180°
+    d = setRot(selImg, d);
+    rotLbl.textContent = '↻ ' + d + '°';
+    placeRsz(); showGuides(selImg, snap, snap);
+    showMv('↻ <b>' + d + '°</b>', true);
+  });
+  rotRange.addEventListener('change', function(){ hideGuides(); hideMv(); changedNow(); });
 
   var mvTimer = null;
   function showMv(html, stay){
@@ -1653,6 +1723,200 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     target.onload = placeRsz;
     target.src = canvasToData(cv, ctx, 0.85);
     window.closeCrop(); changedNow(); showTip(${J('photoCropped')});
+  };
+
+  /* =========================================================
+     ESCRIBIR Y DIBUJAR ENCIMA DE UNA FOTO
+     - Dibujar: con el dedo, del color y grosor que elijas.
+     - Texto: toca la foto donde quieras el texto, escríbelo y
+       luego puedes arrastrarlo. Tocar un texto lo deja editarlo.
+     Al tocar Listo, todo queda pegado dentro de la foto.
+     ========================================================= */
+  var imged = $('imged'), ieCv = $('ieCanvas'), ieCtx = ieCv.getContext('2d'), ieArea = $('ieArea');
+  var ieInput = $('ieInput'), ieTextBar = $('ieText'), ieHint = $('ieHint'), ieSize = $('ieSize');
+  var IE = { target: null, base: null, ops: [], mode: 'draw', color: '#ff3b30', cur: null, drag: null, edit: null, pend: null };
+  var IE_COLORS = ['#ffffff', '#000000', '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#0a84ff', '#bf5af2', '#ff2d92'];
+  $('ieColors').innerHTML = IE_COLORS.map(function(col){ return '<button class="iesw" data-c="' + col + '" style="background:' + col + '"></button>'; }).join('');
+  function ieSetColor(col){
+    IE.color = col;
+    Array.prototype.forEach.call($('ieColors').children, function(b){ b.classList.toggle('on', b.dataset.c === col); });
+    if (IE.edit) IE.edit.c = col;
+    if (IE.base) ieRedraw();
+  }
+  $('ieColors').addEventListener('click', function(e){ var b = e.target.closest('.iesw'); if (b) ieSetColor(b.dataset.c); });
+  function ieScale(){ return ieCv.width / 360; }                       // grosor parecido en fotos grandes y chicas
+  function ieLineW(){ return (+ieSize.value) * 2.2 * ieScale(); }
+  function ieFontPx(){ return (12 + (+ieSize.value) * 5) * ieScale(); }
+  function ieSetMode(m){
+    IE.mode = m;
+    Array.prototype.forEach.call(document.querySelectorAll('#ieTop [data-ie]'), function(b){ b.classList.toggle('on', b.dataset.ie === m); });
+    ieHint.classList.toggle('show', m === 'text');
+    if (m !== 'text') ieCloseText(true);
+  }
+  function ieFit(){
+    if (!IE.base) return;
+    var W = ieArea.clientWidth - 24, H = ieArea.clientHeight - 24, k = Math.min(W / ieCv.width, H / ieCv.height);
+    ieCv.style.width = Math.round(ieCv.width * k) + 'px';
+    ieCv.style.height = Math.round(ieCv.height * k) + 'px';
+  }
+  function ieFont(op){ return '800 ' + Math.round(op.s) + 'px -apple-system,Roboto,sans-serif'; }
+  function ieTextBox(op){
+    ieCtx.font = ieFont(op);
+    var w = ieCtx.measureText(op.v).width;
+    return { x: op.x - w / 2, y: op.y - op.s / 2, w: w, h: op.s };
+  }
+  function ieRedraw(){
+    var ctx = ieCtx;
+    ctx.clearRect(0, 0, ieCv.width, ieCv.height);
+    ctx.drawImage(IE.base, 0, 0, ieCv.width, ieCv.height);
+    IE.ops.forEach(function(op){
+      if (op.t === 's') {
+        ctx.strokeStyle = op.c; ctx.lineWidth = op.w; ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(op.p[0][0], op.p[0][1]);
+        for (var i = 1; i < op.p.length; i++) ctx.lineTo(op.p[i][0], op.p[i][1]);
+        if (op.p.length === 1) ctx.lineTo(op.p[0][0] + 0.1, op.p[0][1]);
+        ctx.stroke();
+      } else {
+        ctx.font = ieFont(op); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, op.s / 7);
+        ctx.strokeStyle = (op.c === '#000000') ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
+        ctx.strokeText(op.v, op.x, op.y);
+        ctx.fillStyle = op.c; ctx.fillText(op.v, op.x, op.y);
+        if (op === IE.edit) { var b = ieTextBox(op); ctx.setLineDash([8 * ieScale(), 6 * ieScale()]); ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2 * ieScale(); ctx.strokeRect(b.x - 8, b.y - 6, b.w + 16, b.h + 12); ctx.setLineDash([]); }
+      }
+    });
+    // Texto nuevo mientras lo escribes (vista previa)
+    if (IE.pend && ieInput.value.trim() && ieTextBar.classList.contains('show')) {
+      var tmp = { t: 'x', x: IE.pend.x, y: IE.pend.y, v: ieInput.value, c: IE.color, s: ieFontPx() };
+      IE.ops.push(tmp); var keep = IE.edit; IE.edit = tmp;
+      ieRedrawText(tmp);
+      IE.ops.pop(); IE.edit = keep;
+    }
+  }
+  function ieRedrawText(op){
+    var ctx = ieCtx;
+    ctx.font = ieFont(op); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, op.s / 7);
+    ctx.strokeStyle = (op.c === '#000000') ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
+    ctx.strokeText(op.v, op.x, op.y);
+    ctx.fillStyle = op.c; ctx.fillText(op.v, op.x, op.y);
+  }
+  function iePt(e){
+    var r = ieCv.getBoundingClientRect();
+    return [(e.clientX - r.left) * ieCv.width / r.width, (e.clientY - r.top) * ieCv.height / r.height];
+  }
+  function openImgEdit(img, mode){
+    if (!img) return;
+    IE.target = img; IE.ops = []; IE.edit = null; IE.pend = null;
+    var base = new Image();
+    base.onload = function(){
+      var nw = base.naturalWidth, nh = base.naturalHeight, k = Math.min(1, 1600 / Math.max(nw, nh));
+      ieCv.width = Math.round(nw * k); ieCv.height = Math.round(nh * k);
+      IE.base = base;
+      imged.classList.add('show');
+      send({ type: 'crop', open: true });
+      ieFit(); ieRedraw();
+    };
+    base.src = img.src;
+    ieSetColor(IE.color);
+    ieSetMode(mode || 'draw');
+  }
+  function closeImgEdit(){
+    imged.classList.remove('show'); ieCloseText(true);
+    IE.target = null; IE.base = null; IE.ops = [];
+    send({ type: 'crop', open: false });
+  }
+  var closeCropOld = window.closeCrop;
+  window.closeCrop = function(){ if (imged.classList.contains('show')) closeImgEdit(); else closeCropOld(); };
+
+  /* Texto: barra para escribir */
+  function ieOpenText(op, x, y){
+    IE.edit = op || null; IE.pend = op ? null : { x: x, y: y };
+    ieInput.value = op ? op.v : '';
+    ieTextBar.classList.add('show');
+    setTimeout(function(){ ieInput.focus(); }, 30);
+    ieRedraw();
+  }
+  function ieCloseText(save){
+    if (save !== false && ieTextBar.classList.contains('show')) ieCommitText();
+    ieTextBar.classList.remove('show'); ieInput.blur();
+    IE.edit = null; IE.pend = null;
+    if (IE.base) ieRedraw();
+  }
+  function ieCommitText(){
+    var v = ieInput.value.trim();
+    if (IE.edit) {
+      if (v) IE.edit.v = v; else IE.ops.splice(IE.ops.indexOf(IE.edit), 1);
+    } else if (IE.pend && v) {
+      IE.ops.push({ t: 'x', x: IE.pend.x, y: IE.pend.y, v: v, c: IE.color, s: ieFontPx() });
+    }
+  }
+  $('ieTextOk').addEventListener('click', function(){ ieCloseText(true); });
+  ieInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); ieCloseText(true); } });
+  ieInput.addEventListener('input', function(){ if (IE.edit) IE.edit.v = ieInput.value || ' '; ieRedraw(); });
+  ieSize.addEventListener('input', function(){ if (IE.edit) IE.edit.s = ieFontPx(); ieRedraw(); });
+
+  /* Dedo sobre la foto */
+  ieCv.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var p = iePt(e);
+    try { ieCv.setPointerCapture(e.pointerId); } catch (_) {}
+    if (IE.mode === 'draw') {
+      IE.cur = { t: 's', c: IE.color, w: ieLineW(), p: [p] };
+      IE.ops.push(IE.cur); ieRedraw();
+      return;
+    }
+    // Modo texto: ¿tocó un texto que ya existe? → arrastrarlo / editarlo
+    for (var i = IE.ops.length - 1; i >= 0; i--) {
+      var op = IE.ops[i]; if (op.t !== 'x') continue;
+      var b = ieTextBox(op), pad = 14 * ieScale();
+      if (p[0] > b.x - pad && p[0] < b.x + b.w + pad && p[1] > b.y - pad && p[1] < b.y + b.h + pad) {
+        if (ieTextBar.classList.contains('show')) ieCloseText(true);
+        IE.drag = { op: op, sx: p[0], sy: p[1], ox: op.x, oy: op.y, moved: false };
+        return;
+      }
+    }
+    if (ieTextBar.classList.contains('show')) { ieCloseText(true); return; }
+    ieOpenText(null, p[0], p[1]);
+  });
+  ieCv.addEventListener('pointermove', function(e){
+    var p = iePt(e);
+    if (IE.cur) {
+      var last = IE.cur.p[IE.cur.p.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 1.5) return;
+      IE.cur.p.push(p);
+      ieCtx.strokeStyle = IE.cur.c; ieCtx.lineWidth = IE.cur.w; ieCtx.lineCap = ieCtx.lineJoin = 'round';
+      ieCtx.beginPath(); ieCtx.moveTo(last[0], last[1]); ieCtx.lineTo(p[0], p[1]); ieCtx.stroke();
+    } else if (IE.drag) {
+      var dx = p[0] - IE.drag.sx, dy = p[1] - IE.drag.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 6 * ieScale()) IE.drag.moved = true;
+      IE.drag.op.x = IE.drag.ox + dx; IE.drag.op.y = IE.drag.oy + dy; ieRedraw();
+    }
+  });
+  function ieUp(){
+    if (IE.cur) { IE.cur = null; ieRedraw(); }
+    if (IE.drag) { var d = IE.drag; IE.drag = null; if (!d.moved) ieOpenText(d.op); }
+  }
+  ieCv.addEventListener('pointerup', ieUp);
+  ieCv.addEventListener('pointercancel', ieUp);
+  document.querySelector('#ieTop').addEventListener('click', function(e){
+    var b = e.target.closest('[data-ie]'); if (!b) return;
+    if (b.dataset.ie === 'undo') { ieCloseText(false); IE.ops.pop(); ieRedraw(); return; }
+    ieSetMode(b.dataset.ie);
+  });
+  window.addEventListener('resize', function(){ if (imged.classList.contains('show')) ieFit(); });
+  $('ieCancel').onclick = function(){ closeImgEdit(); };
+  $('ieOk').onclick = function(){
+    ieCloseText(true);
+    var t = IE.target;
+    if (t && IE.ops.length) {
+      IE.edit = null; ieRedraw();
+      t.onload = placeRsz;
+      t.src = canvasToData(ieCv, ieCtx, 0.88);
+      changedNow(); showTip(${J('imgEdited')});
+    }
+    closeImgEdit();
   };
 
   /* =========================================================
