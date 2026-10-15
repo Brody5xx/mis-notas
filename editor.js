@@ -42,13 +42,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #ed ul.checklist>li.done{text-decoration:line-through;opacity:.55}
   #ed{outline:none;padding:12px 20px 230px;min-height:80vh;font-size:17px;line-height:1.5;word-wrap:break-word}
   #ed:empty:before{content:'Empieza a escribir...';color:${c.muted}}
-  ::selection{background:rgba(243,156,18,0.18)}
+  ::selection{background:rgba(255,255,255,0.28)}
 
   /* ===== Barra flotante de vidrio (abajo) ===== */
   .dock{position:fixed;left:50%;bottom:calc(14px + var(--kb));transform:translateX(-50%);z-index:6;
         display:flex;align-items:center;gap:2px;padding:6px;border-radius:28px;max-width:calc(100% - 20px);
         background:${glass};-webkit-backdrop-filter:blur(18px) saturate(1);backdrop-filter:blur(18px) saturate(1);
-        border:1px solid ${c.border};box-shadow:0 10px 30px rgba(0,0,0,.20),0 0 24px rgba(243,156,18,.10);
+        border:1px solid ${c.border};box-shadow:0 10px 30px rgba(0,0,0,.20);
         overflow-x:auto;transition:opacity .2s,transform .2s}
   .dock::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
   .dock.hide{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(24px)}
@@ -56,7 +56,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       font-size:17px;padding:0 10px;display:flex;align-items:center;justify-content:center;gap:5px;
       transition:background .15s,transform .1s,box-shadow .15s;white-space:nowrap}
   .db:active{transform:scale(.9)}
-  .db.on{background:linear-gradient(135deg,#f39c12,#ff5e3a);color:#fff;box-shadow:0 4px 14px rgba(255,94,58,.4)}
+  .db.on{background:rgba(255,255,255,0.92);color:${c.inv};box-shadow:0 4px 14px rgba(0,0,0,.18)}
   .dsep{flex:none;width:1px;height:24px;background:${c.border};margin:0 3px}
   .caret{font-size:10px;opacity:.6}
   #sizeNum{font-weight:700;font-variant-numeric:tabular-nums;min-width:20px}
@@ -73,13 +73,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .pclose{border:none;background:none;color:${c.accent};font-size:15px;font-weight:700;padding:4px 6px;text-transform:none;letter-spacing:0}
   .sizeTop{display:flex;align-items:center;justify-content:space-between;height:64px}
   #sizeBig{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;
-           background:linear-gradient(135deg,#f39c12,#ff5e3a);-webkit-background-clip:text;background-clip:text;color:transparent}
+           color:${c.text}}
   #sample{color:${c.text};font-weight:600;line-height:1;max-width:60%;overflow:hidden;white-space:nowrap}
-  #range{width:100%;height:34px;margin:6px 0 10px;accent-color:#ff7a2a}
+  #range{width:100%;height:34px;margin:6px 0 10px;accent-color:#ffffff}
   .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0}
   .chip{flex:none;min-width:46px;height:36px;border-radius:18px;border:1px solid ${c.border};background:transparent;
         color:${c.text};font-size:15px;font-variant-numeric:tabular-nums}
-  .chip.on{background:linear-gradient(135deg,#f39c12,#ff5e3a);color:#fff;border-color:transparent}
+  .chip.on{background:rgba(255,255,255,0.92);color:${c.inv};border-color:transparent}
   .ctabs{display:flex;gap:4px;padding:3px;border-radius:16px;background:rgba(127,127,127,.18);text-transform:none;letter-spacing:0}
   .ctab{border:none;background:none;color:${c.text};padding:4px 14px;border-radius:13px;line-height:0}
   .ctab svg{display:block}
@@ -110,7 +110,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw{width:40px;height:40px;border-radius:20px;border:2px solid rgba(255,255,255,.7);padding:0;
       box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .1s}
   .sw:active{transform:scale(.88)}
-  .sw.on{box-shadow:0 0 0 3px ${c.card},0 0 0 6px #ff7a2a}
+  .sw.on{box-shadow:0 0 0 3px ${c.card},0 0 0 6px #ffffff}
 
   /* ===== Fotos dentro de la nota ===== */
   .imgwrap{margin:10px auto;width:100%;max-width:100%}
