@@ -33,10 +33,12 @@ const THEMES = {
     bgImage: BG_DARK,
     frost: 'rgba(255,255,255,0.02)',
     text: '#ffffff', muted: 'rgba(255,255,255,0.68)', border: 'rgba(255,255,255,0.18)', accent: '#ff8a3d',
-    fill: 'rgba(255,255,255,0.08)',            // vidrio translúcido
-    strong: 'rgba(40,36,40,0.82)',             // vidrio más sólido (menú, avisos)
-    stroke: ['rgba(255,255,255,0.42)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.22)'],
-    sheen: 'rgba(255,255,255,0.20)',           // brillo de esquina
+    fill: 'rgba(255,255,255,0.05)',            // vidrio casi transparente
+    strong: 'rgba(40,36,40,0.80)',             // vidrio más sólido (menú, avisos)
+    stroke: ['rgba(255,180,225,0.75)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.08)', 'rgba(150,205,255,0.70)'],
+    rim: 'rgba(255,255,255,0.14)',             // brillo interno del borde
+    rim2: 'rgba(255,255,255,0.06)',
+    sheen: 'rgba(255,255,255,0.18)',           // brillo de esquina
     hi: 'rgba(255,255,255,0.22)',              // brillo interno arriba
     lo: 'rgba(0,0,0,0.25)',                    // sombra interna abajo
     dockFill: 'rgba(255,255,255,0.08)',
@@ -52,14 +54,16 @@ const THEMES = {
     bgImage: BG_LIGHT,
     frost: 'rgba(255,255,255,0.05)',
     text: '#ffffff', muted: 'rgba(255,255,255,0.80)', border: 'rgba(255,255,255,0.40)', accent: '#ff7a2a',
-    fill: 'rgba(255,255,255,0.17)',            // vidrio blanco lechoso
-    strong: 'rgba(150,143,147,0.80)',          // vidrio más sólido (menú, avisos)
-    stroke: ['rgba(255,255,255,0.80)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.48)'],
-    sheen: 'rgba(255,255,255,0.55)',           // brillo de esquina
+    fill: 'rgba(255,255,255,0.06)',            // vidrio casi transparente, como los botones del iPhone
+    strong: 'rgba(140,132,138,0.78)',          // vidrio más sólido (menú, avisos)
+    stroke: ['rgba(255,190,230,0.95)', 'rgba(255,255,255,0.18)', 'rgba(255,255,255,0.12)', 'rgba(160,215,255,0.90)'],
+    rim: 'rgba(255,255,255,0.24)',             // brillo interno del borde
+    rim2: 'rgba(255,255,255,0.10)',
+    sheen: 'rgba(255,255,255,0.32)',           // brillo de esquina
     hi: 'rgba(255,255,255,0.50)',
     lo: 'rgba(0,0,0,0.06)',
     dockFill: 'rgba(255,255,255,0.10)',
-    glassBright: 0.86,                         // la barra del editor un poco más oscura para ver los íconos
+    glassBright: 0.95,                         // la barra del editor un poco más oscura para ver los íconos
     scrim: 'rgba(60,54,58,0.28)',
     bar: 'light-content',
     inv: '#3a3538',
@@ -404,16 +408,21 @@ function Glass({ t, style, inner, radius = 20, strong, children }) {
   return (
     <LinearGradient
       colors={t.stroke}
-      locations={[0, 0.5, 1]}
+      locations={t.stroke.length === 4 ? [0, 0.4, 0.6, 1] : [0, 0.5, 1]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[{ borderRadius: radius, padding: 0.5 }, style]}
     >
       <View style={{ flexGrow: 1, borderRadius: radius - 0.5, overflow: 'hidden', backgroundColor: strong ? t.strong : t.fill }}>
+        {/* brillo interno pegado al borde (efecto lente) */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          borderRadius: radius - 0.5, borderWidth: 2.5, borderColor: t.rim }} />
+        <View pointerEvents="none" style={{ position: 'absolute', top: 2.5, left: 2.5, right: 2.5, bottom: 2.5,
+          borderRadius: Math.max(0, radius - 3), borderWidth: 3, borderColor: t.rim2 }} />
         {/* reflejo diagonal */}
         <LinearGradient
           pointerEvents="none"
-          colors={[t.sheen, 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+          colors={[t.sheen, 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0)']}
           locations={[0, 0.35, 0.7]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.75, y: 0.75 }}

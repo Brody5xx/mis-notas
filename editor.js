@@ -162,13 +162,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* ===== LIQUID GLASS (barra, paneles y avisos) ===== */
   .dock,.panel{
-    border:0.5px solid transparent !important;
-    background:linear-gradient(${glass},${glass}) padding-box,
-               linear-gradient(135deg,${c.stroke[0]},${c.stroke[1]} 50%,${c.stroke[2]}) border-box !important;
+    border:none !important;
+    background:${glass} !important;
     -webkit-backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
     backdrop-filter:blur(16px) brightness(${c.glassBright || 1.1}) saturate(1.5) !important;
-    box-shadow:inset 0 2px 2px ${c.hi},inset 0 -2px 2px ${c.lo},0 14px 36px rgba(0,0,0,.30) !important;
+    box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.22) !important;
   }
+  /* borde de colores solo en la orilla (rosa arriba, azul abajo) */
+  .dock::before,.panel::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;
+    background:linear-gradient(135deg,${c.stroke[0]},${c.stroke[1]} 40%,${c.stroke[c.stroke.length - 2]} 60%,${c.stroke[c.stroke.length - 1]});
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
   .chip{border-color:${c.border} !important}
   .db.on,.chip.on{background:${c.text} !important;color:${c.inv} !important;box-shadow:none !important;border-color:transparent !important}
   .db svg{display:block}
