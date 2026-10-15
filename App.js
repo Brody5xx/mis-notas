@@ -10,6 +10,7 @@ import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml } from './editor';
+import { buildCalcHtml } from './calc';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -707,6 +708,10 @@ export default function App() {
   const iframeRef = useRef(null);
   const [spellOn, setSpellOn] = useState(false);   // revisando ortografía
   const [clearAsk, setClearAsk] = useState(false);  // aviso antes de borrar todo
+  const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
+  const calcState = useRef({});                     // lo que la calculadora recuerda
+  const calcWeb = useRef(null), calcFrame = useRef(null);
+  useEffect(() => { AsyncStorage.getItem('calcState').then(v => { if (v) calcState.current = JSON.parse(v); }).catch(() => {}); }, []);
   const webRef = useRef(null);
 
   const { width } = useWindowDimensions();
@@ -1350,6 +1355,46 @@ export default function App() {
     } finally { clearTimeout(timer); }
   }
 
+  /* ---------- Calculadora ---------- */
+  function onCalcMessage(data) {
+    try {
+      const m = JSON.parse(data);
+      if (m.type === 'calcClose') setCalcOpen(null);
+      if (m.type === 'calcState') { calcState.current = m.state || {}; AsyncStorage.setItem('calcState', JSON.stringify(calcState.current)).catch(() => {}); }
+      if (m.type === 'calcInsert' && m.text) {
+        setCalcOpen(null);
+        setTimeout(() => {
+          if (Platform.OS === 'web') {
+            try { const w = iframeRef.current && iframeRef.current.contentWindow; if (w && w.insertCalc) w.insertCalc(m.text); } catch (e) {}
+          } else if (webRef.current) {
+            const js = JSON.stringify(m.text).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+            webRef.current.injectJavaScript(`window.insertCalc && window.insertCalc(${js}); true;`);
+          }
+        }, 250);
+      }
+    } catch (e) {}
+  }
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !calcOpen) return;
+    const h = e => { if (calcFrame.current && e.source === calcFrame.current.contentWindow) onCalcMessage(e.data); };
+    window.addEventListener('message', h);
+    return () => window.removeEventListener('message', h);
+  }, [calcOpen]);
+  const calcHtml = useMemo(() => (calcOpen ? buildCalcHtml({ c, tr, state: calcState.current, canInsert: calcOpen === 'note' && !!current && !current.deleted }) : ''),
+    [calcOpen, dark, langCode]);
+  const calcModal = (
+    <Modal visible={!!calcOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setCalcOpen(null)}>
+      <View style={[s.screen, { backgroundColor: c.grad[0] }]}>
+        {!!calcOpen && (Platform.OS === 'web' ? (
+          <iframe ref={calcFrame} srcDoc={calcHtml} title="calc" style={{ border: 'none', width: '100%', height: '100%', backgroundColor: c.grad[0] }} />
+        ) : (
+          <WebView ref={calcWeb} originWhitelist={['*']} source={{ html: calcHtml }} onMessage={e => onCalcMessage(e.nativeEvent.data)}
+            style={{ flex: 1, backgroundColor: c.grad[0] }} keyboardDisplayRequiresUserAction={false} hideKeyboardAccessoryView />
+        ))}
+      </View>
+    </Modal>
+  );
+
   /* ---------- Mensajes que llegan desde el editor ---------- */
   function onEditorMessage(data) {
     try {
@@ -1748,6 +1793,7 @@ export default function App() {
         </KeyboardAvoidingView>
         {wallModal}
         {colorSheet}
+        {calcModal}
         <WarnSheet visible={clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
           onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); patch(current.id, { keep: true }, false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
 
@@ -1771,6 +1817,10 @@ export default function App() {
           <TouchableOpacity onPress={() => { setOptsOpen(false); toggleFav(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => setCalcOpen('note'), 250); }} activeOpacity={0.6} style={s.row}>
+            <MaterialCommunityIcons name="calculator-variant-outline" size={20} color={c.text} style={{ marginRight: 14 }} />
+            <Text style={s.rowText}>{tr('calcTitle')}</Text>
           </TouchableOpacity>
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
@@ -1955,6 +2005,7 @@ export default function App() {
       ) : (
       <View style={s.topbar}>
         <IconBtn name="menu" onPress={() => setMenuOpen(true)} s={s} t={c} />
+        <IconBtn set="mci" name="calculator-variant-outline" onPress={() => setCalcOpen('home')} s={s} t={c} />
         <View style={{ flex: 1 }} />
         <IconBtn name="search" onPress={toggleSearch} s={s} t={c} />
         <IconBtn set="mci" name="sort" onPress={() => setSortOpen(true)} s={s} t={c} />
@@ -2256,6 +2307,7 @@ export default function App() {
 
       {wallModal}
       {colorSheet}
+      {calcModal}
       {sortSheet}
       {langSheet}
       {folderModal}

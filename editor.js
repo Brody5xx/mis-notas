@@ -2230,6 +2230,26 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     spShow();
   };
 
+  /* ---------- Poner un cálculo de la calculadora en la nota ---------- */
+  window.insertCalc = function(t){
+    if (!editable || !t) return;
+    var r = saved && ed.contains(saved.startContainer) ? saved.cloneRange() : null;
+    if (r) {
+      r.collapse(false);
+      var before = r.startContainer.nodeType === 3 ? r.startContainer.data.slice(0, r.startOffset) : '';
+      var tn = document.createTextNode((before && !/\\s$/.test(before) ? ' ' : '') + t);
+      r.insertNode(tn);
+      r.setStartAfter(tn); r.collapse(true); saved = r.cloneRange();
+    } else {
+      var d = document.createElement('div'); d.textContent = t;
+      var last = ed.lastElementChild;
+      if (last && last.tagName === 'DIV' && !last.textContent.trim() && !last.querySelector('img')) ed.insertBefore(d, last);
+      else ed.appendChild(d);
+    }
+    changedNow();
+    showTip(${J('calcInserted')});
+  };
+
   /* =========================================================
      BORRAR TODO EL CONTENIDO (con animación suave)
      Las líneas se van desvaneciendo de abajo hacia arriba.

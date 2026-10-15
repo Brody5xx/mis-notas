@@ -3160,6 +3160,55 @@ for (const code in CLEAR) {
   Object.assign(S[code], { clearAll: v[0], clearAllTitle: v[1], clearAllMsg: v[2], clearAllOk: v[3], noteCleared: v[4] });
 }
 
+/* Textos nuevos: calculadora gráfica
+   [Calculadora, Gráfica, Tabla, Insertar en la nota, Insertado en la nota, Error, Inicio, Paso] */
+const CALC = {
+  es: ['Calculadora', 'Gráfica', 'Tabla', 'A la nota', '✓ Agregado a la nota', 'Error', 'Inicio', 'Paso'],
+  en: ['Calculator', 'Graph', 'Table', 'To note', '✓ Added to the note', 'Error', 'Start', 'Step'],
+  pt: ['Calculadora', 'Gráfico', 'Tabela', 'Na nota', '✓ Adicionado à nota', 'Erro', 'Início', 'Passo'],
+  fr: ['Calculatrice', 'Graphique', 'Tableau', 'Dans la note', '✓ Ajouté à la note', 'Erreur', 'Début', 'Pas'],
+  de: ['Rechner', 'Graph', 'Tabelle', 'In Notiz', '✓ Zur Notiz hinzugefügt', 'Fehler', 'Start', 'Schritt'],
+  it: ['Calcolatrice', 'Grafico', 'Tabella', 'Nella nota', '✓ Aggiunto alla nota', 'Errore', 'Inizio', 'Passo'],
+  ca: ['Calculadora', 'Gràfica', 'Taula', 'A la nota', '✓ Afegit a la nota', 'Error', 'Inici', 'Pas'],
+  nl: ['Rekenmachine', 'Grafiek', 'Tabel', 'Naar notitie', '✓ Toegevoegd aan notitie', 'Fout', 'Begin', 'Stap'],
+  sv: ['Miniräknare', 'Graf', 'Tabell', 'Till anteckning', '✓ Tillagt i anteckningen', 'Fel', 'Start', 'Steg'],
+  nb: ['Kalkulator', 'Graf', 'Tabell', 'Til notat', '✓ Lagt til i notatet', 'Feil', 'Start', 'Steg'],
+  da: ['Lommeregner', 'Graf', 'Tabel', 'Til note', '✓ Tilføjet til noten', 'Fejl', 'Start', 'Trin'],
+  fi: ['Laskin', 'Kuvaaja', 'Taulukko', 'Muistiin', '✓ Lisätty muistiinpanoon', 'Virhe', 'Alku', 'Askel'],
+  pl: ['Kalkulator', 'Wykres', 'Tabela', 'Do notatki', '✓ Dodano do notatki', 'Błąd', 'Start', 'Krok'],
+  cs: ['Kalkulačka', 'Graf', 'Tabulka', 'Do poznámky', '✓ Přidáno do poznámky', 'Chyba', 'Začátek', 'Krok'],
+  sk: ['Kalkulačka', 'Graf', 'Tabuľka', 'Do poznámky', '✓ Pridané do poznámky', 'Chyba', 'Začiatok', 'Krok'],
+  hu: ['Számológép', 'Grafikon', 'Táblázat', 'Jegyzetbe', '✓ Hozzáadva a jegyzethez', 'Hiba', 'Kezdet', 'Lépés'],
+  ro: ['Calculator', 'Grafic', 'Tabel', 'În notă', '✓ Adăugat în notă', 'Eroare', 'Început', 'Pas'],
+  hr: ['Kalkulator', 'Graf', 'Tablica', 'U bilješku', '✓ Dodano u bilješku', 'Greška', 'Početak', 'Korak'],
+  el: ['Αριθμομηχανή', 'Γράφημα', 'Πίνακας', 'Στη σημείωση', '✓ Προστέθηκε στη σημείωση', 'Σφάλμα', 'Αρχή', 'Βήμα'],
+  bg: ['Калкулатор', 'Графика', 'Таблица', 'В бележката', '✓ Добавено в бележката', 'Грешка', 'Начало', 'Стъпка'],
+  ru: ['Калькулятор', 'График', 'Таблица', 'В заметку', '✓ Добавлено в заметку', 'Ошибка', 'Начало', 'Шаг'],
+  uk: ['Калькулятор', 'Графік', 'Таблиця', 'У нотатку', '✓ Додано в нотатку', 'Помилка', 'Початок', 'Крок'],
+  tr: ['Hesap makinesi', 'Grafik', 'Tablo', 'Nota ekle', '✓ Nota eklendi', 'Hata', 'Başlangıç', 'Adım'],
+  ar: ['الآلة الحاسبة', 'رسم بياني', 'جدول', 'إلى الملاحظة', '✓ أُضيف إلى الملاحظة', 'خطأ', 'البداية', 'الخطوة'],
+  he: ['מחשבון', 'גרף', 'טבלה', 'לפתק', '✓ נוסף לפתק', 'שגיאה', 'התחלה', 'צעד'],
+  fa: ['ماشین حساب', 'نمودار', 'جدول', 'به یادداشت', '✓ به یادداشت اضافه شد', 'خطا', 'شروع', 'گام'],
+  ur: ['کیلکولیٹر', 'گراف', 'جدول', 'نوٹ میں', '✓ نوٹ میں شامل ہو گیا', 'خرابی', 'آغاز', 'قدم'],
+  hi: ['कैलकुलेटर', 'ग्राफ़', 'तालिका', 'नोट में', '✓ नोट में जोड़ा गया', 'त्रुटि', 'शुरुआत', 'अंतर'],
+  bn: ['ক্যালকুলেটর', 'গ্রাফ', 'টেবিল', 'নোটে', '✓ নোটে যোগ হয়েছে', 'ত্রুটি', 'শুরু', 'ধাপ'],
+  id: ['Kalkulator', 'Grafik', 'Tabel', 'Ke catatan', '✓ Ditambahkan ke catatan', 'Galat', 'Awal', 'Langkah'],
+  ms: ['Kalkulator', 'Graf', 'Jadual', 'Ke nota', '✓ Ditambah ke nota', 'Ralat', 'Mula', 'Langkah'],
+  fil: ['Calculator', 'Graph', 'Table', 'Sa note', '✓ Naidagdag sa note', 'Error', 'Simula', 'Hakbang'],
+  vi: ['Máy tính', 'Đồ thị', 'Bảng', 'Vào ghi chú', '✓ Đã thêm vào ghi chú', 'Lỗi', 'Bắt đầu', 'Bước'],
+  th: ['เครื่องคิดเลข', 'กราฟ', 'ตาราง', 'ใส่ในโน้ต', '✓ เพิ่มในโน้ตแล้ว', 'ผิดพลาด', 'เริ่ม', 'ช่วง'],
+  'zh-Hans': ['计算器', '图像', '表格', '插入笔记', '✓ 已加入笔记', '错误', '起始', '步长'],
+  'zh-Hant': ['計算機', '圖形', '表格', '插入筆記', '✓ 已加入筆記', '錯誤', '起始', '間距'],
+  ja: ['電卓', 'グラフ', '表', 'メモへ', '✓ メモに追加しました', 'エラー', '開始', '刻み'],
+  ko: ['계산기', '그래프', '표', '메모에 넣기', '✓ 메모에 추가했습니다', '오류', '시작', '간격'],
+  sw: ['Kikokotoo', 'Grafu', 'Jedwali', 'Kwenye dokezo', '✓ Imeongezwa kwenye dokezo', 'Hitilafu', 'Mwanzo', 'Hatua'],
+};
+for (const code in CALC) {
+  const v = CALC[code];
+  Object.assign(S[code], { calcTitle: v[0], calcGraph: v[1], calcTable: v[2], calcInsert: v[3], calcInserted: v[4],
+    calcError: v[5], calcStart: v[6], calcStep: v[7] });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS
