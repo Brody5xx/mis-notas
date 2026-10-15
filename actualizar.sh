@@ -26,6 +26,25 @@ for f in $VIEJOS; do
   if [ -f "$f" ]; then rm -f "$f"; echo "  🗑  $f (ya no se usa)"; fi
 done
 
+
+# Registrar el modo translúcido en app.json (solo una vez)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    e.plugins = e.plugins || [];
+    const ya = e.plugins.some(p => (Array.isArray(p) ? p[0] : p) === "./translucido-plugin.js");
+    if (!ya) {
+      e.plugins.push("./translucido-plugin.js");
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (modo translúcido registrado)");
+    }
+  ' || echo "  ✗ No pude registrar el modo translúcido en app.json"
+elif [ ! -f app.json ]; then
+  echo "  (Aviso: no encontré app.json; el modo translúcido se configura al construir la app)"
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."

@@ -16,6 +16,7 @@ Luego detén la app (**Stop**) y dale **Run**.
 
 - `App.js` — pantallas, notas, carpetas, etiquetas, PIN, fondos y menú.
 - `editor.js` — el editor (texto, listas, checklist, fotos, recorte, dibujo).
+- `translucido-plugin.js` — modo translúcido de Android (se usa al construir la app; `actualizar.sh` lo registra en `app.json`).
 - `actualizar.sh` — descarga la última versión a `artifacts/mobile`.
 - `archivos.txt` — lista de archivos que descarga `actualizar.sh`.
 - `eliminar.txt` — archivos viejos que `actualizar.sh` borra.

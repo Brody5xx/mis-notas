@@ -47,6 +47,7 @@ const THEMES = {
     inv: '#1c1c1c',
     wallDim: 'rgba(0,0,0,0.30)',
     card: 'transparent',
+    seeTint: 'rgba(0,0,0,0.38)',             // modo translúcido: capa sobre la pantalla de inicio
   },
   /* Día: vidrio lechoso como el Centro de control (gris perla, brillo cálido arriba) */
   light: {
@@ -69,6 +70,7 @@ const THEMES = {
     inv: '#383838',
     wallDim: 'rgba(36,36,36,0.18)',
     card: 'transparent',
+    seeTint: 'rgba(70,70,70,0.30)',
   },
 };
 const TITLES = { all: 'Todas las notas', fav: 'Favoritos', trash: 'Papelera' };
@@ -384,10 +386,15 @@ function firstImg(n) {
    ============================================================ */
 
 /* Fondo de vidrio desenfocado (una imagen muy borrosa estirada a toda la pantalla) */
-function Background({ t, wall, blur }) {
+/* La ventana solo es translúcida en la app instalada de Android */
+const CAN_SEE = Platform.OS === 'android';
+
+function Background({ t, wall, blur, see }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {wall ? (
+      {see && !wall ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: t.seeTint }]} />
+      ) : wall ? (
         <>
           {/* blur -1 = "Nada": la imagen tal cual, sin desenfoque ni capa encima */}
           <Image source={{ uri: wall }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={blur > 0 ? blur : 0} />
@@ -491,6 +498,7 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [layout, setLayout] = useState('grid');   // 'grid' o 'list'
   const [dark, setDark] = useState(true);
+  const [translucent, setTranslucent] = useState(false);  // ver la pantalla de inicio detrás
   const [view, setView] = useState('all');        // 'all', 'fav', 'trash'
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -547,6 +555,7 @@ export default function App() {
         setNotes(data.notes || []);
         setLayout(data.layout || 'grid');
         setDark(!!data.dark);
+        setTranslucent(!!data.translucent);
         if (typeof data.wallBlur === 'number') setWallBlur(data.wallBlur);
         setFolders(data.folders || []);
         if (data.sortBy) setSortBy(data.sortBy);
@@ -560,10 +569,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const t = setTimeout(() => {
-      saveData({ notes, layout, dark, wallBlur, folders, sortBy, pinHash }).catch(() => showToast('No se pudo guardar'));
+      saveData({ notes, layout, dark, translucent, wallBlur, folders, sortBy, pinHash }).catch(() => showToast('No se pudo guardar'));
     }, 500);
     return () => clearTimeout(t);
-  }, [notes, layout, dark, wallBlur, folders, sortBy, pinHash, loaded]);
+  }, [notes, layout, dark, translucent, wallBlur, folders, sortBy, pinHash, loaded]);
 
   function showToast(msg) {
     setToastMsg(msg);
@@ -917,6 +926,12 @@ export default function App() {
   }
 
   function openWall(target) { setWallFor(target || null); setWallOpen(true); }
+  function toggleTranslucent() {
+    const on = !translucent;
+    setTranslucent(on);
+    if (on && !CAN_SEE) showToast('Se verá cuando instales la app en Android');
+    else showToast(on ? 'Modo translúcido activado' : 'Modo translúcido apagado');
+  }
 
   // Al abrir una nota: recordar cómo estaba (para el historial) y reiniciar deshacer
   useEffect(() => {
@@ -1186,6 +1201,19 @@ export default function App() {
               <Text style={[s.wallPreviewText, { color: c.text }]}>Vista previa</Text>
             </View>
 
+            {!wallFor && (
+              <TouchableOpacity onPress={toggleTranslucent} style={[s.row, { paddingHorizontal: 4, marginBottom: 12 }]} activeOpacity={0.7}>
+                <Feather name="smartphone" size={18} color={c.text} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowText}>Translúcido</Text>
+                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Se ve tu pantalla de inicio detrás (app instalada en Android)</Text>
+                </View>
+                <View style={[s.toggle, { borderColor: c.text }, translucent && { backgroundColor: c.text }]}>
+                  <View style={[s.toggleKnob, { backgroundColor: translucent ? c.inv : c.text }, translucent && { alignSelf: 'flex-end' }]} />
+                </View>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity onPress={pickWallpaper} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
               <Feather name="image" size={18} color={c.inv} />
               <Text style={[s.wallBtnText, { color: c.inv }]}>Elegir de la galería</Text>
@@ -1319,6 +1347,7 @@ export default function App() {
     </Sheet>
   );
 
+  const seeNow = translucent && CAN_SEE;
   if (!loaded) return <View style={s.screen} />;
 
   /* ============================================================
@@ -1327,9 +1356,9 @@ export default function App() {
   if (current) {
     const inTrash = current.deleted;
     return (
-      <View style={s.screen}>
-        {/* Cada nota usa SOLO su propio fondo; si no tiene, el vidrio por defecto */}
-        <Background t={c} wall={noteWall} blur={current.wallBlur ?? 8} />
+      <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
+        {/* Cada nota usa SOLO su propio fondo; si no tiene, el vidrio por defecto (o translúcido) */}
+        <Background t={c} wall={noteWall} blur={current.wallBlur ?? 8} see={seeNow} />
         <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
         <View style={s.topbar}>
           <IconBtn name="arrow-left" onPress={closeEditor} s={s} t={c} />
@@ -1572,8 +1601,8 @@ export default function App() {
         trash: ['trash-2', 'La papelera está vacía.'] }[view] || ['file-text', '']);
 
   return (
-    <View style={s.screen}>
-      <Background t={c} wall={wallpaper} blur={wallBlur} />
+    <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
+      <Background t={c} wall={seeNow ? null : wallpaper} blur={wallBlur} see={seeNow} />
       <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
 
       {/* Barra superior */}
