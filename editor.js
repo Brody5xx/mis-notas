@@ -250,13 +250,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* ===== LIQUID GLASS (barra, paneles y avisos) ===== */
   /* sombrita en los íconos para que se lean sobre fotos claras */
-  .dock .db,.dock .db svg{text-shadow:0 1px 3px rgba(0,0,0,.7);filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
+  .dock .db,.dock .db svg{text-shadow:0 0 4px rgba(0,0,0,.85),0 1px 2px rgba(0,0,0,.8);filter:drop-shadow(0 0 2px rgba(0,0,0,.75)) drop-shadow(0 1px 2px rgba(0,0,0,.6))}
   .dock,.panel{
     border:none !important;
     /* vidrio oscuro: los botones blancos se ven aunque detrás haya una foto blanca */
-    background:rgba(14,14,16,.5) !important;
-    -webkit-backdrop-filter:blur(16px) brightness(.72) saturate(1.2) !important;
-    backdrop-filter:blur(16px) brightness(.72) saturate(1.2) !important;
+    background:rgba(14,14,16,.32) !important;
+    -webkit-backdrop-filter:blur(18px) brightness(.7) saturate(1.2) !important;
+    backdrop-filter:blur(18px) brightness(.7) saturate(1.2) !important;
     box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.12) !important;
   }
   /* borde de colores solo en la orilla (rosa arriba, azul abajo) */
