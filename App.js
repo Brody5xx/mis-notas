@@ -792,7 +792,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
    (titilan) y desaparecen detrás del panel, de derecha a izquierda.
    ============================================================ */
 const MENU_PANEL_W = 290;
-function makeStars(H, seed) {
+function makeStars(H, seed, screenW) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
   const stars = [];
@@ -808,12 +808,24 @@ function makeStars(H, seed) {
       spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
     });
   }
+  // más estrellitas hacia la derecha de la pantalla (salen al empezar a cerrar)
+  const right = Math.max(0, (screenW || 400) - 10);
+  for (let i = 0; i < 70; i++) {
+    const px = MENU_PANEL_W * 0.55 + rnd() * (right - MENU_PANEL_W * 0.55 - 10);
+    stars.push({
+      x: px, y: 8 + rnd() * (H - 16),
+      start: 0.02 + rnd() * 0.45, life: 0.5 + rnd() * 0.3,
+      size: 4 + rnd() * 6,
+      drift: -(6 + rnd() * 20),
+      spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
+    });
+  }
   return stars;
 }
-function Sparkles({ anim, top, height }) {
-  const stars = useMemo(() => makeStars(height, Math.floor(height)), [height]);
+function Sparkles({ anim, top, height, screenW }) {
+  const stars = useMemo(() => makeStars(height, Math.floor(height), screenW), [height, screenW]);
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: MENU_PANEL_W }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: Math.max(MENU_PANEL_W, (screenW || 400) - 10) }}>
       {stars.map((st, i) => {
         const a = st.start, l = st.life;
         const inR = [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2];
@@ -2810,7 +2822,7 @@ export default function App() {
               shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
           </Animated.View>
           <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
-          <Sparkles anim={menuOff}
+          <Sparkles anim={menuOff} screenW={width}
             top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
             height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
         </View>
