@@ -1898,7 +1898,8 @@ export default function App() {
         {/* Cada nota usa SOLO su propio fondo; si no tiene, el vidrio por defecto (o translúcido) */}
         <Background t={c} wall={noteWall} blur={current.wallBlur ?? 8} see={seeNow} />
         <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
-        <View style={s.topbar}>
+        {/* Mientras editas una foto (o la recortas), la pantalla entera es para la foto */}
+        <View style={[s.topbar, cropOpen && { display: 'none' }]}>
           <IconBtn name="arrow-left" onPress={closeEditor} s={s} t={c} />
           <View style={{ flex: 1, alignItems: 'center' }}>
             {!inTrash && (

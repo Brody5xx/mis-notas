@@ -196,14 +196,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #ieTextOk{border:none;background:#fff;color:#111;font-size:18px;font-weight:800;border-radius:14px;padding:0 16px}
   #ieHint{color:rgba(255,255,255,.7);text-align:center;font-size:13px;padding:2px 12px 4px;display:none}
   #ieHint.show{display:block}
-  #ieArea{flex:1;position:relative;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center;
-          padding-bottom:var(--ieBarH,120px)}
+  #ieArea{position:absolute;inset:0;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center;
+          padding-top:var(--ieTopH,90px);padding-bottom:var(--ieBarH,120px)}
+  /* Al acercar la foto, las barras se esconden (arriba sube, abajo baja) */
+  #ieTop{position:absolute;left:0;right:0;top:0;z-index:12;background:#000;transition:transform .28s ease,opacity .28s ease}
+  #imged.zoomed #ieTop{transform:translateY(-110%);opacity:0;pointer-events:none}
+  #imged #iebar{transition:transform .28s ease,opacity .28s ease !important}
+  #imged.zoomed #iebar{transform:translateY(160%) !important;opacity:0;pointer-events:none}
   #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25);transform-origin:center center;will-change:transform}
   #iebar{left:10px !important;right:10px;transform:none !important;max-width:none !important;bottom:14px !important;
          flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
   #iebar .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
   #imged #iebar{background:rgba(22,22,22,.88) !important;z-index:12}
-  #ieHead,#ieText,#ieHint{position:relative;z-index:12;background:#000}
   #iebar .db{flex:1 1 0;min-width:0;height:40px;padding:0 2px}
   #iebar .db[data-ie=size]{flex:1.6 1 0}
   #iebar .db[data-ie=color]{flex:1.2 1 0}
@@ -428,9 +432,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div id="spLayer"></div>
 <div class="panel" id="spell"></div>
 <div id="imged">
+  <div id="ieTop">
   <div id="ieHead"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
   <div id="ieText"><input id="ieInput" type="text" placeholder="${H('imgTextPh')}" maxlength="120"><button id="ieTextOk">✓</button></div>
   <div id="ieHint">${H('imgTapText')}</div>
+  </div>
   <div id="ieArea"><canvas id="ieCanvas"></canvas></div>
   <!-- Misma barra de las notas, para la foto -->
   <div class="dock" id="iebar">
@@ -1856,10 +1862,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ieHint.textContent = m === 'view' ? ${J('imgZoomHint')} : ${J('imgTapText')};
     ieHint.classList.toggle('show', m === 'text' || m === 'view');
     closePanels(); ieSyncBar(); if (IE.base) ieRedraw();
+    if (ieOn()) { ieMeasureTop(); ieFit(); }
   }
   function ieFit(){
     if (!IE.base) return;
-    var W = ieArea.clientWidth - 24, H = ieArea.clientHeight - parseFloat(getComputedStyle(ieArea).paddingBottom) - 24;
+    var cs = getComputedStyle(ieArea);
+    var W = ieArea.clientWidth - 24, H = ieArea.clientHeight - parseFloat(cs.paddingBottom) - parseFloat(cs.paddingTop) - 24;
     var k = Math.min(W / ieCv.width, H / ieCv.height);
     ieCv.style.width = Math.round(ieCv.width * k) + 'px';
     ieCv.style.height = Math.round(ieCv.height * k) + 'px';
@@ -1921,6 +1929,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       closePanels();
       imged.classList.add('show'); document.body.classList.add('ie');
       document.documentElement.style.setProperty('--ieBarH', (iebar.offsetHeight || 100) + 'px');
+      ieMeasureTop();
       send({ type: 'crop', open: true });
       ieFit(); ieZoomReset(); ieSetMode(mode || 'view');
     };
@@ -1959,6 +1968,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     IE.edit = op || null; IE.pend = op ? null : { x: x, y: y };
     ieInput.value = op ? op.v : '';
     ieTextBar.classList.add('show');
+    imged.classList.remove('zoomed');
     setTimeout(function(){ ieInput.focus(); }, 30);
     ieRedraw();
   }
@@ -1969,6 +1979,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       else if (IE.pend && v) { var op = ieNewOp(IE.pend.x, IE.pend.y, v); IE.ops.push(op); IE.sel = op; }
     }
     ieTextBar.classList.remove('show'); ieInput.blur();
+    if (ieOn()) ieZoomApply();
     IE.edit = null; IE.pend = null;
     if (IE.base) { ieSyncBar(); ieRedraw(); }
   }
@@ -2030,6 +2041,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (ZM.z <= 1.001) { ZM.z = 1; ZM.x = 0; ZM.y = 0; }
     ZM.x = Math.max(-mx, Math.min(mx, ZM.x)); ZM.y = Math.max(-my, Math.min(my, ZM.y));
     ieCv.style.transform = 'translate(' + ZM.x + 'px,' + ZM.y + 'px) scale(' + ZM.z + ')';
+    var hide = ZM.z > 1.02 && !ieTextBar.classList.contains('show');
+    if (hide && !imged.classList.contains('zoomed')) closePanels();
+    imged.classList.toggle('zoomed', hide);
+  }
+  function ieMeasureTop(){
+    var h = $('ieHead').offsetHeight + (ieHint.classList.contains('show') ? ieHint.offsetHeight : 0);
+    document.documentElement.style.setProperty('--ieTopH', (h || 60) + 'px');
   }
   function ieZoomReset(){ ZM.z = 1; ZM.x = 0; ZM.y = 0; ZM.pts = {}; ZM.pinch = null; ZM.pan = null; ieZoomApply(); }
   function zDist(){ var k = Object.keys(ZM.pts), a = ZM.pts[k[0]], b = ZM.pts[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; }
