@@ -2585,8 +2585,8 @@ export default function App() {
       {/* Menú lateral de cristal */}
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.scrim }}>
-          <Glass t={c} strong radius={28} style={s.sidebar}>
-           <ScrollView contentContainerStyle={s.sidebarInner}>
+          <Glass t={c} strong radius={28} style={s.sidebar} inner={{ flex: 1 }}>
+           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator={false}>
             <Text style={s.sideTitle}>{tr('appName')}</Text>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); setMenuOpen(false); }} activeOpacity={0.7}>
@@ -2759,8 +2759,8 @@ function makeStyles(c) {
       backgroundColor: c.text, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.5)',
     },
 
-    sidebar: { width: 290, maxWidth: '86%', margin: 10, marginTop: top + 10 },
-    sidebarInner: { paddingTop: 22, paddingHorizontal: 12, paddingBottom: 16 },
+    sidebar: { width: 290, maxWidth: '86%', margin: 10, marginTop: top + 10, marginBottom: 30, alignSelf: 'stretch', overflow: 'hidden' },
+    sidebarInner: { paddingTop: 22, paddingHorizontal: 12, paddingBottom: 40 },
     sideTitle: { fontSize: 21, fontWeight: '800', color: c.text, paddingHorizontal: 12, marginBottom: 18 },
     navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 12 },
     navIcon: { marginRight: 14 },
