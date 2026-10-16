@@ -104,8 +104,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #colorPanel.olmode #olNone{display:block}
   body.drawing #colorPanel #olNone{display:none}
   #colorPanel.noOl .ctabs,#colorPanel.noOl #olNone{display:none}
-  .cwrap{position:relative;width:220px;height:220px;margin:4px auto 10px;touch-action:none}
-  #wheel{width:220px;height:220px;border-radius:50%;display:block;touch-action:none;
+  .pleft{display:flex;align-items:center;gap:8px}
+  .pback{flex:none;width:38px;height:38px;border-radius:19px;border:1px solid ${c.border};background:rgba(255,255,255,.08);
+         color:${c.text};display:flex;align-items:center;justify-content:center;padding:0;transition:transform .12s}
+  .pback:active{transform:scale(.88)}
+  .cwrap{position:relative;width:200px;height:200px;margin:2px auto 8px;touch-action:none}
+  #wheel{width:200px;height:200px;border-radius:50%;display:block;touch-action:none;
          box-shadow:0 4px 18px rgba(0,0,0,.25)}
   #wheelKnob.glide{transition:left .5s cubic-bezier(.2,.8,.2,1),top .5s cubic-bezier(.2,.8,.2,1),background-color .5s}
   #wheelShade{position:absolute;inset:0;border-radius:50%;background:#000;opacity:0;pointer-events:none}
@@ -123,17 +127,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .cbRow{margin:4px 0 0 !important;gap:10px !important}
   .cbRow .szStep{width:36px;height:36px;border-radius:18px}
   #colorPanel,#fxPanel{max-height:calc(100vh - var(--dockH, 56px) - 40px - var(--kb));overflow-y:auto;overscroll-behavior:contain}
-  .cpal{padding:10px 2px 0}
-  .cplab{display:flex;align-items:center;gap:6px;font-size:12px;color:${c.muted};letter-spacing:.04em;margin:0 0 6px 2px}
-  .cprow{display:flex;align-items:center;gap:10px}
-  .cpsw{flex:1;min-width:0;display:flex;gap:10px;overflow-x:auto;padding:4px 2px 6px;scrollbar-width:none;min-height:44px;align-items:center}
+  .cpal{display:flex;align-items:center;gap:10px;padding:8px 2px 0}
+  .cplab{flex:none;width:86px;display:flex;align-items:center;gap:6px;font-size:12px;color:${c.muted};letter-spacing:.02em;
+         overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .cplab span{overflow:hidden;text-overflow:ellipsis}
+  .cprow{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+  .cpsw{flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;padding:3px 2px;scrollbar-width:none;min-height:40px;align-items:center}
   .cpsw::-webkit-scrollbar{display:none}
-  .cpsw .sw{flex:none;width:34px;height:34px;border-radius:17px;touch-action:pan-x;
+  .cpsw .sw{flex:none;width:32px;height:32px;border-radius:16px;touch-action:pan-x;
             transition:transform .18s ease,opacity .18s ease,box-shadow .15s}
   .cpsw .sw.bye{transform:scale(0);opacity:0}
   .cpsw .sw.hold{transform:scale(.82)}
-  .cpsw:empty:before{content:'—';color:${c.muted};font-size:14px;padding-left:6px}
-  .cpadd{flex:none;width:36px;height:36px;border-radius:18px;border:1.5px dashed ${c.muted};background:transparent;color:${c.text};
+  .cpsw:empty:before{content:'—';color:${c.muted};font-size:14px;padding-left:4px}
+  .cpadd{flex:none;width:34px;height:34px;border-radius:17px;border:1.5px dashed ${c.muted};background:transparent;color:${c.text};
          display:flex;align-items:center;justify-content:center;padding:0;transition:transform .12s}
   .cpadd:active{transform:scale(.88)}
   .sw.pop{animation:swPop .35s ease}
@@ -417,7 +423,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Panel de resaltador / contorno -->
 <div class="panel" id="fxPanel">
-  <div class="ptitle"><span id="fxTitle">${H('highlighter')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
+  <div class="ptitle"><div class="pleft"><button class="pback" data-close="1" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><span id="fxTitle">${H('highlighter')}</span></div><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sws" id="fxSws">${swatches}</div>
   <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><span>${H('colRecent')}</span></div><div class="cpsw" id="fxRecent"></div></div>
   <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><span>${H('colFav')}</span></div><div class="cprow"><div class="cpsw" id="fxFav"></div><button class="cpadd" id="fxFavAdd" title="${H('colFavHint')}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div></div>
@@ -427,10 +433,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <!-- Panel de colores -->
 <div class="panel" id="colorPanel">
   <div class="ptitle">
+    <div class="pleft"><button class="pback" data-close="1" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     <span id="ctitle">${H('penColor')}</span>
     <div class="ctabs" id="ctabs">
       <button class="ctab on" data-ctab="text" title="${H('letterColor')}"><svg width="26" height="26" viewBox="0 0 24 24"><defs><linearGradient id="rb" x1="0" x2="1"><stop offset="0" stop-color="#ff3b30"/><stop offset=".25" stop-color="#ffcc00"/><stop offset=".5" stop-color="#34c759"/><stop offset=".75" stop-color="#0a84ff"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs><text x="12" y="16.5" text-anchor="middle" font-size="16" font-weight="800" font-family="Arial,sans-serif" fill="currentColor">A</text><rect x="4" y="19" width="16" height="3.2" rx="1.6" fill="url(#rb)"/></svg></button>
       <button class="ctab" data-ctab="ol" title="${H('outline')}"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="12" y="17.3" text-anchor="middle" font-size="15" font-weight="900" font-family="Arial,sans-serif" fill="currentColor" stroke="#ff7a2a" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">A</text></svg></button>
+    </div>
     </div>
     <button class="pclose" data-close="1">${H('done')}</button>
   </div>
@@ -958,9 +966,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function showWheel(){
     var hex = hsvToHex(HSV.h, HSV.s, HSV.v);
-    var a = HSV.h * Math.PI / 180, rr = HSV.s * 110;
-    knob.style.left = (110 + Math.cos(a) * rr) + 'px';
-    knob.style.top = (110 + Math.sin(a) * rr) + 'px';
+    var a = HSV.h * Math.PI / 180, rr = HSV.s * 100;
+    knob.style.left = (100 + Math.cos(a) * rr) + 'px';
+    knob.style.top = (100 + Math.sin(a) * rr) + 'px';
     knob.style.background = hex;
     shade.style.opacity = String(1 - HSV.v);
     bright.value = Math.round(HSV.v * 100);
