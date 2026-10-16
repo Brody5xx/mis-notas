@@ -1160,6 +1160,7 @@ function NotesApp() {
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
   const revStarsDone = useRef(false);
+  const revSeed = useRef(null);             // la tarjeta de cristal mientras se abre la nota
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
