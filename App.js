@@ -948,7 +948,7 @@ function makeGhost(rect, W, H, color, full) {
     (full ? 'transform:none;opacity:0' : 'transform:translate(' + tx + 'px,' + ty + 'px) scale(' + sx + ',' + sy + ')');
   // capa sólida (empieza invisible): el cristal "se empaña" justo antes de mostrar la nota
   const solid = document.createElement('div');
-  solid.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;background:' + color + ';opacity:' + (full ? 1 : 0) + ';will-change:opacity';
+  solid.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;background:' + color + ';opacity:1;will-change:opacity';
   d.appendChild(solid);
   d._solid = solid;
   document.body.appendChild(d);
@@ -1205,7 +1205,7 @@ function NotesApp() {
         // se abre y se desvanece hacia ti, dejando ver la nota (no se mezcla con la pantalla de inicio)
         // 1) el cristal se empaña (se vuelve sólido)  2) detrás ya está la nota entera, sin la pantalla
         //    de inicio  3) el cristal se abre hacia ti y se desvanece dejando ver la nota
-        st.ghost._solid.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-in', fill: 'forwards' }).onfinish = () => {
+        const go = () => {
           el.style.opacity = '';
           setHomeVis(false);
           requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1214,6 +1214,7 @@ function NotesApp() {
               .onfinish = () => { if (st.ghost.parentNode) st.ghost.remove(); finish(); };
           }));
         };
+        go();
       };
       const isReady = () => { if (ready) return; ready = true; requestAnimationFrame(() => requestAnimationFrame(st.check)); };
       const fr2 = iframeRef.current;
