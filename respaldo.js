@@ -263,3 +263,29 @@ export async function openBackup(text, password) {
   const plain = await chacha20(encKey, nonce, ct);
   try { return JSON.parse(utf8Decode(plain)); } catch (e) { throw new Error('file'); }
 }
+
+/* ============================================================
+   BÓVEDA: llaves que se quedan en memoria mientras está abierta
+   y "sobres" cifrados para cada cosa que guardas.
+   Sobre = nonce (12) + sello (32) + datos cifrados
+   ============================================================ */
+export async function vaultKeys(password, salt, iter) {
+  const k = await pbkdf2(utf8Encode(password), salt, iter || ITER, 2);
+  return { enc: k.slice(0, 32), mac: k.slice(32, 64) };
+}
+export async function seal(keys, bytes) {
+  const nonce = randomBytes(12);
+  const ct = await chacha20(keys.enc, nonce, bytes);
+  const tag = await macOf(keys.mac, new Uint8Array(0), nonce, ct);
+  const out = new Uint8Array(44 + ct.length);
+  out.set(nonce, 0); out.set(tag, 12); out.set(ct, 44);
+  return out;
+}
+export async function unseal(keys, data) {
+  if (!data || data.length < 44) throw new Error('file');
+  const nonce = data.subarray(0, 12), tag = data.subarray(12, 44), ct = data.subarray(44);
+  const want = await macOf(keys.mac, new Uint8Array(0), nonce, ct);
+  if (!sameBytes(want, tag)) throw new Error('pass');
+  return chacha20(keys.enc, nonce, ct);
+}
+export { randomBytes, b64Encode, b64Decode, utf8Encode, utf8Decode };

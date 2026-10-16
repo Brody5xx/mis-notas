@@ -13,6 +13,7 @@ import { buildEditorHtml } from './editor';
 import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
+import Vault from './boveda';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -848,6 +849,7 @@ export default function App() {
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
   const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
+  const [vaultOpen, setVaultOpen] = useState(false);        // la bóveda cifrada
   const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
@@ -2377,6 +2379,7 @@ export default function App() {
       <View style={s.topbar}>
         <IconBtn name="menu" onPress={() => setMenuOpen(true)} s={s} t={c} />
         <IconBtn set="mci" name="calculator-variant-outline" onPress={() => setCalcOpen('home')} s={s} t={c} />
+        <IconBtn set="mci" name="shield-lock-outline" onPress={() => setVaultOpen(true)} s={s} t={c} />
         <View style={{ flex: 1 }} />
         <IconBtn name="search" onPress={toggleSearch} s={s} t={c} />
         <IconBtn set="mci" name="sort" onPress={() => setSortOpen(true)} s={s} t={c} />
@@ -2659,6 +2662,10 @@ export default function App() {
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setVaultOpen(true); }}>
+              <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('vault')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
               <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
@@ -2690,6 +2697,7 @@ export default function App() {
       {shareLayer}
       <TransferModal visible={transferOpen} onClose={() => setTransferOpen(false)}
         onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} />
+      <Vault visible={vaultOpen} onClose={() => setVaultOpen(false)} s={s} t={c} tr={tr} Glass={Glass} />
       {sortSheet}
       {langSheet}
       {folderModal}

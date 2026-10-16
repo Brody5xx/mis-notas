@@ -6,3 +6,4 @@ calc.js
 compartir.native.js
 compartir.web.js
 respaldo.js
+boveda.js
