@@ -785,6 +785,66 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
   );
 }
 
+/* ============================================================
+   RAYOS ELÉCTRICOS (cuando el menú se apaga en una línea de luz)
+   Varios rayos en zigzag salen de la línea y parpadean.
+   ============================================================ */
+function makeBolts(H, seed) {
+  let x = seed * 9301 + 49297;
+  const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+  const bolts = [];
+  for (let g = 0; g < 3; g++) {
+    for (let b = 0; b < 4; b++) {
+      let px = 0, py = 20 + rnd() * (H - 40);
+      const dir = rnd() < 0.8 ? 1 : -1;                  // casi todos hacia la derecha
+      const segs = [];
+      const n = 4 + Math.floor(rnd() * 5);
+      for (let i = 0; i < n; i++) {
+        const nx = px + dir * (10 + rnd() * 20), ny = py + (i % 2 ? 1 : -1) * (8 + rnd() * 22);   // zigzag bien marcado
+        segs.push([px, py, nx, ny]);
+        if (i === 2 && rnd() < 0.6) {                    // una ramita
+          segs.push([nx, ny, nx + dir * (10 + rnd() * 16), ny + (rnd() - 0.5) * 40]);
+        }
+        px = nx; py = ny;
+      }
+      bolts.push({ g, segs });
+    }
+  }
+  return bolts;
+}
+const FLICK_IN = [0, 0.66, 0.7, 0.74, 0.79, 0.84, 0.9, 0.96, 1.02, 1.07, 1.12, 1.17, 1.22, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
+const FLICK = [
+  [0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+];
+function Lightning({ anim, sy, top, height }) {
+  const bolts = useMemo(() => makeBolts(height, Math.floor(height)), [height]);
+  const ops = useMemo(() => FLICK.map(o => anim.interpolate({ inputRange: FLICK_IN, outputRange: o })), [anim]);
+  const seg = (k, [x1, y1, x2, y2], glow) => {
+    const len = Math.hypot(x2 - x1, y2 - y1), ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+    const h = glow ? 7 : 2.2;
+    return (
+      <View key={k} style={{ position: 'absolute', left: (x1 + x2) / 2 - len / 2, top: (y1 + y2) / 2 - h / 2, width: len + 1, height: h,
+        borderRadius: h, backgroundColor: glow ? 'rgba(120,200,255,0.35)' : '#eaf7ff', transform: [{ rotate: ang + 'deg' }] }} />
+    );
+  };
+  return (
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 12, top, height, width: 240, transform: [{ scaleY: sy }] }}>
+      {[0, 1, 2].map(g => (
+        <Animated.View key={g} style={[StyleSheet.absoluteFill, { opacity: ops[g] }]}>
+          {bolts.filter(b => b.g === g).map((b, i) => (
+            <View key={i} style={StyleSheet.absoluteFill}>
+              {b.segs.map((sg, j) => seg('g' + j, sg, true))}
+              {b.segs.map((sg, j) => seg('c' + j, sg, false))}
+            </View>
+          ))}
+        </Animated.View>
+      ))}
+    </Animated.View>
+  );
+}
+
 /* Flecha de regresar (para los paneles que se abren desde el menú) */
 function BackBtn({ onPress, t, style }) {
   return (
@@ -840,7 +900,7 @@ export default function App() {
     const nd = Platform.OS !== 'web';
     Animated.sequence([
       Animated.timing(menuOff, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: nd }),  // se aplasta en línea de luz
-      Animated.delay(140),                                                                                                 // la línea brilla un momento
+      Animated.timing(menuOff, { toValue: 1.2, duration: 380, easing: Easing.linear, useNativeDriver: nd }),              // la línea zumba con rayos
       Animated.timing(menuOff, { toValue: 2, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: nd }),    // la línea se encoge y se apaga
     ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
   }
@@ -849,8 +909,8 @@ export default function App() {
     menuIn.interpolate({ inputRange: [0, 1], outputRange: [-MENU_W - 20, 0] }),
     menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -(MENU_W / 2) * 0.985, -(MENU_W / 2) * 0.985] }));
   const menuSX = menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.015, 0.015] });
-  const menuSY = menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1, 0.001] });
-  const menuGlow = menuOff.interpolate({ inputRange: [0, 0.5, 1, 1.7, 2], outputRange: [0, 0.35, 1, 1, 0] });
+  const menuSY = menuOff.interpolate({ inputRange: [0, 1.2, 2], outputRange: [1, 1, 0.001] });
+  const menuGlow = menuOff.interpolate({ inputRange: [0, 0.5, 1, 1.85, 2], outputRange: [0, 0.35, 1, 1, 0] });
   const menuOpacity = Animated.multiply(menuIn.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
     menuOff.interpolate({ inputRange: [0, 1.8, 2], outputRange: [1, 1, 0] }));
   const menuScrim = Animated.multiply(menuIn, menuOff.interpolate({ inputRange: [0, 2], outputRange: [1, 0] }));
@@ -2763,6 +2823,9 @@ export default function App() {
               shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
           </Animated.View>
           <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
+          <Lightning anim={menuOff} sy={menuSY}
+            top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
+            height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
         </View>
       </Modal>
 
