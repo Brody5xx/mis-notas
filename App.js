@@ -1190,12 +1190,13 @@ function NotesApp() {
       st.check = () => {
         if (done || !st.grown || !ready) return; done = true;
         // la nota aparece desde adentro del cristal (un poquito más grande → a su tamaño)
+        // la nota ya está entera DEBAJO del cristal (opaca, sin transparencias); luego el cristal
+        // se abre y se desvanece hacia ti, dejando ver la nota (no se mezcla con la pantalla de inicio)
+        el.style.opacity = '';
         requestAnimationFrame(() => {
-          const a = el.animate([{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'scale(1)' }],
-            { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
-          st.ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' })
-            .onfinish = () => { if (st.ghost.parentNode) st.ghost.remove(); };
-          a.onfinish = () => { a.cancel(); el.style.opacity = ''; finish(); };
+          st.ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate(-4%,-4%) scale(1.08)', offset: 1 }],
+            { duration: 260, easing: 'cubic-bezier(.3,.6,.3,1)', fill: 'forwards' })
+            .onfinish = () => { if (st.ghost.parentNode) st.ghost.remove(); finish(); };
         });
       };
       const isReady = () => { if (ready) return; ready = true; requestAnimationFrame(() => requestAnimationFrame(st.check)); };
