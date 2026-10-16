@@ -786,23 +786,26 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
 }
 
 /* ============================================================
-   ESTRELLITAS ✨ (cuando el menú se apaga en una línea de luz)
-   Estrellitas blancas diminutas salen de la línea, flotan
-   suavecito hacia afuera y se desvanecen.
+   ESTRELLITAS ✨ (rastro del menú al cerrarse)
+   Mientras el panel se va encogiendo hacia la izquierda, va
+   dejando un rastro de estrellitas que se prenden y se apagan
+   (titilan) y desaparecen detrás del panel, de derecha a izquierda.
    ============================================================ */
+const MENU_PANEL_W = 290;
 function makeStars(H, seed) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
   const stars = [];
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 38; i++) {
+    const px = 6 + rnd() * (MENU_PANEL_W - 12);
+    const passed = (1 - px / MENU_PANEL_W) / 0.985;      // cuándo pasa el borde del panel por aquí
+    const start = Math.max(0.02, Math.min(1.05, passed - 0.04 + rnd() * 0.05));
     stars.push({
-      y: 10 + rnd() * (H - 20),
-      dx: 14 + rnd() * 70,                 // hacia la derecha
-      dy: -(8 + rnd() * 46),               // flotando un poquito hacia arriba
-      size: 5 + rnd() * 7,                 // diminutas
-      start: 0.78 + rnd() * 0.62,          // salen en momentos distintos
-      life: 0.42 + rnd() * 0.18,
-      spin: (rnd() < 0.5 ? -1 : 1) * (40 + rnd() * 120),
+      x: px, y: 8 + rnd() * (H - 16),
+      start, life: 0.26 + rnd() * 0.16,
+      size: 4 + rnd() * 6,                               // diminutas
+      drift: -(4 + rnd() * 14),                          // se van un poquito hacia la izquierda
+      spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
     });
   }
   return stars;
@@ -810,19 +813,19 @@ function makeStars(H, seed) {
 function Sparkles({ anim, top, height }) {
   const stars = useMemo(() => makeStars(height, Math.floor(height)), [height]);
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: 160 }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: MENU_PANEL_W }}>
       {stars.map((st, i) => {
-        const a = st.start, m = a + st.life * 0.35, z = Math.min(1.97, a + st.life);
-        const range = { inputRange: [0, a, m, z, 2], extrapolate: 'clamp' };
-        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0, 0] });
-        const tx = anim.interpolate({ ...range, outputRange: [0, 0, st.dx * 0.45, st.dx, st.dx] });
-        const ty = anim.interpolate({ ...range, outputRange: [0, 0, st.dy * 0.45, st.dy, st.dy] });
-        const sc = anim.interpolate({ ...range, outputRange: [0.2, 0.2, 1, 0.35, 0.35] });
-        const rot = anim.interpolate({ ...range, outputRange: ['0deg', '0deg', st.spin * 0.4 + 'deg', st.spin + 'deg', st.spin + 'deg'] });
+        const a = st.start, l = st.life;
+        const inR = [0, a, a + l * 0.18, a + l * 0.4, a + l * 0.6, a + l * 0.8, Math.min(1.97, a + l), 2];
+        const range = { inputRange: inR, extrapolate: 'clamp' };
+        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0.2, 0.95, 0.15, 0, 0] });   // titila
+        const sc = anim.interpolate({ ...range, outputRange: [0.2, 0.2, 1, 0.7, 1, 0.6, 0.2, 0.2] });
+        const tx = anim.interpolate({ ...range, outputRange: [0, 0, st.drift * 0.2, st.drift * 0.4, st.drift * 0.6, st.drift * 0.8, st.drift, st.drift] });
+        const rot = anim.interpolate({ ...range, outputRange: ['0deg', '0deg', st.spin * 0.2 + 'deg', st.spin * 0.4 + 'deg', st.spin * 0.6 + 'deg', st.spin * 0.8 + 'deg', st.spin + 'deg', st.spin + 'deg'] });
         return (
-          <Animated.Text key={i} style={{ position: 'absolute', left: 0, top: st.y, color: '#ffffff', fontSize: st.size,
-            textShadowColor: 'rgba(170,220,255,0.95)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 },
-            opacity, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }, { rotate: rot }] }}>✦</Animated.Text>
+          <Animated.Text key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
+            textShadowColor: 'rgba(200,230,255,0.95)', textShadowRadius: 5, textShadowOffset: { width: 0, height: 0 },
+            opacity, transform: [{ translateX: tx }, { scale: sc }, { rotate: rot }] }}>✦</Animated.Text>
         );
       })}
     </View>
