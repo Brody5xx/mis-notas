@@ -107,6 +107,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .cwrap{position:relative;width:220px;height:220px;margin:4px auto 10px;touch-action:none}
   #wheel{width:220px;height:220px;border-radius:50%;display:block;touch-action:none;
          box-shadow:0 4px 18px rgba(0,0,0,.25)}
+  #wheelKnob.glide{transition:left .5s cubic-bezier(.2,.8,.2,1),top .5s cubic-bezier(.2,.8,.2,1),background-color .5s}
   #wheelShade{position:absolute;inset:0;border-radius:50%;background:#000;opacity:0;pointer-events:none}
   #wheelKnob{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;
              border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.4);
@@ -714,6 +715,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var s = window.getSelection();
     if (s.rangeCount) saved = s.getRangeAt(0).cloneRange();
   }
+  /* Elemento de la primera letra seleccionada (para saber su color y tamaño reales) */
+  function selLetterEl(r){
+    if (!r) return null;
+    var root = r.commonAncestorContainer;
+    if (root.nodeType === 3) return root.parentElement;
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), t;
+    while ((t = w.nextNode())) {
+      if (!r.intersectsNode(t)) continue;
+      var a = t === r.startContainer ? r.startOffset : 0, b = t === r.endContainer ? r.endOffset : t.length;
+      if (t.data.slice(a, b).replace(/[\u200B\s]/g, '')) return t.parentElement;
+    }
+    var n = r.startContainer;
+    return n.nodeType === 1 ? n : n.parentElement;
+  }
   function updateState(){
     ['bold', 'italic', 'underline'].forEach(function(cmd){
       var b = dock.querySelector('[data-cmd=' + cmd + ']');
@@ -722,7 +737,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var n = saved && saved.startContainer;
     var L = listOf(n), lk = !L ? '' : L.tagName === 'OL' ? 'ol' : L.classList.contains('checklist') ? 'check' : 'ul';
     dock.querySelectorAll('[data-list]').forEach(function(b){ b.classList.toggle('on', b.dataset.list === lk); });
-    var el = n && (n.nodeType === 1 ? n : n.parentElement);
+    var el = saved && (saved.collapsed ? (n.nodeType === 1 ? n : n.parentElement) : selLetterEl(saved));
     if (el && owner(el)) {
       var cs = getComputedStyle(el);
       sizeNum.textContent = Math.round(parseFloat(cs.fontSize));
@@ -868,6 +883,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     colorPanel.classList.toggle('olmode', m === 'ol');
     colorPanel.querySelectorAll('.ctab').forEach(function(b){ b.classList.toggle('on', b.dataset.ctab === m); });
     colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.remove('on'); });
+    knob.classList.add('glide'); setTimeout(function(){ knob.classList.remove('glide'); }, 600);
     syncWheel(m === 'ol' ? lastOutline : getComputedStyle(colorDot).backgroundColor);
   }
   $('ctabs').addEventListener('mousedown', function(e){ e.preventDefault(); });
@@ -912,7 +928,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     return '#' + to(f(5)) + to(f(3)) + to(f(1));
   }
   function cssToHsv(css){
-    var m = String(css || '').match(/\d+(\.\d+)?/g);
+    var m = String(css || '').match(/\\d+(\\.\\d+)?/g);
     var r, g, b;
     if (/^#([0-9a-f]{6})$/i.test(css)) { var n = parseInt(css.slice(1), 16); r = n >> 16; g = (n >> 8) & 255; b = n & 255; }
     else if (m && m.length >= 3) { r = +m[0]; g = +m[1]; b = +m[2]; }
@@ -1200,9 +1216,21 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (p === colorPanel) {
       if (ieOn()) { setCMode('text'); syncWheel(IE.sel ? IE.sel.c : IE.color); colorPanel.classList.toggle('noOl', IE.mode !== 'text'); return; }
       colorPanel.classList.remove('noOl');
-      syncWheel(drawing ? penColor : getComputedStyle(colorDot).backgroundColor);
+      var picked = null;
+      if (!drawing) {                                   // el color que ya tienen las letras seleccionadas
+        var se = saved && selLetterEl(saved);
+        if (se && owner(se)) {
+          var cs = getComputedStyle(se);
+          picked = cs.color; colorDot.style.background = picked;
+          var olc = cs.webkitTextStrokeWidth && parseFloat(cs.webkitTextStrokeWidth) > 0 ? cs.webkitTextStrokeColor : null;
+          if (olc) lastOutline = olc;
+        }
+      }
+      knob.classList.add('glide'); setTimeout(function(){ knob.classList.remove('glide'); }, 600);
+      syncWheel(drawing ? penColor : (picked || getComputedStyle(colorDot).backgroundColor));
       if (drawing) cmode = 'text';
       else setCMode('text');
+      if (picked && saved && !saved.collapsed && toHex(picked) !== toHex(getComputedStyle(ed).color)) addRecent(picked);   // el color normal no cuenta   // queda en Recientes para usarlo en otras letras
     }
   }
   document.querySelectorAll('[data-close]').forEach(function(b){ b.addEventListener('click', closePanels); });
