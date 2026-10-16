@@ -2387,11 +2387,10 @@ export default function App() {
           </TouchableOpacity>
         </View>
       ) : (
-      <View style={s.topbar}>
+      <View style={[s.topbar, { justifyContent: 'space-between' }]}>
         <IconBtn name="menu" onPress={() => setMenuOpen(true)} s={s} t={c} />
         <IconBtn set="mci" name="calculator-variant-outline" onPress={() => setCalcOpen('home')} s={s} t={c} />
         <IconBtn set="mci" name="shield-lock-outline" onPress={() => setVaultOpen(true)} s={s} t={c} />
-        <View style={{ flex: 1 }} />
         <IconBtn set="mci" name="sort" onPress={() => setSortOpen(true)} s={s} t={c} />
         <IconBtn name={isGrid ? 'list' : 'grid'} onPress={() => setLayout(isGrid ? 'list' : 'grid')} s={s} t={c} />
         <IconBtn name={dark ? 'sun' : 'moon'} onPress={() => setDark(!dark)} s={s} t={c} />
