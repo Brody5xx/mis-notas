@@ -832,15 +832,16 @@ export default function App() {
     if (!menuOpen) return;
     menuClosing.current = false;
     menuOff.setValue(0); menuIn.setValue(0);
-    Animated.spring(menuIn, { toValue: 1, friction: 9, tension: 80, useNativeDriver: Platform.OS !== 'web' }).start();
+    Animated.timing(menuIn, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(1.1)), useNativeDriver: Platform.OS !== 'web' }).start();
   }, [menuOpen]);
   function closeMenu(after) {
     if (menuClosing.current) return;
     menuClosing.current = true;
     const nd = Platform.OS !== 'web';
     Animated.sequence([
-      Animated.timing(menuOff, { toValue: 1, duration: 230, easing: Easing.in(Easing.cubic), useNativeDriver: nd }),
-      Animated.timing(menuOff, { toValue: 2, duration: 170, easing: Easing.in(Easing.quad), useNativeDriver: nd }),
+      Animated.timing(menuOff, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: nd }),  // se aplasta en línea de luz
+      Animated.delay(140),                                                                                                 // la línea brilla un momento
+      Animated.timing(menuOff, { toValue: 2, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: nd }),    // la línea se encoge y se apaga
     ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
   }
   const MENU_W = 290;
