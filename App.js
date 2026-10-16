@@ -901,12 +901,12 @@ const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círcu
 const ND = Platform.OS !== 'web';
 const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 /* Cuadros del círculo líquido (para la web): se mueve como agua y termina redondo */
-function liquidFrames(x, y, W, H, opening, R0 = 0) {
+function liquidFrames(x, y, W, H, opening) {
   const K = 40, P = 36, out = [];
   const Rmax = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 12;
   for (let k = 0; k <= K; k++) {
-    const t = k / K, e = R0 ? 1 - Math.pow(1 - t, 3) : easeIO(t);   // si ya hay semilla, sigue desde ahí sin frenar
-    const R = Math.max(0.5, R0 + e * (Rmax - R0));
+    const t = k / K, e = easeIO(t);
+    const R = Math.max(0.5, e * Rmax);
     const amp = 0.15 * Math.pow(1 - e, 1.4);
     const ph = t * Math.PI * 2.6;
     const pts = [];
@@ -919,54 +919,6 @@ function liquidFrames(x, y, W, H, opening, R0 = 0) {
   }
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
-}
-/* Círculo líquido (web) hecho SOLO con transform/opacity: lo mueve la tarjeta gráfica,
-   así sigue perfectamente fluido aunque el teléfono esté ocupado preparando la nota. */
-function makeCover(o, W, H, color, full) {
-  if (typeof document === 'undefined') return null;
-  const R = Math.hypot(Math.max(o.x, W - o.x), Math.max(o.y, H - o.y)) + 24, D = R * 2;
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;left:' + (o.x - R) + 'px;top:' + (o.y - R) + 'px;width:' + D + 'px;height:' + D +
-    'px;border-radius:50%;background:' + color + ';pointer-events:none;z-index:2147482000;will-change:transform,opacity;' +
-    'backface-visibility:hidden;transform:' + (full ? 'none;opacity:0' : 'scale(0.004)');
-  document.body.appendChild(d);
-  return d;
-}
-function coverFrames(opening) {
-  const K = 36, out = [];
-  for (let k = 0; k <= K; k++) {
-    const t = k / K;
-    const e = opening ? 1 - Math.pow(1 - t, 3) : Math.pow(t, 2.2);          // abrir: arranca rápido · cerrar: termina rápido
-    const sc = Math.max(0.004, opening ? e : 1 - e);
-    const calm = opening ? Math.pow(1 - e, 1.2) : Math.pow(e, 0.9) * (1 - Math.pow(t, 6));
-    const w = 0.16 * Math.sin(t * Math.PI * 3.4) * calm;                    // se estira y se aplasta como agua
-    const rot = 14 * Math.sin(t * Math.PI * 2.2) * calm;
-    out.push({ offset: t, transform: 'rotate(' + rot.toFixed(2) + 'deg) scale(' + (sc * (1 + w)).toFixed(4) + ',' + (sc * (1 - w)).toFixed(4) + ')' });
-  }
-  return out;
-}
-/* Abrir: crece (73%) y luego se desvanece (27%) en UNA sola animación de la tarjeta gráfica,
-   así no depende de que el teléfono esté libre para seguir */
-const OPEN_MS = 820, OPEN_GROW = 0.73;
-/* Anillo líquido TRANSPARENTE: solo el borde brilla; adentro se ve lo de atrás (nunca hay pantalla oscura) */
-const RING_BG = 'radial-gradient(circle, rgba(200,235,255,0.06) 0 90%, rgba(170,230,255,0.28) 95.5%, rgba(255,255,255,0.85) 98.6%, rgba(255,255,255,0) 100%)';
-function ringFrames(opening) {
-  const fr = coverFrames(opening);
-  const n = fr.length - 1;
-  return fr.map((f, i) => {
-    const t = i / n;
-    const op = opening ? (t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3) : (t < 0.15 ? t / 0.15 : t > 0.85 ? (1 - t) / 0.15 : 1);
-    return { ...f, opacity: +op.toFixed(3) };
-  });
-}
-function openCoverFrames() {
-  return coverFrames(true).map(f => ({ ...f, offset: f.offset * OPEN_GROW, opacity: 1 }))
-    .concat([{ offset: 1, transform: 'none', opacity: 0 }]);
-}
-function dropCover(d, ms) {
-  if (!d) return;
-  const a = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms || 220, easing: 'ease-out', fill: 'forwards' });
-  a.onfinish = () => { if (d.parentNode) d.parentNode.removeChild(d); };
 }
 /* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
 function ringStars(o, W, H, opening, Rmax) {
@@ -1142,8 +1094,6 @@ function NotesApp() {
   const revBusy = useRef(false);
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
-  const revSeed = useRef(null);
-  const homeCache = useRef(null);           // pantalla de inicio guardada mientras hay una nota abierta
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1167,25 +1117,20 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const st = revSeed.current || { t0: Date.now() }; revSeed.current = null;
-      // La nota se prepara invisible; mientras, se sigue viendo la pantalla de inicio con el anillo.
-      // Cuando ya está DIBUJADA, aparece suavecito (nunca se ve una pantalla oscura esperando).
-      el.style.opacity = '0';
-      let shown = false;
-      const show = () => {
-        if (shown) return; shown = true;
-        requestAnimationFrame(() => requestAnimationFrame(() => {      // 2 cuadros = ya está pintada
-          const wait = Math.max(0, 300 - (Date.now() - st.t0));       // que el anillo alcance a crecer un poco
-          setTimeout(() => {
-            const a = el.animate([{ opacity: 0, transform: 'scale(1.035)' }, { opacity: 1, transform: 'scale(1)' }],
-              { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
-            a.onfinish = () => { a.cancel(); el.style.opacity = ''; finish(); };
-          }, wait);
-        }));
+      const fr = liquidFrames(o.x, o.y, width, winH, true);
+      el.style.clipPath = fr[0].clipPath;
+      let started = false;
+      const go = () => {
+        if (started) return; started = true;
+        requestAnimationFrame(() => {
+          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          startStars(o, true, 640);
+          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
+        });
       };
       const fr2 = iframeRef.current;
-      if (fr2) fr2.addEventListener('load', () => setTimeout(show, 30), { once: true });
-      setTimeout(show, 900);                                    // por si acaso
+      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
+      setTimeout(go, 150);                 // no espera más que esto: se siente al instante
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1252,25 +1197,6 @@ function NotesApp() {
     AsyncStorage.getItem('colorPrefs').then(v => { if (v) colorPrefs.current = JSON.parse(v); }).catch(() => {});
     AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
   }, []);
-  /* Web: al arrancar, se "calienta" el editor una vez en secreto (fuera de la pantalla).
-     Así la PRIMERA nota que abras carga igual de rápido que las demás. */
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !loaded || typeof document === 'undefined') return;
-    const tm = setTimeout(() => {
-      try {
-        try { new Intl.Segmenter(LOCALE, { granularity: 'word' }).segment('a b'); new Date().toLocaleString(LOCALE, { month: 'short' }); } catch (e) {}
-        const f = document.createElement('iframe');
-        f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
-        f.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + width + 'px;height:' + winH + 'px;border:0;opacity:0;pointer-events:none';
-        f.srcdoc = buildEditorHtml({ id: 'warm', content: '<div>Hola</div>', titleHtml: 'T', updated: Date.now(), editable: true, c,
-          kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current });
-        document.body.appendChild(f);
-        setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 2500);
-      } catch (e) {}
-    }, 1200);
-    return () => clearTimeout(tm);
-  }, [loaded]);
-
   const webRef = useRef(null);
 
   const c = dark ? THEMES.dark : THEMES.light;
@@ -1379,16 +1305,11 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { closeEditorNow(); return; }
-      // La nota se desvanece mientras el anillo líquido se encoge hacia donde la abriste
-      requestAnimationFrame(() => {
-        const cv = makeCover(o, width, winH, RING_BG, true);
-        if (cv) cv.animate(ringFrames(false), { duration: 600, easing: 'linear', fill: 'forwards' }).onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
         startStars(o, false, 600);
-        el.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.965)' }],
-          { duration: 280, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' }).onfinish = () => {
-          setTimeout(() => closeEditorNow(), 0);
-        };
-      });
+        an.onfinish = () => closeEditorNow();
+      }));
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
@@ -2057,17 +1978,6 @@ function NotesApp() {
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
     revP.setValue(0);
     revPending.current = 'open';
-    if (Platform.OS === 'web') {
-      // 1) el círculo líquido y las estrellitas salen YA (aunque el teléfono esté ocupado)
-      const cv = makeCover(DROP.openPt, width, winH, RING_BG, false);
-      const st = { cover: cv, t0: Date.now() };
-      revSeed.current = st;
-      if (cv) cv.animate(ringFrames(true), { duration: 640, easing: 'linear', fill: 'forwards' }).onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
-      startStars(DROP.openPt, true, 640);
-      // 2) en el siguiente cuadro se prepara la nota (lo pesado) debajo, escondida
-      requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
-      return;
-    }
     setRevealing(true);
     setCurrentId(id);
   }
@@ -3035,7 +2945,7 @@ function NotesApp() {
       </View>
   );
 
-  const buildHome = () => (
+  const homeView = (
     <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
       <Background t={c} wall={seeNow ? null : wallpaper} blur={wallBlur} see={seeNow} />
       <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
@@ -3271,10 +3181,6 @@ function NotesApp() {
       {!current && toast}
     </View>
   );
-  /* Mientras una nota está abierta (o abriéndose), la pantalla de inicio no cambia:
-     se reusa la misma de antes y así React no la vuelve a armar (todo va más rápido) */
-  if (!current || !homeCache.current) homeCache.current = buildHome();
-  const homeView = homeCache.current;
 
   /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
@@ -3283,8 +3189,7 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View pointerEvents={current && !revealing ? 'none' : 'auto'}
-        style={[{ flex: 1 }, current && !revealing && (Platform.OS === 'web' ? { opacity: 0 } : { display: 'none' })]}>{homeView}</View>
+      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
