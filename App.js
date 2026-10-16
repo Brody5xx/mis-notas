@@ -1834,11 +1834,11 @@ export default function App() {
       if (newOpen) { setNewOpen(false); return true; }
       if (currentId) { closeEditor(); return true; }
       if (menuOpen) { setMenuOpen(false); return true; }
-      if (searchOpen) { setSearchOpen(false); setQuery(''); return true; }
+      if (query) { setQuery(''); return true; }
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, searchOpen, cropOpen, spellOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
+  }, [currentId, menuOpen, query, cropOpen, spellOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
 
   /* ---------- Notas que se muestran ---------- */
   useEffect(() => { setSelected({}); }, [view]);
@@ -2392,7 +2392,6 @@ export default function App() {
         <IconBtn set="mci" name="calculator-variant-outline" onPress={() => setCalcOpen('home')} s={s} t={c} />
         <IconBtn set="mci" name="shield-lock-outline" onPress={() => setVaultOpen(true)} s={s} t={c} />
         <View style={{ flex: 1 }} />
-        <IconBtn name="search" onPress={toggleSearch} s={s} t={c} />
         <IconBtn set="mci" name="sort" onPress={() => setSortOpen(true)} s={s} t={c} />
         <IconBtn name={isGrid ? 'list' : 'grid'} onPress={() => setLayout(isGrid ? 'list' : 'grid')} s={s} t={c} />
         <IconBtn name={dark ? 'sun' : 'moon'} onPress={() => setDark(!dark)} s={s} t={c} />
@@ -2433,19 +2432,23 @@ export default function App() {
                 </TouchableOpacity>
               </View>
             )}
-            {searchOpen && (
-              <Glass t={c} radius={24} style={{ marginBottom: 14 }}>
-                <TextInput
-                  style={s.search}
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder={tr('searchPh')}
-                  placeholderTextColor={c.muted}
-                  autoFocus={searchFocus.current}
-                  onFocus={() => { searchFocus.current = false; }}
-                />
-              </Glass>
-            )}
+            {/* Barra de búsqueda fija (el teclado solo sale al tocarla) */}
+            <Glass t={c} radius={24} style={{ marginBottom: 14 }} inner={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16 }}>
+              <Feather name="search" size={18} color={c.muted} />
+              <TextInput
+                style={[s.search, { flex: 1, minWidth: 0, paddingLeft: 10 }]}
+                value={query}
+                onChangeText={setQuery}
+                placeholder={tr('searchPh')}
+                placeholderTextColor={c.muted}
+                returnKeyType="search"
+              />
+              {!!query && (
+                <TouchableOpacity onPress={() => setQuery('')} hitSlop={10} style={{ paddingHorizontal: 14 }}>
+                  <Feather name="x" size={18} color={c.muted} />
+                </TouchableOpacity>
+              )}
+            </Glass>
           </View>
         }
         ListEmptyComponent={
