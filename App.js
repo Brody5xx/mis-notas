@@ -796,7 +796,7 @@ function makeStars(H, seed) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
   const stars = [];
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < 110; i++) {
     const px = 6 + rnd() * (MENU_PANEL_W - 12);
     const passed = (1 - px / MENU_PANEL_W) / 0.985;      // cuándo pasa el borde del panel por aquí
     const start = Math.max(0.02, Math.min(1.05, passed - 0.04 + rnd() * 0.05));
