@@ -1729,17 +1729,17 @@ export default function App() {
             {!inTrash && (
               <Glass t={c} radius={22} inner={s.undoPill}>
                 <TouchableOpacity onPress={() => callEditor('undoNow')} style={s.undoBtn} activeOpacity={0.6}>
-                  <MaterialCommunityIcons name="undo-variant" size={22} color={c.text} style={!undoState.canUndo && { opacity: 0.35 }} />
+                  <MaterialCommunityIcons name="undo-variant" size={20} color={c.text} style={!undoState.canUndo && { opacity: 0.35 }} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={openHistory} style={s.undoBtn} activeOpacity={0.6}>
-                  <MaterialCommunityIcons name={current.histLocked ? 'history' : 'history'} size={22} color={c.text} />
+                  <MaterialCommunityIcons name={current.histLocked ? 'history' : 'history'} size={20} color={c.text} />
                   {current.histLocked && <Feather name="lock" size={9} color={c.text} style={s.histLockBadge} />}
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => callEditor('redoNow')} style={s.undoBtn} activeOpacity={0.6}>
-                  <MaterialCommunityIcons name="redo-variant" size={22} color={c.text} style={!undoState.canRedo && { opacity: 0.35 }} />
+                  <MaterialCommunityIcons name="redo-variant" size={20} color={c.text} style={!undoState.canRedo && { opacity: 0.35 }} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => callEditor('spellStart')} style={[s.undoBtn, spellOn && { backgroundColor: c.text, borderRadius: 18 }]} activeOpacity={0.6}>
-                  <MaterialCommunityIcons name="spellcheck" size={22} color={spellOn ? c.inv : c.text} />
+                  <MaterialCommunityIcons name="spellcheck" size={20} color={spellOn ? c.inv : c.text} />
                 </TouchableOpacity>
               </Glass>
             )}
@@ -1751,7 +1751,8 @@ export default function App() {
             </>
           ) : (
             <>
-              <IconBtn name="image" onPress={() => openWall(current.id)} s={s} t={c} />
+              <IconBtn set="mci" name="wallpaper" onPress={() => openWall(current.id)} s={s} t={c} />
+              <IconBtn set="mci" name="calculator-variant-outline" onPress={() => setCalcOpen('note')} s={s} t={c} />
               <IconBtn name="more-vertical" onPress={() => setOptsOpen(true)} s={s} t={c} />
             </>
           )}
@@ -2277,7 +2278,7 @@ export default function App() {
 
             <View style={s.sep} />
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); openWall(null); }}>
-              <Feather name="image" size={19} color={c.muted} style={s.navIcon} />
+              <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
@@ -2388,8 +2389,8 @@ function makeStyles(c) {
     trashBtns: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     trashBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
     trashBtnText: { fontSize: 15, fontWeight: '600', color: c.text },
-    undoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, height: 44 },
-    undoBtn: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
+    undoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, height: 44 },
+    undoBtn: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
     histLockBadge: { position: 'absolute', right: 8, bottom: 9 },
     recIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     recTitle: { fontSize: 16, fontWeight: '700', color: c.text },
