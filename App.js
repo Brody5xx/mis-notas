@@ -899,6 +899,37 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
    ============================================================ */
 const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círculo salga de ahí)
 const ND = Platform.OS !== 'web';
+const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/* Cuadros del círculo líquido (para la web): se mueve como agua y termina redondo */
+function liquidFrames(x, y, W, H, opening) {
+  const K = 34, P = 44, out = [];
+  const Rmax = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 12;
+  for (let k = 0; k <= K; k++) {
+    const t = k / K, e = easeIO(t);
+    const R = Math.max(0.5, e * Rmax);
+    const amp = 0.15 * Math.pow(1 - e, 1.4);
+    const ph = t * Math.PI * 2.6;
+    const pts = [];
+    for (let i = 0; i < P; i++) {
+      const a = (i / P) * Math.PI * 2;
+      const r = R * (1 + amp * (0.6 * Math.sin(2 * a + ph) + 0.4 * Math.sin(3 * a - 1.7 * ph)));
+      pts.push((x + r * Math.cos(a)).toFixed(1) + 'px ' + (y + r * Math.sin(a)).toFixed(1) + 'px');
+    }
+    out.push('polygon(' + pts.join(',') + ')');
+  }
+  if (!opening) out.reverse();
+  return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
+}
+/* Para Android/iPhone: el círculo crece con un temblor de agua (escala X/Y) */
+const LIQ = (() => {
+  const inR = [], sx = [], sy = [], ix = [], iy = [], N = 40;
+  for (let i = 0; i <= N; i++) {
+    const q = i / N, wob = 0.14 * Math.sin(q * Math.PI * 3.2) * (1 - q) * (1 - q), b = Math.max(0.003, q);
+    const X = b * (1 + wob), Y = b * (1 - wob);
+    inR.push(q); sx.push(X); sy.push(Y); ix.push(1 / X); iy.push(1 / Y);
+  }
+  return { inR, sx, sy, ix, iy };
+})();
 
 export default function App() {
   return (
@@ -1012,8 +1043,39 @@ function NotesApp() {
   const revP = useRef(new Animated.Value(1)).current;   // portal: 0 = puntito, 1 = pantalla completa
   const [revealing, setRevealing] = useState(false);
   const revBusy = useRef(false);
+  const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
+  const revEl = useRef(null);               // la capa del editor (en la web se recorta con el círculo)
   useEffect(() => {
     if (!currentId && revBusy.current) { revP.setValue(1); setRevealing(false); revBusy.current = false; }
+  }, [currentId]);
+  // Empieza a abrir cuando el editor ya está puesto (así no se traba)
+  React.useLayoutEffect(() => {
+    if (revPending.current !== 'open' || !currentId) return;
+    revPending.current = null;
+    const o = DROP.openPt;
+    const finish = () => { setRevealing(false); revBusy.current = false; };
+    if (Platform.OS === 'web') {
+      const el = revEl.current;
+      if (!el || !el.animate) { finish(); return; }
+      const fr = liquidFrames(o.x, o.y, width, winH, true);
+      el.style.clipPath = fr[0].clipPath;
+      let started = false;
+      const go = () => {
+        if (started) return; started = true;
+        requestAnimationFrame(() => {
+          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
+        });
+      };
+      const fr2 = iframeRef.current;
+      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
+      setTimeout(go, 380);                 // por si acaso
+    } else {
+      revP.setValue(0);
+      setTimeout(() => {
+        Animated.timing(revP, { toValue: 1, duration: 620, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
+      }, 60);
+    }
   }, [currentId]);
   const [cropOpen, setCropOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -1176,11 +1238,21 @@ function NotesApp() {
   function closeEditor() {
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
-    setRevealing(true);
-    setTimeout(() => {
-      Animated.timing(revP, { toValue: 0, duration: 680, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: ND })
-        .start(() => closeEditorNow());
-    }, 40);
+    setRevealing(true);                    // la pantalla de inicio aparece detrás
+    const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
+    if (Platform.OS === 'web') {
+      const el = revEl.current;
+      if (!el || !el.animate) { closeEditorNow(); return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
+        an.onfinish = () => closeEditorNow();
+      }));
+    } else {
+      setTimeout(() => {
+        Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
+          .start(() => closeEditorNow());
+      }, 60);
+    }
   }
   function closeEditorNow() {
     const id = currentId;
@@ -1841,12 +1913,9 @@ function NotesApp() {
     revBusy.current = true;
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
     revP.setValue(0);
+    revPending.current = 'open';
     setRevealing(true);
     setCurrentId(id);
-    setTimeout(() => {
-      Animated.timing(revP, { toValue: 1, duration: 760, easing: Easing.bezier(0.65, 0, 0.2, 1), useNativeDriver: ND })
-        .start(() => { setRevealing(false); revBusy.current = false; });
-    }, 30);
   }
 
   function toggleSearch() {
@@ -2672,7 +2741,7 @@ function NotesApp() {
         fav: ['star', tr('noFav')],
         trash: ['trash-2', tr('trashEmpty')] }[view] || ['file-text', '']);
 
-  const homeView = (!current || revealing) && (
+  const homeView = (
     <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
       <Background t={c} wall={seeNow ? null : wallpaper} blur={wallBlur} see={seeNow} />
       <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
@@ -3044,46 +3113,24 @@ function NotesApp() {
     </View>
   );
 
-  /* El portal: el editor se ve dentro de un círculo que crece (o se encoge) */
+  /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
-  const pOuter = revP.interpolate({ inputRange: [0, 1], outputRange: [0.002, 1] });
-  const zoom = revP.interpolate({ inputRange: [0, 1], outputRange: [1.7, 1] });          // entras "volando" hacia la nota
-  const pInner = Animated.multiply(zoom, Animated.divide(1, pOuter));
-  const STREAKS = 16;
+  const nat = Platform.OS !== 'web' && revealing;
+  const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      {homeView}
+      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {editorView && (
-        <View style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
-          <Animated.View style={revealing ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
-            borderRadius: D / 2, overflow: 'hidden', transform: [{ scale: pOuter }] } : { flex: 1 }}>
-            <Animated.View style={revealing ? { width: D, height: D, transform: [{ scale: pInner }] } : { flex: 1 }}>
-              <View style={revealing ? { position: 'absolute', left: D / 2 - o.x, top: D / 2 - o.y, width, height: winH } : { flex: 1 }}>
+        <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
+          <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
+            borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
+            <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
+              <View style={nat ? { position: 'absolute', left: D / 2 - o.x, top: D / 2 - o.y, width, height: winH } : { flex: 1 }}>
                 {editorView}
               </View>
             </Animated.View>
           </Animated.View>
-          {revealing && (
-            <>
-              {/* aro de luz en el borde del portal */}
-              <Animated.View pointerEvents="none" style={{ position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
-                borderRadius: D / 2, borderWidth: D * 0.006, borderColor: 'rgba(150,225,255,0.95)',
-                opacity: revP.interpolate({ inputRange: [0, 0.08, 0.7, 1], outputRange: [0, 1, 0.5, 0] }),
-                transform: [{ scale: pOuter }] }} />
-              {/* rayitos de luz que salen disparados (efecto de viaje en el tiempo) */}
-              {Array.from({ length: STREAKS }).map((_, i) => (
-                <Animated.View key={i} pointerEvents="none" style={{ position: 'absolute', left: o.x - 1, top: o.y - 45, width: 2, height: 90,
-                  borderRadius: 1, backgroundColor: i % 3 ? 'rgba(170,230,255,0.85)' : 'rgba(255,255,255,0.95)',
-                  opacity: revP.interpolate({ inputRange: [0, 0.1, 0.75, 1], outputRange: [0, 1, 0.35, 0] }),
-                  transform: [
-                    { rotate: (i * 360 / STREAKS + (i % 2) * 9) + 'deg' },
-                    { translateY: revP.interpolate({ inputRange: [0, 1], outputRange: [-30, -(D / 2) * (0.55 + (i % 4) * 0.12)] }) },
-                    { scaleY: revP.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0.15, 1.9, 0.7] }) },
-                  ] }} />
-              ))}
-            </>
-          )}
         </View>
       )}
     </View>
