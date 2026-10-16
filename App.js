@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share,
-  KeyboardAvoidingView, Platform, useWindowDimensions, AppState, ActivityIndicator,
+  KeyboardAvoidingView, Platform, useWindowDimensions, AppState, ActivityIndicator, Animated, Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -498,13 +498,18 @@ function IconBtn({ name, set, onPress, s, t, dim }) {
 }
 
 /* Hoja de opciones que sale desde abajo */
-function Sheet({ visible, onClose, title, s, t, children }) {
+function Sheet({ visible, onClose, title, s, t, children, onBack }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={[s.newScrim, { backgroundColor: t.scrim }]} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
           <Glass t={t} strong radius={26} inner={{ paddingVertical: 10 }}>
-            {title ? <Text style={s.sheetTitle}>{title}</Text> : null}
+            {onBack ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingTop: 6 }}>
+                <BackBtn onPress={onBack} t={t} />
+                {title ? <Text style={[s.sheetTitle, { flex: 1, paddingLeft: 10 }]}>{title}</Text> : null}
+              </View>
+            ) : (title ? <Text style={s.sheetTitle}>{title}</Text> : null)}
             <ScrollView style={{ maxHeight: 420 }}>{children}</ScrollView>
           </Glass>
         </Pressable>
@@ -714,8 +719,8 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 400 }}>
           <Glass t={t} strong radius={28} inner={{ padding: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {step !== 'menu' && !busy && !ok && (
-                <TouchableOpacity onPress={() => { setStep('menu'); setErr(''); setP1(''); setP2(''); }} hitSlop={10}><Feather name="arrow-left" size={22} color={t.text} /></TouchableOpacity>
+              {!busy && !ok && (
+                <BackBtn t={t} onPress={() => { if (step === 'menu') onClose(); else { setStep('menu'); setErr(''); setP1(''); setP2(''); } }} />
               )}
               <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>
                 {step === 'make' ? tr('bkMake') : step === 'import' ? tr('bkImport') : tr('transfer')}
@@ -780,6 +785,16 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
   );
 }
 
+/* Flecha de regresar (para los paneles que se abren desde el menú) */
+function BackBtn({ onPress, t, style }) {
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={12} activeOpacity={0.6}
+      style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.border }, style]}>
+      <Feather name="arrow-left" size={20} color={t.text} />
+    </TouchableOpacity>
+  );
+}
+
 function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={s.row}>
@@ -808,6 +823,36 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchFocus = useRef(false);   // el teclado solo se abre al tocar la lupa
   const [menuOpen, setMenuOpen] = useState(false);
+  /* Animación del menú: entra deslizando; al cerrar se "apaga" como una pantalla
+     futurista: se aplasta en una línea de luz y la línea se encoge hasta desaparecer */
+  const menuIn = useRef(new Animated.Value(0)).current;     // 0 → 1 al abrir
+  const menuOff = useRef(new Animated.Value(0)).current;    // 0 → 1 → 2 al cerrar
+  const menuClosing = useRef(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuClosing.current = false;
+    menuOff.setValue(0); menuIn.setValue(0);
+    Animated.spring(menuIn, { toValue: 1, friction: 9, tension: 80, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [menuOpen]);
+  function closeMenu(after) {
+    if (menuClosing.current) return;
+    menuClosing.current = true;
+    const nd = Platform.OS !== 'web';
+    Animated.sequence([
+      Animated.timing(menuOff, { toValue: 1, duration: 230, easing: Easing.in(Easing.cubic), useNativeDriver: nd }),
+      Animated.timing(menuOff, { toValue: 2, duration: 170, easing: Easing.in(Easing.quad), useNativeDriver: nd }),
+    ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
+  }
+  const MENU_W = 290;
+  const menuX = Animated.add(
+    menuIn.interpolate({ inputRange: [0, 1], outputRange: [-MENU_W - 20, 0] }),
+    menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -(MENU_W / 2) * 0.985, -(MENU_W / 2) * 0.985] }));
+  const menuSX = menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 0.015, 0.015] });
+  const menuSY = menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [1, 1, 0.001] });
+  const menuGlow = menuOff.interpolate({ inputRange: [0, 0.5, 1, 1.7, 2], outputRange: [0, 0.35, 1, 1, 0] });
+  const menuOpacity = Animated.multiply(menuIn.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+    menuOff.interpolate({ inputRange: [0, 1.8, 2], outputRange: [1, 1, 0] }));
+  const menuScrim = Animated.multiply(menuIn, menuOff.interpolate({ inputRange: [0, 2], outputRange: [1, 0] }));
   const [currentId, setCurrentId] = useState(null);
   const [cropOpen, setCropOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -1498,7 +1543,7 @@ export default function App() {
 
   /* ---------- Carpetas ---------- */
   function openFolderEdit(f, assignTo) {
-    setMenuOpen(false); setMoveOpen(false);
+    setMoveOpen(false);
     setFolderEdit(f ? { ...f } : { name: '', color: FOLDER_COLORS[5], assignTo });
   }
   function saveFolder() {
@@ -1533,7 +1578,6 @@ export default function App() {
 
   /* ---------- Bloquear toda la app con PIN ---------- */
   function toggleAppLock() {
-    setMenuOpen(false);
     if (appLock) {
       askPin('unlock', tr('pinToUnlock'), () => { setAppLock(false); showToast(tr('appLockOff')); });
       return;
@@ -1603,7 +1647,6 @@ export default function App() {
     else lockIt();
   }
   function changePin() {
-    setMenuOpen(false);
     if (!pinHash) { askPin('set1', tr('pinCreate'), () => showToast(tr('pinCreated'))); return; }
     askPin('unlock', tr('pinCurrent'), () => {
       setTimeout(() => askPin('set1', tr('pinNew'), () => showToast(tr('pinChanged'))), 200);
@@ -1833,7 +1876,7 @@ export default function App() {
       if (wallOpen) { setWallOpen(false); return true; }
       if (newOpen) { setNewOpen(false); return true; }
       if (currentId) { closeEditor(); return true; }
-      if (menuOpen) { setMenuOpen(false); return true; }
+      if (menuOpen) { closeMenu(); return true; }
       if (query) { setQuery(''); return true; }
       return false;
     });
@@ -1906,7 +1949,10 @@ export default function App() {
       <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setWallOpen(false)}>
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
           <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
-            <Text style={s.wallTitle}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <BackBtn onPress={() => setWallOpen(false)} t={c} />
+              <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
+            </View>
             <Text style={s.wallHint}>{wallFor ? tr('bgNoteHint') : tr('bgMainHint')}</Text>
 
             <View style={s.wallPreview}>
@@ -1969,7 +2015,10 @@ export default function App() {
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420 }}>
           {folderEdit && (
             <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
-              <Text style={s.wallTitle}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <BackBtn onPress={() => setFolderEdit(null)} t={c} />
+                <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
+              </View>
               <View style={[s.folderInputWrap, { borderColor: c.border }]}>
                 <Feather name="folder" size={20} color={folderEdit.color} />
                 <TextInput
@@ -2011,6 +2060,7 @@ export default function App() {
         {pinPad && pinPad.mode === 'app' && <Background t={c} wall={wallpaper} blur={20} />}
         {pinPad && (
           <Glass t={c} strong radius={30} style={{ width: '100%', maxWidth: 340 }} inner={{ padding: 22, alignItems: 'center' }}>
+            {pinPad.mode !== 'app' && <BackBtn onPress={() => setPinPad(null)} t={c} style={{ position: 'absolute', left: 14, top: 14 }} />}
             <Feather name="lock" size={28} color={c.text} />
             <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{pinPad.title}</Text>
             {(pinPad.mode === 'set1') && (
@@ -2061,7 +2111,8 @@ export default function App() {
   const pickLang = code => { setLang(code); setLangOpen(false); setLangGroup(null); };
   const check = on => (on ? <Feather name="check" size={20} color={c.text} /> : null);
   const langSheet = (
-    <Sheet visible={langOpen} onClose={() => { setLangOpen(false); setLangGroup(null); }} title={tr('language')} s={s} t={c}>
+    <Sheet visible={langOpen} onClose={() => { setLangOpen(false); setLangGroup(null); }} title={tr('language')} s={s} t={c}
+      onBack={() => { setLangOpen(false); setLangGroup(null); }}>
       <Row icon="smartphone" label={tr('langAuto')} s={s} t={c} onPress={() => pickLang('auto')} right={check(lang === 'auto')} />
       {LANG_GROUPS.map(([base, name, vars]) => {
         const mine = lang !== 'auto' && groupOf(lang) === base;
@@ -2583,14 +2634,19 @@ export default function App() {
       )}
 
       {/* Menú lateral de cristal */}
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
-        <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.scrim }}>
-          <Glass t={c} strong radius={28} style={s.sidebar}>
+      <Modal visible={menuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
+          <Animated.View style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
+          <Glass t={c} strong radius={28}>
            <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
              contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
-            <Text style={s.sideTitle}>{tr('appName')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
+              <BackBtn onPress={() => closeMenu()} t={c} />
+              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10 }]}>{tr('appName')}</Text>
+            </View>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
-              <TouchableOpacity key={key} onPress={() => { setView(key); setMenuOpen(false); }} activeOpacity={0.7}>
+              <TouchableOpacity key={key} onPress={() => { setView(key); closeMenu(); }} activeOpacity={0.7}>
                 {view === key ? (
                   <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
                     <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
@@ -2634,7 +2690,7 @@ export default function App() {
                 </>
               );
               return (
-                <TouchableOpacity key={f.id} onPress={() => { setView('f:' + f.id); setMenuOpen(false); }}
+                <TouchableOpacity key={f.id} onPress={() => { setView('f:' + f.id); closeMenu(); }}
                   onLongPress={() => openFolderEdit(f)} activeOpacity={0.7}>
                   {on
                     ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
@@ -2657,7 +2713,7 @@ export default function App() {
                     </>
                   );
                   return (
-                    <TouchableOpacity key={tg} onPress={() => { setView('t:' + tg); setMenuOpen(false); }} activeOpacity={0.7}>
+                    <TouchableOpacity key={tg} onPress={() => { setView('t:' + tg); closeMenu(); }} activeOpacity={0.7}>
                       {on
                         ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
                         : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
@@ -2668,15 +2724,15 @@ export default function App() {
             )}
 
             <View style={s.sep} />
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); openWall(null); }}>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => openWall(null)}>
               <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setTransferOpen(true); }}>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setTransferOpen(true)}>
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setVaultOpen(true); }}>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setVaultOpen(true)}>
               <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('vault')}</Text>
             </TouchableOpacity>
@@ -2694,14 +2750,18 @@ export default function App() {
                 <View style={[s.toggleKnob, { backgroundColor: appLock ? c.inv : c.text }, appLock && { alignSelf: 'flex-end' }]} />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setLangOpen(true); }}>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setLangOpen(true)}>
               <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('language')}</Text>
               <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
             </TouchableOpacity>
            </ScrollView>
           </Glass>
-          <Pressable style={{ flex: 1 }} onPress={() => setMenuOpen(false)} />
+            {/* destello de "apagado": el panel se vuelve una línea de luz */}
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 28, backgroundColor: '#ffffff', opacity: menuGlow,
+              shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
+          </Animated.View>
+          <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
         </View>
       </Modal>
 
