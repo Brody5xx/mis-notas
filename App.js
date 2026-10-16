@@ -920,6 +920,71 @@ function liquidFrames(x, y, W, H, opening) {
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
 }
+/* ============================================================
+   ✨ "TARJETA DE CRISTAL": la tarjeta que tocas se despega, crece hasta llenar
+   la pantalla dejando polvo de estrellas, y la nota aparece desde adentro.
+   Todo con transform/opacity: lo mueve la tarjeta gráfica (no se traba).
+   ============================================================ */
+function findCardRect(pt) {
+  try {
+    let el = document.elementFromPoint(pt.x, pt.y), best = null;
+    for (let i = 0; el && i < 14; i++, el = el.parentElement) {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 110 && r.height >= 90 && r.width < window.innerWidth - 8) { best = r; break; }
+    }
+    if (best) return { x: best.left, y: best.top, w: best.width, h: best.height };
+  } catch (e) {}
+  return { x: pt.x - 80, y: pt.y - 80, w: 160, h: 160 };
+}
+function makeGhost(rect, W, H, color, full) {
+  const d = document.createElement('div');
+  const sx = rect.w / W, sy = rect.h / H, tx = rect.x, ty = rect.y;
+  d.style.cssText = 'position:fixed;left:0;top:0;width:' + W + 'px;height:' + H + 'px;border-radius:26px;background:' + color +
+    ';box-shadow:0 0 0 1.5px rgba(255,255,255,.35),0 0 38px rgba(150,220,255,.35);pointer-events:none;z-index:2147482000;' +
+    'transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;' +
+    (full ? 'transform:none;opacity:0' : 'transform:translate(' + tx + 'px,' + ty + 'px) scale(' + sx + ',' + sy + ')');
+  document.body.appendChild(d);
+  return d;
+}
+function ghostFrames(rect, W, H, opening) {
+  const K = 24, out = [];
+  const sx0 = rect.w / W, sy0 = rect.h / H;
+  for (let k = 0; k <= K; k++) {
+    const t = k / K;
+    // abrir: arranca con un pequeño "despegue" (crece 4%) y luego vuela a pantalla completa
+    const e = opening ? (t < 0.18 ? 0 : easeIO((t - 0.18) / 0.82)) : easeIO(t);
+    const p = opening ? e : 1 - e;
+    const lift = opening ? (t < 0.18 ? Math.sin(t / 0.18 * Math.PI / 2) * 0.04 : 0.04 * (1 - e)) : 0.03 * Math.sin(p * Math.PI);
+    const sx = (sx0 + (1 - sx0) * p) * (1 + lift), sy = (sy0 + (1 - sy0) * p) * (1 + lift);
+    const cx = (rect.x + rect.w / 2) * (1 - p) + (W / 2) * p, cy = (rect.y + rect.h / 2) * (1 - p) + (H / 2) * p;
+    out.push({ offset: t, transform: 'translate(' + (cx - W * sx / 2).toFixed(1) + 'px,' + (cy - H * sy / 2).toFixed(1) + 'px) scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')' });
+  }
+  return out;
+}
+/* Polvo de estrellas por el borde de la tarjeta mientras crece (o se encoge) */
+function cardStars(rect, W, H, opening) {
+  let sd = (Date.now() % 991) * 9301 + 49297;
+  const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+  const G = 16, groups = [];
+  for (let g = 0; g < G; g++) {
+    const t = 0.05 + (g / G) * 0.85;
+    const e = opening ? (t < 0.18 ? 0 : easeIO((t - 0.18) / 0.82)) : easeIO(t);
+    const p = opening ? e : 1 - e;
+    const x0 = rect.x * (1 - p), y0 = rect.y * (1 - p);
+    const x1 = (rect.x + rect.w) * (1 - p) + W * p, y1 = (rect.y + rect.h) * (1 - p) + H * p;
+    const stars = [];
+    for (let k = 0; k < 4; k++) {
+      const side = Math.floor(rnd() * 4), u = rnd();
+      let x = side < 2 ? x0 + u * (x1 - x0) : (side === 2 ? x0 : x1), y = side < 2 ? (side === 0 ? y0 : y1) : y0 + u * (y1 - y0);
+      x += (rnd() - 0.5) * 14; y += (rnd() - 0.5) * 14;
+      if (x < 4 || y < 4 || x > W - 4 || y > H - 4) continue;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, a = Math.atan2(y - cy, x - cx), dr = (opening ? 1 : -1) * (8 + rnd() * 14);
+      stars.push({ x, y, size: 5 + rnd() * 7, rot: Math.floor(rnd() * 45), dx: Math.cos(a) * dr, dy: Math.sin(a) * dr });
+    }
+    if (stars.length) groups.push({ start: t, life: 0.55 + rnd() * 0.35, alt: g % 2, stars });
+  }
+  return groups;
+}
 /* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
 function ringStars(o, W, H, opening, Rmax) {
   let sd = (Date.now() % 997) * 9301 + 49297;
@@ -1117,22 +1182,25 @@ function NotesApp() {
     const finish = () => { setRevealing(false); revBusy.current = false; };
     if (Platform.OS === 'web') {
       const el = revEl.current;
-      if (!el || !el.animate) { finish(); return; }
-      const fr = liquidFrames(o.x, o.y, width, winH, true);
-      el.style.clipPath = fr[0].clipPath;
-      let started = false;
-      const go = () => {
-        if (started) return; started = true;
+      const st = revSeed.current; revSeed.current = null;
+      if (!el || !el.animate || !st) { if (st && st.ghost.parentNode) st.ghost.remove(); finish(); return; }
+      el.style.opacity = '0';                                   // la nota se arma escondida debajo
+      let ready = false, done = false;
+      st.check = () => {
+        if (done || !st.grown || !ready) return; done = true;
+        // la nota aparece desde adentro del cristal (un poquito más grande → a su tamaño)
         requestAnimationFrame(() => {
-          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
-          if (!revStarsDone.current) startStars(o, true, 640);
-          revStarsDone.current = false;
-          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
+          const a = el.animate([{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'scale(1)' }],
+            { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+          st.ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' })
+            .onfinish = () => { if (st.ghost.parentNode) st.ghost.remove(); };
+          a.onfinish = () => { a.cancel(); el.style.opacity = ''; finish(); };
         });
       };
+      const isReady = () => { if (ready) return; ready = true; requestAnimationFrame(() => requestAnimationFrame(st.check)); };
       const fr2 = iframeRef.current;
-      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
-      setTimeout(go, 70);                  // casi sin esperar: el círculo arranca enseguida
+      if (fr2) fr2.addEventListener('load', () => setTimeout(isReady, 20), { once: true });
+      setTimeout(isReady, 700);                                  // por si acaso
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1307,11 +1375,17 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { closeEditorNow(); return; }
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
-        startStars(o, false, 600);
-        an.onfinish = () => closeEditorNow();
-      }));
+      const rect = DROP.rect || { x: o.x - 80, y: o.y - 80, w: 160, h: 160 };
+      // la nota se vuelve cristal y regresa volando a su tarjeta, dejando estrellitas
+      const g = makeGhost(rect, width, winH, c.grad[0], true);
+      g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: 'ease-out', fill: 'forwards' }).onfinish = () => {
+        el.style.opacity = '0';
+        const an = g.animate(ghostFrames(rect, width, winH, false), { duration: 520, easing: 'linear', fill: 'forwards' });
+        g.animate([{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 520, easing: 'linear', fill: 'forwards' });
+        an.onfinish = () => { if (g.parentNode) g.remove(); };
+        playRingStars(cardStars(rect, width, winH, false), 520);
+        requestAnimationFrame(() => setTimeout(() => closeEditorNow(), 0));   // lo pesado mientras el cristal ya vuela
+      };
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
@@ -1981,10 +2055,16 @@ function NotesApp() {
     revP.setValue(0);
     revPending.current = 'open';
     if (Platform.OS === 'web') {
-      // Respuesta AL INSTANTE: las estrellitas salen del dedo ya mismo y la nota se arma
-      // en el siguiente cuadro (así el toque se siente inmediato)
-      startStars(DROP.openPt, true, 640);
-      revStarsDone.current = true;
+      // ✨ La tarjeta de cristal se despega y crece AL INSTANTE (tarjeta gráfica);
+      // mientras, la nota se arma escondida en el siguiente cuadro.
+      const rect = findCardRect(DROP.openPt);
+      DROP.rect = rect;
+      const g = makeGhost(rect, width, winH, c.grad[0], false);
+      const st = { ghost: g, grown: false };
+      revSeed.current = st;
+      g.animate(ghostFrames(rect, width, winH, true), { duration: 560, easing: 'linear', fill: 'forwards' })
+        .onfinish = () => { st.grown = true; st.check && st.check(); };
+      playRingStars(cardStars(rect, width, winH, true), 560);
       requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
       return;
     }
