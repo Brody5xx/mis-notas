@@ -198,10 +198,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #ieHint.show{display:block}
   #ieArea{flex:1;position:relative;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center;
           padding-bottom:var(--ieBarH,120px)}
-  #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+  #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25);transform-origin:center center;will-change:transform}
   #iebar{left:10px !important;right:10px;transform:none !important;max-width:none !important;bottom:14px !important;
          flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
   #iebar .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
+  #imged #iebar{background:rgba(22,22,22,.88) !important;z-index:12}
+  #ieHead,#ieText,#ieHint{position:relative;z-index:12;background:#000}
   #iebar .db{flex:1 1 0;min-width:0;height:40px;padding:0 2px}
   #iebar .db[data-ie=size]{flex:1.6 1 0}
   #iebar .db[data-ie=color]{flex:1.2 1 0}
@@ -388,8 +390,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div class="dock hide" id="imgbar">
  <div class="drow">
   <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>
-  <button class="db" data-img="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${H('imgText')}</button>
-  <button class="db" data-img="draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> ${H('imgDraw')}</button>
+  <button class="db" data-img="edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> ${H('imgEdit')}</button>
   <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -1296,7 +1297,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       return;
     }
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
-    if (a === 'text' || a === 'draw') { openImgEdit(selImg.querySelector('img'), a); return; }
+    if (a === 'edit') { openImgEdit(selImg.querySelector('img'), 'view'); return; }
     if (a === 'reset') { setScale(selImg, 100); setRot(selImg, 0); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
 
   });
@@ -1852,7 +1853,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function ieSetMode(m){
     IE.mode = m;
     if (m !== 'text') { ieCloseText(true); IE.sel = null; }
-    ieHint.classList.toggle('show', m === 'text');
+    ieHint.textContent = m === 'view' ? ${J('imgZoomHint')} : ${J('imgTapText')};
+    ieHint.classList.toggle('show', m === 'text' || m === 'view');
     closePanels(); ieSyncBar(); if (IE.base) ieRedraw();
   }
   function ieFit(){
@@ -1920,7 +1922,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       imged.classList.add('show'); document.body.classList.add('ie');
       document.documentElement.style.setProperty('--ieBarH', (iebar.offsetHeight || 100) + 'px');
       send({ type: 'crop', open: true });
-      ieFit(); ieSetMode(mode || 'draw');
+      ieFit(); ieZoomReset(); ieSetMode(mode || 'view');
     };
     base.src = img.src;
   }
@@ -1928,6 +1930,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     closePanels();
     imged.classList.remove('show'); document.body.classList.remove('ie'); ieCloseText(true);
     IE.target = null; IE.base = null; IE.ops = []; IE.sel = null;
+    ieZoomReset();
     send({ type: 'crop', open: false });
   }
   var closeCropOld = window.closeCrop;
@@ -1977,6 +1980,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   ieCv.addEventListener('pointerdown', function(e){
     e.preventDefault();
     closePanels();
+    if (IE.mode === 'view' || ZM.pinch) return;          // modo ver: solo mover y acercar
     var p = iePt(e);
     try { ieCv.setPointerCapture(e.pointerId); } catch (_) {}
     if (IE.mode === 'draw') {
@@ -2001,6 +2005,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ieOpenText(null, p[0], p[1]);
   });
   ieCv.addEventListener('pointermove', function(e){
+    if (ZM.pinch) return;
     var p = iePt(e);
     if (IE.cur) {
       var last = IE.cur.p[IE.cur.p.length - 1];
@@ -2016,6 +2021,78 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   ieCv.addEventListener('pointerup', ieUp);
   ieCv.addEventListener('pointercancel', ieUp);
 
+
+  /* ---------- Acercar / alejar la foto con dos dedos ---------- */
+  var ZM = { z: 1, x: 0, y: 0, pts: {}, pinch: null, pan: null, lastTap: 0 };
+  function ieZoomApply(){
+    var w = ieCv.offsetWidth, h = ieCv.offsetHeight;
+    var mx = Math.max(0, (w * ZM.z - ieArea.clientWidth) / 2) + 40, my = Math.max(0, (h * ZM.z - ieArea.clientHeight) / 2) + 40;
+    if (ZM.z <= 1.001) { ZM.z = 1; ZM.x = 0; ZM.y = 0; }
+    ZM.x = Math.max(-mx, Math.min(mx, ZM.x)); ZM.y = Math.max(-my, Math.min(my, ZM.y));
+    ieCv.style.transform = 'translate(' + ZM.x + 'px,' + ZM.y + 'px) scale(' + ZM.z + ')';
+  }
+  function ieZoomReset(){ ZM.z = 1; ZM.x = 0; ZM.y = 0; ZM.pts = {}; ZM.pinch = null; ZM.pan = null; ieZoomApply(); }
+  function zDist(){ var k = Object.keys(ZM.pts), a = ZM.pts[k[0]], b = ZM.pts[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; }
+  function zBase(){ var r = ieCv.getBoundingClientRect(); return { x: r.left + r.width / 2 - ZM.x, y: r.top + r.height / 2 - ZM.y }; }
+  function zMid(){ var k = Object.keys(ZM.pts), a = ZM.pts[k[0]], b = ZM.pts[k[1]]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  ieArea.addEventListener('pointerdown', function(e){
+    if (!e.target.closest('#ieArea') || e.target.closest('#iebar')) return;
+    ZM.pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var n = Object.keys(ZM.pts).length;
+    if (n === 2) {
+      // el segundo dedo: se cancela lo que empezó el primero (trazo o arrastre)
+      if (IE.cur) { var k = IE.ops.indexOf(IE.cur); if (k >= 0) IE.ops.splice(k, 1); IE.cur = null; }
+      if (IE.drag) { IE.drag.op.x = IE.drag.ox; IE.drag.op.y = IE.drag.oy; IE.drag = null; }
+      ieRedraw();
+      var m = zMid();
+      var bc = zBase();
+      ZM.pinch = { d: zDist(), z: ZM.z, x: ZM.x, y: ZM.y, mx: m.x, my: m.y, bx: bc.x, by: bc.y };
+      ZM.pan = null;
+      e.stopPropagation(); e.preventDefault();
+    } else if (n === 1 && IE.mode === 'view') {
+      var now = Date.now();
+      if (now - ZM.lastTap < 300) {                    // doble toque: acercar / volver
+        var bc = zBase(), cx = e.clientX - bc.x, cy = e.clientY - bc.y;
+        if (ZM.z > 1.05) { ZM.z = 1; ZM.x = 0; ZM.y = 0; }
+        else { ZM.z = 2.5; ZM.x = -cx * 1.5; ZM.y = -cy * 1.5; }
+        ieCv.style.transition = 'transform .2s'; ieZoomApply(); setTimeout(function(){ ieCv.style.transition = ''; }, 220);
+        ZM.lastTap = 0;
+      } else ZM.lastTap = now;
+      ZM.pan = { sx: e.clientX, sy: e.clientY, x: ZM.x, y: ZM.y };
+    }
+  }, true);
+  ieArea.addEventListener('pointermove', function(e){
+    if (!ZM.pts[e.pointerId]) return;
+    ZM.pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (ZM.pinch && Object.keys(ZM.pts).length >= 2) {
+      var P = ZM.pinch, m = zMid();
+      var z = Math.max(1, Math.min(6, P.z * zDist() / P.d));
+      // el punto entre los dedos se queda debajo de los dedos
+      var ox = P.mx - P.bx, oy = P.my - P.by;
+      ZM.z = z;
+      ZM.x = (ox - (ox - P.x) * z / P.z) + (m.x - P.mx);
+      ZM.y = (oy - (oy - P.y) * z / P.z) + (m.y - P.my);
+      ieZoomApply();
+      e.stopPropagation(); e.preventDefault();
+    } else if (ZM.pan && IE.mode === 'view') {
+      ZM.x = ZM.pan.x + e.clientX - ZM.pan.sx; ZM.y = ZM.pan.y + e.clientY - ZM.pan.sy;
+      ieZoomApply();
+    }
+  }, true);
+  function zUp(e){
+    delete ZM.pts[e.pointerId];
+    var n = Object.keys(ZM.pts).length;
+    if (n < 2 && ZM.pinch) {
+      ZM.pinch = null;
+      if (n === 1 && IE.mode === 'view') { var k = Object.keys(ZM.pts)[0]; ZM.pan = { sx: ZM.pts[k].x, sy: ZM.pts[k].y, x: ZM.x, y: ZM.y }; }
+      e.stopPropagation();
+      ieRedraw();
+    }
+    if (!n) ZM.pan = null;
+  }
+  ieArea.addEventListener('pointerup', zUp, true);
+  ieArea.addEventListener('pointercancel', zUp, true);
+
   /* Barra de abajo del editor de foto */
   iebar.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
   iebar.addEventListener('click', function(e){
@@ -2027,14 +2104,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (IE.sel) IE.sel[cmd] = IE[cmd];
       ieSyncBar(); ieRedraw(); return;
     }
-    if (a === 'draw' || a === 'text') { ieSetMode(a); return; }
+    if (a === 'draw' || a === 'text') { ieSetMode(IE.mode === a ? 'view' : a); return; }
     if (a === 'undo') { ieCloseText(false); var gone = IE.ops.pop(); if (gone === IE.sel) IE.sel = null; ieSyncBar(); ieRedraw(); return; }
     if (a === 'edit') { if (IE.sel) ieOpenText(IE.sel); return; }
     if (a === 'del') { if (IE.sel) { IE.ops.splice(IE.ops.indexOf(IE.sel), 1); IE.sel = null; ieSyncBar(); ieRedraw(); } return; }
     if (a === 'size') { togglePanel(sizePanel, b); return; }
     if (a === 'color') { togglePanel(colorPanel, b); return; }
   });
-  window.addEventListener('resize', function(){ if (ieOn()) ieFit(); });
+  window.addEventListener('resize', function(){ if (ieOn()) { ieFit(); ieZoomApply(); } });
   $('ieCancel').onclick = function(){ closeImgEdit(); };
   $('ieOk').onclick = function(){
     ieCloseText(true);

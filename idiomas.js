@@ -3306,6 +3306,51 @@ for (const code in SHR) {
     fileReady: v[6], download: v[7], exportFail: v[8] });
 }
 
+/* Textos nuevos: botón Editar de la foto y aviso de zoom
+   [Editar, aviso] */
+const IZ = {
+  es: ['Editar', 'Usa dos dedos para acercar o alejar. Toca ✏️ o T para dibujar o escribir.'],
+  en: ['Edit', 'Use two fingers to zoom in or out. Tap ✏️ or T to draw or write.'],
+  pt: ['Editar', 'Use dois dedos para aproximar ou afastar. Toque em ✏️ ou T para desenhar ou escrever.'],
+  fr: ['Modifier', 'Utilisez deux doigts pour zoomer. Touchez ✏️ ou T pour dessiner ou écrire.'],
+  de: ['Bearbeiten', 'Mit zwei Fingern zoomen. Tippe auf ✏️ oder T zum Zeichnen oder Schreiben.'],
+  it: ['Modifica', 'Usa due dita per ingrandire o ridurre. Tocca ✏️ o T per disegnare o scrivere.'],
+  ca: ['Edita', 'Fes servir dos dits per apropar o allunyar. Toca ✏️ o T per dibuixar o escriure.'],
+  nl: ['Bewerken', 'Gebruik twee vingers om in of uit te zoomen. Tik op ✏️ of T om te tekenen of te schrijven.'],
+  sv: ['Redigera', 'Använd två fingrar för att zooma. Tryck på ✏️ eller T för att rita eller skriva.'],
+  nb: ['Rediger', 'Bruk to fingre for å zoome. Trykk ✏️ eller T for å tegne eller skrive.'],
+  da: ['Rediger', 'Brug to fingre til at zoome. Tryk på ✏️ eller T for at tegne eller skrive.'],
+  fi: ['Muokkaa', 'Zoomaa kahdella sormella. Napauta ✏️ tai T piirtääksesi tai kirjoittaaksesi.'],
+  pl: ['Edytuj', 'Użyj dwóch palców, aby przybliżyć lub oddalić. Dotknij ✏️ lub T, aby rysować lub pisać.'],
+  cs: ['Upravit', 'Dvěma prsty přiblížíte nebo oddálíte. Klepněte na ✏️ nebo T pro kreslení nebo psaní.'],
+  sk: ['Upraviť', 'Dvoma prstami priblížite alebo oddialite. Ťuknite na ✏️ alebo T na kreslenie alebo písanie.'],
+  hu: ['Szerkesztés', 'Két ujjal nagyíthatsz vagy kicsinyíthetsz. Koppints a ✏️ vagy T gombra a rajzoláshoz vagy íráshoz.'],
+  ro: ['Editează', 'Folosește două degete pentru zoom. Atinge ✏️ sau T ca să desenezi sau să scrii.'],
+  hr: ['Uredi', 'Dvama prstima povećajte ili smanjite. Dodirnite ✏️ ili T za crtanje ili pisanje.'],
+  el: ['Επεξεργασία', 'Με δύο δάχτυλα κάνετε ζουμ. Πατήστε ✏️ ή T για σχέδιο ή κείμενο.'],
+  bg: ['Редактирай', 'С два пръста увеличавате или намалявате. Докоснете ✏️ или T, за да рисувате или пишете.'],
+  ru: ['Изменить', 'Двумя пальцами можно приблизить или отдалить. Нажмите ✏️ или T, чтобы рисовать или писать.'],
+  uk: ['Змінити', 'Двома пальцями можна наблизити чи віддалити. Торкніться ✏️ або T, щоб малювати чи писати.'],
+  tr: ['Düzenle', 'Yakınlaştırmak için iki parmak kullanın. Çizmek veya yazmak için ✏️ ya da T’ye dokunun.'],
+  ar: ['تعديل', 'استخدم إصبعين للتكبير أو التصغير. اضغط ✏️ أو T للرسم أو الكتابة.'],
+  he: ['עריכה', 'השתמש בשתי אצבעות כדי להגדיל או להקטין. הקש ✏️ או T כדי לצייר או לכתוב.'],
+  fa: ['ویرایش', 'با دو انگشت بزرگ یا کوچک کنید. برای نقاشی یا نوشتن ✏️ یا T را بزنید.'],
+  ur: ['ترمیم', 'دو انگلیوں سے زوم کریں۔ ڈرا یا لکھنے کے لیے ✏️ یا T دبائیں۔'],
+  hi: ['बदलें', 'ज़ूम करने के लिए दो उँगलियाँ इस्तेमाल करें। ड्रॉ करने या लिखने के लिए ✏️ या T दबाएँ।'],
+  bn: ['সম্পাদনা', 'জুম করতে দুই আঙুল ব্যবহার করুন। আঁকতে বা লিখতে ✏️ বা T চাপুন।'],
+  id: ['Edit', 'Gunakan dua jari untuk memperbesar atau memperkecil. Ketuk ✏️ atau T untuk menggambar atau menulis.'],
+  ms: ['Edit', 'Guna dua jari untuk zum. Ketik ✏️ atau T untuk melukis atau menulis.'],
+  fil: ['I-edit', 'Gumamit ng dalawang daliri para mag-zoom. Pindutin ang ✏️ o T para gumuhit o sumulat.'],
+  vi: ['Sửa', 'Dùng hai ngón tay để phóng to hoặc thu nhỏ. Chạm ✏️ hoặc T để vẽ hoặc viết.'],
+  th: ['แก้ไข', 'ใช้สองนิ้วเพื่อซูมเข้าออก แตะ ✏️ หรือ T เพื่อวาดหรือเขียน'],
+  'zh-Hans': ['编辑', '用两根手指放大或缩小。点 ✏️ 或 T 来画画或写字。'],
+  'zh-Hant': ['編輯', '用兩根手指放大或縮小。點 ✏️ 或 T 來畫畫或寫字。'],
+  ja: ['編集', '2本の指で拡大・縮小できます。✏️ か T で描いたり書いたりできます。'],
+  ko: ['편집', '두 손가락으로 확대/축소하세요. ✏️ 또는 T를 눌러 그리거나 쓰세요.'],
+  sw: ['Hariri', 'Tumia vidole viwili kukuza au kupunguza. Gusa ✏️ au T kuchora au kuandika.'],
+};
+for (const code in IZ) Object.assign(S[code], { imgEdit: IZ[code][0], imgZoomHint: IZ[code][1] });
+
 
 /* ============================================================
    VARIANTES POR PAÍS
