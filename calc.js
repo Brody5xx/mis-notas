@@ -3,11 +3,13 @@
    Pestañas: Calc · Y= · Gráfica · Tabla
    ============================================================ */
 
-export function buildCalcHtml({ c, tr, state, canInsert }) {
+export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
   const T = (k) => (tr ? tr(k) : k);
   const H = (k) => String(T(k)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const J = (k) => JSON.stringify(String(T(k))).replace(/</g, '\\u003c');
   const st = JSON.stringify(state || {}).replace(/</g, '\\u003c');
+  const fxs = JSON.stringify(fx || null).replace(/</g, '\\u003c');
+  const loc = JSON.stringify(locale || 'es');
   const bg = (c.grad && c.grad[0]) || '#1c1c1c';
 
   return `<!DOCTYPE html><html><head>
@@ -18,7 +20,7 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   body{display:flex;flex-direction:column}
   #top{display:flex;align-items:center;gap:6px;padding:10px 10px 6px}
   .tabs{flex:1;display:flex;background:rgba(255,255,255,.07);border:1px solid ${c.border};border-radius:20px;padding:3px}
-  .tab{flex:1;border:none;background:transparent;color:${c.text};font-size:14px;font-weight:600;padding:8px 0;border-radius:16px}
+  .tab{flex:1;min-width:0;border:none;background:transparent;color:${c.text};font-size:13px;font-weight:600;padding:8px 0;border-radius:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tab.on{background:${c.text};color:${c.inv}}
   .ibtn{flex:none;width:40px;height:40px;border-radius:20px;border:1px solid ${c.border};background:rgba(255,255,255,.06);color:${c.text};
         font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
@@ -69,6 +71,29 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   td:first-child,th:first-child{text-align:left;color:${c.muted}}
   td.mul,th.mul{color:${c.muted};font-size:14px}
 
+  /* ---- Divisas ---- */
+  #fxv{flex:1;overflow-y:auto;padding:4px 14px 20px}
+  .cur{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;border:1px solid ${c.border};
+       background:rgba(255,255,255,.06);color:${c.text};font-family:inherit;text-align:left}
+  .cur .fl{font-size:28px;line-height:1}
+  .cur .cd{font-size:18px;font-weight:800}
+  .cur .nm{flex:1;font-size:14px;color:${c.muted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #fxAmt{width:100%;margin:10px 0 0;font-size:32px;font-weight:700;padding:10px 14px;border-radius:16px;border:1.5px solid ${c.border};
+         background:rgba(0,0,0,.18);color:${c.text};outline:none;font-family:inherit;-webkit-user-select:text;user-select:text}
+  #fxSwap{display:block;margin:12px auto;width:48px;height:48px;border-radius:24px;border:1px solid ${c.border};background:rgba(255,255,255,.1);
+          color:${c.text};font-size:22px}
+  #fxRes{margin-top:10px;font-size:36px;font-weight:800;word-break:break-all;padding:4px 4px 0}
+  .fxl{font-size:15px;color:${c.muted};padding:4px 4px 0;font-variant-numeric:tabular-nums}
+  #fxInfo{margin-top:16px;font-size:12px;color:${c.muted};padding:0 4px;line-height:1.5}
+  #fxPick{position:fixed;inset:0;z-index:20;background:${bg};display:none;flex-direction:column}
+  #fxPick.show{display:flex}
+  #fxPick .ph{display:flex;gap:8px;padding:12px}
+  #fxQ{flex:1;font-size:17px;padding:10px 14px;border-radius:14px;border:1.5px solid ${c.border};background:rgba(0,0,0,.18);color:${c.text};
+       outline:none;-webkit-user-select:text;user-select:text;font-family:inherit}
+  #fxList{flex:1;overflow-y:auto;padding:0 12px 20px}
+  #fxList .cur{border:none;border-bottom:1px solid rgba(255,255,255,.07);border-radius:0;background:transparent}
+  #fxList .cur.on{background:rgba(255,255,255,.1);border-radius:12px}
+
   /* ---- Teclado ---- */
   #pad{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:6px 10px 12px}
   #pad.hide{display:none}
@@ -95,6 +120,7 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
     <button class="tab" data-tab="y">Y=</button>
     <button class="tab" data-tab="graph">${H('calcGraph')}</button>
     <button class="tab" data-tab="table">${H('calcTable')}</button>
+    <button class="tab" data-tab="fx">${H('calcFx')}</button>
   </div>
 </div>
 <div id="sub">
@@ -127,6 +153,18 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   <table id="tbl"></table>
 </div></div>
 
+<div class="view" id="v-fx"><div id="fxv">
+  <button class="cur" id="fxFrom"></button>
+  <input id="fxAmt" inputmode="decimal" value="1" autocomplete="off">
+  <button id="fxSwap">⇅</button>
+  <button class="cur" id="fxTo"></button>
+  <div id="fxRes"></div>
+  <div class="fxl" id="fxL1"></div>
+  <div class="fxl" id="fxL2"></div>
+  <div id="fxInfo"></div>
+</div></div>
+<div id="fxPick"><div class="ph"><button class="ibtn" id="fxBack">✕</button><input id="fxQ" placeholder="${H('fxSearch')}" autocomplete="off"></div><div id="fxList"></div></div>
+
 <div id="pad"></div>
 <div id="tip"></div>
 
@@ -150,7 +188,7 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   }
   var saveT;
   function save(){ clearTimeout(saveT); saveT = setTimeout(function(){
-    S.ans = ans; send({ type: 'calcState', state: { hist: S.hist.slice(-60), ys: S.ys, on: S.on, deg: S.deg, win: S.win, ans: ans } });
+    S.ans = ans; send({ type: 'calcState', state: { hist: S.hist.slice(-60), ys: S.ys, on: S.on, deg: S.deg, win: S.win, ans: ans, fx: S.fx } });
   }, 300); }
   var tipT;
   function tip(t){ var e = $('tip'); e.textContent = t; e.classList.add('show'); clearTimeout(tipT); tipT = setTimeout(function(){ e.classList.remove('show'); }, 1400); }
@@ -295,7 +333,9 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
     tab = t;
     document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === t); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('show', v.id === 'v-' + t); });
-    $('pad').classList.toggle('hide', t === 'graph' || t === 'table');
+    $('pad').classList.toggle('hide', t === 'graph' || t === 'table' || t === 'fx');
+    if (t === 'fx') fxOpen();
+    $('ang').style.visibility = t === 'fx' || t === 'table' ? 'hidden' : '';
     if (t === 'calc') setActive($('in'));
     if (t === 'y') setActive(document.querySelector('.yrow input'));
     if (t === 'graph') setTimeout(drawGraph, 30);
@@ -381,6 +421,7 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
 
   /* Insertar el último cálculo en la nota */
   if ($('ins')) $('ins').addEventListener('click', function(){
+    if (tab === 'fx') { var ft = fxText(); if (ft) send({ type: 'calcInsert', text: ft }); else tip('—'); return; }
     var x = S.hist[S.hist.length - 1];
     if (!x || x.r === ERR) { tip('—'); return; }
     send({ type: 'calcInsert', text: x.e.replace(/Ans/g, x.av ? '(' + x.av + ')' : 'Ans') + ' = ' + x.r });
@@ -584,6 +625,104 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   }
   $('tstart').addEventListener('input', buildTable);
   $('tstep').addEventListener('input', buildTable);
+
+
+  /* =========================================================
+     DIVISAS: cambio de moneda (tasas del día por internet)
+     ========================================================= */
+  var LOC = ${loc}, FX = ${fxs};
+  var region = (LOC.split('-')[1] || '').toUpperCase();
+  S.fx = S.fx || { from: 'USD', to: '', amt: '1' };
+  var POP = ['USD', 'EUR', 'DOP', 'MXN', 'COP', 'GBP', 'CAD', 'ARS', 'CLP', 'PEN', 'BRL', 'JPY', 'CNY', 'CHF', 'VES', 'GTQ', 'HNL', 'CRC', 'UYU', 'BOB', 'PYG', 'NIO', 'CUP', 'INR'];
+  var curNames = null;
+  try { curNames = new Intl.DisplayNames([LOC, 'en'], { type: 'currency' }); } catch (e) {}
+  function cname(cd){ try { var n = curNames && curNames.of(cd); return n && n !== cd ? n : cd; } catch (e) { return cd; } }
+  function flag(cd){
+    var SPECIAL = { EUR: 'EU', ANG: 'CW', XCD: 'AG', XAF: 'CM', XOF: 'SN', XPF: 'PF', XDR: '', BTC: '' };
+    var cc = cd in SPECIAL ? SPECIAL[cd] : cd.slice(0, 2);
+    if (!cc) return '🌐';
+    return String.fromCodePoint(127397 + cc.charCodeAt(0), 127397 + cc.charCodeAt(1));
+  }
+  function nf(v, max){
+    try { return new Intl.NumberFormat(LOC, { maximumFractionDigits: max, minimumFractionDigits: max > 2 ? 0 : Math.min(2, max) }).format(v); }
+    catch (e) { return String(+v.toFixed(max)); }
+  }
+  function smart(v){ var a = Math.abs(v); return nf(v, a >= 1 ? 2 : a >= 0.01 ? 4 : 6); }
+  function fxReady(){ return FX && FX.rates && FX.rates.USD; }
+  function fxPickDefault(){
+    if (S.fx.to) return;
+    var r = FX && FX.rates ? Object.keys(FX.rates) : POP;
+    var mine = r.filter(function(c){ return c.slice(0, 2) === region && c !== 'USD'; })[0];
+    S.fx.to = mine || (region === 'US' ? 'EUR' : 'EUR');
+  }
+  function fxAmt(){ var v = parseFloat(($('fxAmt').value || '').replace(/\\s/g, '').replace(',', '.')); return isNaN(v) ? 0 : v; }
+  function fxConv(a, f, t){ return a * FX.rates[t] / FX.rates[f]; }
+  function curBtn(el, cd){ el.innerHTML = '<span class="fl">' + flag(cd) + '</span><span class="cd">' + cd + '</span><span class="nm">' + esc(cname(cd)) + '</span><span>▾</span>'; }
+  function fxDate(){
+    if (!FX || !FX.t) return '';
+    try { return new Date(FX.t).toLocaleString(LOC, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    catch (e) { return new Date(FX.t).toISOString().slice(0, 10); }
+  }
+  function fxRender(){
+    fxPickDefault();
+    curBtn($('fxFrom'), S.fx.from); curBtn($('fxTo'), S.fx.to);
+    if (!fxReady()) {
+      $('fxRes').textContent = ''; $('fxL1').textContent = ''; $('fxL2').textContent = '';
+      $('fxInfo').textContent = FX && FX.err ? ${J('fxFail')} : ${J('fxLoading')};
+      return;
+    }
+    var f = S.fx.from, t = S.fx.to;
+    if (!FX.rates[f] || !FX.rates[t]) { $('fxRes').textContent = '—'; return; }
+    var a = fxAmt();
+    $('fxRes').textContent = smart(fxConv(a, f, t)) + ' ' + t;
+    $('fxL1').textContent = '1 ' + f + ' = ' + smart(fxConv(1, f, t)) + ' ' + t;
+    $('fxL2').textContent = '1 ' + t + ' = ' + smart(fxConv(1, t, f)) + ' ' + f;
+    $('fxInfo').textContent = (FX.old ? ${J('fxOffline')} : ${J('fxUpdated')}).replace('{d}', fxDate()) + ' · ExchangeRate-API';
+  }
+  function fxText(){
+    if (!fxReady()) return '';
+    var f = S.fx.from, t = S.fx.to, a = fxAmt();
+    var as; try { as = new Intl.NumberFormat(LOC, { maximumFractionDigits: 6 }).format(a); } catch (e) { as = String(a); }
+    return as + ' ' + f + ' = ' + smart(fxConv(a, f, t)) + ' ' + t;
+  }
+  var fxAsked = false;
+  function fxOpen(){
+    $('fxAmt').value = S.fx.amt || '1';
+    fxRender();
+    var stale = !FX || !FX.t || Date.now() - FX.t > 6 * 3600 * 1000;
+    if (stale && !fxAsked) { fxAsked = true; send({ type: 'fxGet' }); }
+  }
+  window.fxResult = function(d){
+    if (d && d.rates) FX = d;
+    else if (FX && FX.rates) FX.old = true;
+    else FX = { err: true };
+    fxRender();
+  };
+  $('fxAmt').addEventListener('input', function(){ S.fx.amt = $('fxAmt').value; fxRender(); save(); });
+  $('fxSwap').addEventListener('click', function(){ var x = S.fx.from; S.fx.from = S.fx.to; S.fx.to = x; fxRender(); save(); });
+  var pickFor = null;
+  function fxList(){
+    var q = $('fxQ').value.trim().toLowerCase();
+    var all = fxReady() ? Object.keys(FX.rates) : POP.slice();
+    var rest = all.filter(function(c){ return POP.indexOf(c) < 0; }).sort(function(a, b){ return cname(a).localeCompare(cname(b), LOC); });
+    var list = POP.filter(function(c){ return all.indexOf(c) >= 0; }).concat(rest);
+    if (q) list = list.filter(function(c){ return c.toLowerCase().indexOf(q) >= 0 || cname(c).toLowerCase().indexOf(q) >= 0; });
+    var sel = S.fx[pickFor];
+    $('fxList').innerHTML = list.map(function(c){
+      return '<button class="cur' + (c === sel ? ' on' : '') + '" data-c="' + c + '"><span class="fl">' + flag(c) + '</span><span class="cd">' + c + '</span><span class="nm">' + esc(cname(c)) + '</span></button>';
+    }).join('');
+  }
+  function openPick(which){ pickFor = which; $('fxQ').value = ''; fxList(); $('fxPick').classList.add('show'); $('fxList').scrollTop = 0; }
+  $('fxFrom').addEventListener('click', function(){ openPick('from'); });
+  $('fxTo').addEventListener('click', function(){ openPick('to'); });
+  $('fxBack').addEventListener('click', function(){ $('fxPick').classList.remove('show'); });
+  $('fxQ').addEventListener('input', fxList);
+  $('fxList').addEventListener('click', function(e){
+    var b = e.target.closest('[data-c]'); if (!b) return;
+    S.fx[pickFor] = b.getAttribute('data-c');
+    $('fxPick').classList.remove('show');
+    fxRender(); save();
+  });
 
   window.calcTip = tip;
   renderHist();

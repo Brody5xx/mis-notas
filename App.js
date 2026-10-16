@@ -711,7 +711,11 @@ export default function App() {
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const calcState = useRef({});                     // lo que la calculadora recuerda
   const calcWeb = useRef(null), calcFrame = useRef(null);
-  useEffect(() => { AsyncStorage.getItem('calcState').then(v => { if (v) calcState.current = JSON.parse(v); }).catch(() => {}); }, []);
+  const fxCache = useRef(null);                     // tasas de cambio guardadas
+  useEffect(() => {
+    AsyncStorage.getItem('calcState').then(v => { if (v) calcState.current = JSON.parse(v); }).catch(() => {});
+    AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
+  }, []);
   const webRef = useRef(null);
 
   const { width } = useWindowDimensions();
@@ -1356,10 +1360,36 @@ export default function App() {
   }
 
   /* ---------- Calculadora ---------- */
+  function calcReply(fn, data) {
+    if (Platform.OS === 'web') {
+      try { const w = calcFrame.current && calcFrame.current.contentWindow; if (w && w[fn]) w[fn](data); } catch (e) {}
+    } else if (calcWeb.current) {
+      const js = JSON.stringify(data).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+      calcWeb.current.injectJavaScript(`window.${fn} && window.${fn}(${js}); true;`);
+    }
+  }
+  /* Tasas de cambio del día (gratis, sin llave): open.er-api.com */
+  async function getRates() {
+    let timer;
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      if (ctl) timer = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch('https://open.er-api.com/v6/latest/USD', ctl ? { signal: ctl.signal } : undefined);
+      const j = await r.json();
+      if (j.result !== 'success' || !j.rates) throw new Error('fx');
+      const d = { t: (j.time_last_update_unix || Date.now() / 1000) * 1000, rates: j.rates };
+      fxCache.current = d;
+      AsyncStorage.setItem('fxRates', JSON.stringify(d)).catch(() => {});
+      calcReply('fxResult', d);
+    } catch (e) {
+      calcReply('fxResult', null);
+    } finally { clearTimeout(timer); }
+  }
   function onCalcMessage(data) {
     try {
       const m = JSON.parse(data);
       if (m.type === 'calcClose') setCalcOpen(null);
+      if (m.type === 'fxGet') getRates();
       if (m.type === 'calcState') { calcState.current = m.state || {}; AsyncStorage.setItem('calcState', JSON.stringify(calcState.current)).catch(() => {}); }
       if (m.type === 'calcInsert' && m.text) {
         setCalcOpen(null);
@@ -1380,7 +1410,7 @@ export default function App() {
     window.addEventListener('message', h);
     return () => window.removeEventListener('message', h);
   }, [calcOpen]);
-  const calcHtml = useMemo(() => (calcOpen ? buildCalcHtml({ c, tr, state: calcState.current, canInsert: calcOpen === 'note' && !!current && !current.deleted }) : ''),
+  const calcHtml = useMemo(() => (calcOpen ? buildCalcHtml({ c, tr, state: calcState.current, fx: fxCache.current, locale: LOCALE, canInsert: calcOpen === 'note' && !!current && !current.deleted }) : ''),
     [calcOpen, dark, langCode]);
   const calcModal = (
     <Modal visible={!!calcOpen} animationType="slide" statusBarTranslucent onRequestClose={() => setCalcOpen(null)}>

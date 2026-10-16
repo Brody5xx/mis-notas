@@ -3209,6 +3209,54 @@ for (const code in CALC) {
     calcError: v[5], calcStart: v[6], calcStep: v[7] });
 }
 
+/* Textos nuevos: divisas
+   [Divisas, Buscar moneda, Cargando, Error, Actualizado {d}, Sin internet {d}] */
+const FXT = {
+  es: ['Divisas', 'Buscar moneda...', 'Cargando tasas...', 'No se pudieron cargar las tasas. Revisa tu internet.', 'Actualizado: {d}', 'Sin internet. Tasas del {d}'],
+  en: ['Currency', 'Search currency...', 'Loading rates...', 'Could not load the rates. Check your internet.', 'Updated: {d}', 'No internet. Rates from {d}'],
+  pt: ['Moedas', 'Buscar moeda...', 'Carregando taxas...', 'Não foi possível carregar as taxas. Verifique a internet.', 'Atualizado: {d}', 'Sem internet. Taxas de {d}'],
+  fr: ['Devises', 'Rechercher une devise...', 'Chargement des taux...', 'Impossible de charger les taux. Vérifiez votre connexion.', 'Mis à jour : {d}', 'Pas d’internet. Taux du {d}'],
+  de: ['Währung', 'Währung suchen...', 'Kurse werden geladen...', 'Kurse konnten nicht geladen werden. Prüfe dein Internet.', 'Aktualisiert: {d}', 'Kein Internet. Kurse vom {d}'],
+  it: ['Valute', 'Cerca valuta...', 'Caricamento tassi...', 'Impossibile caricare i tassi. Controlla internet.', 'Aggiornato: {d}', 'Senza internet. Tassi del {d}'],
+  ca: ['Divises', 'Cerca moneda...', 'Carregant taxes...', 'No s’han pogut carregar les taxes. Revisa internet.', 'Actualitzat: {d}', 'Sense internet. Taxes del {d}'],
+  nl: ['Valuta', 'Valuta zoeken...', 'Koersen laden...', 'Koersen konden niet worden geladen. Controleer je internet.', 'Bijgewerkt: {d}', 'Geen internet. Koersen van {d}'],
+  sv: ['Valuta', 'Sök valuta...', 'Laddar kurser...', 'Kunde inte ladda kurserna. Kontrollera internet.', 'Uppdaterad: {d}', 'Inget internet. Kurser från {d}'],
+  nb: ['Valuta', 'Søk valuta...', 'Laster kurser...', 'Kunne ikke laste kursene. Sjekk internett.', 'Oppdatert: {d}', 'Ikke internett. Kurser fra {d}'],
+  da: ['Valuta', 'Søg valuta...', 'Henter kurser...', 'Kunne ikke hente kurserne. Tjek internettet.', 'Opdateret: {d}', 'Intet internet. Kurser fra {d}'],
+  fi: ['Valuutta', 'Hae valuuttaa...', 'Ladataan kursseja...', 'Kursseja ei voitu ladata. Tarkista internet.', 'Päivitetty: {d}', 'Ei internetiä. Kurssit {d}'],
+  pl: ['Waluty', 'Szukaj waluty...', 'Ładowanie kursów...', 'Nie udało się pobrać kursów. Sprawdź internet.', 'Aktualizacja: {d}', 'Brak internetu. Kursy z {d}'],
+  cs: ['Měny', 'Hledat měnu...', 'Načítání kurzů...', 'Kurzy se nepodařilo načíst. Zkontrolujte internet.', 'Aktualizováno: {d}', 'Bez internetu. Kurzy z {d}'],
+  sk: ['Meny', 'Hľadať menu...', 'Načítavam kurzy...', 'Kurzy sa nepodarilo načítať. Skontrolujte internet.', 'Aktualizované: {d}', 'Bez internetu. Kurzy z {d}'],
+  hu: ['Valuta', 'Valuta keresése...', 'Árfolyamok betöltése...', 'Nem sikerült betölteni az árfolyamokat. Ellenőrizd az internetet.', 'Frissítve: {d}', 'Nincs internet. Árfolyam: {d}'],
+  ro: ['Valută', 'Caută moneda...', 'Se încarcă cursurile...', 'Cursurile nu s-au putut încărca. Verifică internetul.', 'Actualizat: {d}', 'Fără internet. Cursuri din {d}'],
+  hr: ['Valute', 'Traži valutu...', 'Učitavanje tečajeva...', 'Tečajevi se nisu mogli učitati. Provjerite internet.', 'Ažurirano: {d}', 'Nema interneta. Tečajevi od {d}'],
+  el: ['Νομίσματα', 'Αναζήτηση νομίσματος...', 'Φόρτωση ισοτιμιών...', 'Δεν φορτώθηκαν οι ισοτιμίες. Ελέγξτε το internet.', 'Ενημέρωση: {d}', 'Χωρίς internet. Ισοτιμίες {d}'],
+  bg: ['Валути', 'Търсене на валута...', 'Зареждане на курсове...', 'Курсовете не се заредиха. Проверете интернета.', 'Обновено: {d}', 'Няма интернет. Курсове от {d}'],
+  ru: ['Валюты', 'Поиск валюты...', 'Загрузка курсов...', 'Не удалось загрузить курсы. Проверьте интернет.', 'Обновлено: {d}', 'Нет интернета. Курсы от {d}'],
+  uk: ['Валюти', 'Пошук валюти...', 'Завантаження курсів...', 'Не вдалося завантажити курси. Перевірте інтернет.', 'Оновлено: {d}', 'Немає інтернету. Курси від {d}'],
+  tr: ['Döviz', 'Para birimi ara...', 'Kurlar yükleniyor...', 'Kurlar yüklenemedi. İnternetinizi kontrol edin.', 'Güncellendi: {d}', 'İnternet yok. {d} kurları'],
+  ar: ['العملات', 'ابحث عن عملة...', 'جارٍ تحميل الأسعار...', 'تعذر تحميل الأسعار. تحقق من الإنترنت.', 'آخر تحديث: {d}', 'لا يوجد إنترنت. أسعار {d}'],
+  he: ['מטבעות', 'חיפוש מטבע...', 'טוען שערים...', 'לא ניתן לטעון את השערים. בדוק את האינטרנט.', 'עודכן: {d}', 'אין אינטרנט. שערים מ-{d}'],
+  fa: ['ارز', 'جستجوی ارز...', 'در حال دریافت نرخ‌ها...', 'نرخ‌ها دریافت نشد. اینترنت را بررسی کنید.', 'به‌روزرسانی: {d}', 'بدون اینترنت. نرخ‌های {d}'],
+  ur: ['کرنسی', 'کرنسی تلاش کریں...', 'ریٹ لوڈ ہو رہے ہیں...', 'ریٹ لوڈ نہیں ہو سکے۔ انٹرنیٹ چیک کریں۔', 'اپ ڈیٹ: {d}', 'انٹرنیٹ نہیں۔ {d} کے ریٹ'],
+  hi: ['मुद्रा', 'मुद्रा खोजें...', 'दरें लोड हो रही हैं...', 'दरें लोड नहीं हो सकीं। इंटरनेट जाँचें।', 'अपडेट: {d}', 'इंटरनेट नहीं। {d} की दरें'],
+  bn: ['মুদ্রা', 'মুদ্রা খুঁজুন...', 'হার লোড হচ্ছে...', 'হার লোড করা যায়নি। ইন্টারনেট দেখুন।', 'হালনাগাদ: {d}', 'ইন্টারনেট নেই। {d} এর হার'],
+  id: ['Kurs', 'Cari mata uang...', 'Memuat kurs...', 'Kurs tidak bisa dimuat. Periksa internet.', 'Diperbarui: {d}', 'Tanpa internet. Kurs {d}'],
+  ms: ['Mata wang', 'Cari mata wang...', 'Memuatkan kadar...', 'Kadar tidak dapat dimuatkan. Semak internet.', 'Dikemas kini: {d}', 'Tiada internet. Kadar {d}'],
+  fil: ['Pera', 'Hanapin ang pera...', 'Nilo-load ang palitan...', 'Hindi ma-load ang palitan. Tingnan ang internet.', 'Na-update: {d}', 'Walang internet. Palitan noong {d}'],
+  vi: ['Tiền tệ', 'Tìm tiền tệ...', 'Đang tải tỷ giá...', 'Không tải được tỷ giá. Kiểm tra internet.', 'Cập nhật: {d}', 'Không có internet. Tỷ giá ngày {d}'],
+  th: ['สกุลเงิน', 'ค้นหาสกุลเงิน...', 'กำลังโหลดอัตรา...', 'โหลดอัตราไม่ได้ ตรวจสอบอินเทอร์เน็ต', 'อัปเดต: {d}', 'ไม่มีอินเทอร์เน็ต อัตราวันที่ {d}'],
+  'zh-Hans': ['汇率', '搜索货币...', '正在加载汇率...', '无法加载汇率，请检查网络。', '更新于：{d}', '无网络。{d} 的汇率'],
+  'zh-Hant': ['匯率', '搜尋貨幣...', '正在載入匯率...', '無法載入匯率，請檢查網路。', '更新於：{d}', '無網路。{d} 的匯率'],
+  ja: ['為替', '通貨を検索...', 'レートを読み込み中...', 'レートを読み込めません。インターネットを確認してください。', '更新：{d}', 'オフライン。{d} のレート'],
+  ko: ['환율', '통화 검색...', '환율 불러오는 중...', '환율을 불러올 수 없어요. 인터넷을 확인하세요.', '업데이트: {d}', '인터넷 없음. {d} 기준 환율'],
+  sw: ['Sarafu', 'Tafuta sarafu...', 'Inapakia viwango...', 'Imeshindwa kupakia viwango. Angalia intaneti.', 'Imesasishwa: {d}', 'Hakuna intaneti. Viwango vya {d}'],
+};
+for (const code in FXT) {
+  const v = FXT[code];
+  Object.assign(S[code], { calcFx: v[0], fxSearch: v[1], fxLoading: v[2], fxFail: v[3], fxUpdated: v[4], fxOffline: v[5] });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS
