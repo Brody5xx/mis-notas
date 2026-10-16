@@ -448,6 +448,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     <button class="db" data-iecmd="i"><i style="font-family:Georgia,serif">I</i></button>
     <button class="db" data-iecmd="u"><u>U</u></button>
     <button class="db" data-ie="undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    <button class="db" data-ie="redo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
    </div>
    <div class="drow">
     <button class="db ietxt" data-ie="edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span class="ielbl">${H('imgEditText')}</span></button>
@@ -1843,7 +1844,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
      ========================================================= */
   var imged = $('imged'), ieCv = $('ieCanvas'), ieCtx = ieCv.getContext('2d'), ieArea = $('ieArea'), iebar = $('iebar');
   var ieInput = $('ieInput'), ieTextBar = $('ieText'), ieHint = $('ieHint');
-  var IE = { target: null, base: null, ops: [], mode: 'draw', color: '#ff3b30', ol: null, size: 28, pen: 6,
+  var IE = { target: null, base: null, ops: [], redo: [], mode: 'draw', color: '#ff3b30', ol: null, size: 28, pen: 6,
              b: true, i: false, u: false, cur: null, drag: null, sel: null, edit: null, pend: null };
   function ieOn(){ return imged.classList.contains('show'); }
   function ieK(){ var r = ieCv.getBoundingClientRect(); return r.width ? ieCv.width / r.width : 1; }   // px de la foto por px de pantalla
@@ -1855,6 +1856,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     iebar.querySelectorAll('[data-iecmd]').forEach(function(b){ b.classList.toggle('on', IE.mode === 'text' && !!st[b.dataset.iecmd]); });
     $('ieSizeNum').textContent = IE.mode === 'draw' ? IE.pen : (t ? t.n : IE.size);
     $('ieColorDot').style.background = t ? t.c : IE.color;
+    var ub = iebar.querySelector('[data-ie=undo]'), rb = iebar.querySelector('[data-ie=redo]');
+    if (ub) ub.style.opacity = IE.ops.length ? '' : '.35';
+    if (rb) rb.style.opacity = IE.redo && IE.redo.length ? '' : '.35';
   }
   function ieSetMode(m){
     IE.mode = m;
@@ -1920,7 +1924,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function openImgEdit(img, mode){
     if (!img) return;
-    IE.target = img; IE.ops = []; IE.sel = null; IE.edit = null; IE.pend = null;
+    IE.target = img; IE.ops = []; IE.redo = []; IE.sel = null; IE.edit = null; IE.pend = null;
     var base = new Image();
     base.onload = function(){
       var nw = base.naturalWidth, nh = base.naturalHeight, k = Math.min(1, 1600 / Math.max(nw, nh));
@@ -1976,7 +1980,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (save !== false && ieTextBar.classList.contains('show')) {
       var v = ieInput.value.trim();
       if (IE.edit) { if (v) IE.edit.v = v; else { IE.ops.splice(IE.ops.indexOf(IE.edit), 1); IE.sel = null; } }
-      else if (IE.pend && v) { var op = ieNewOp(IE.pend.x, IE.pend.y, v); IE.ops.push(op); IE.sel = op; }
+      else if (IE.pend && v) { var op = ieNewOp(IE.pend.x, IE.pend.y, v); IE.ops.push(op); IE.redo = []; IE.sel = op; }
     }
     ieTextBar.classList.remove('show'); ieInput.blur();
     if (ieOn()) ieZoomApply();
@@ -1996,7 +2000,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     try { ieCv.setPointerCapture(e.pointerId); } catch (_) {}
     if (IE.mode === 'draw') {
       IE.cur = { t: 's', c: IE.color, w: IE.pen * ieK(), p: [p] };
-      IE.ops.push(IE.cur); ieRedraw();
+      IE.ops.push(IE.cur); IE.redo = []; ieRedraw();
       return;
     }
     if (ieTextBar.classList.contains('show')) { ieCloseText(true); return; }
@@ -2028,7 +2032,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       IE.drag.op.x = IE.drag.ox + p[0] - IE.drag.sx; IE.drag.op.y = IE.drag.oy + p[1] - IE.drag.sy; ieRedraw();
     }
   });
-  function ieUp(){ if (IE.cur) { IE.cur = null; ieRedraw(); } IE.drag = null; }
+  function ieUp(){ if (IE.cur) { IE.cur = null; ieRedraw(); ieSyncBar(); } IE.drag = null; }
   ieCv.addEventListener('pointerup', ieUp);
   ieCv.addEventListener('pointercancel', ieUp);
 
@@ -2123,7 +2127,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       ieSyncBar(); ieRedraw(); return;
     }
     if (a === 'draw' || a === 'text') { ieSetMode(IE.mode === a ? 'view' : a); return; }
-    if (a === 'undo') { ieCloseText(false); var gone = IE.ops.pop(); if (gone === IE.sel) IE.sel = null; ieSyncBar(); ieRedraw(); return; }
+    if (a === 'undo') { ieCloseText(false); var gone = IE.ops.pop(); if (gone) IE.redo.push(gone); if (gone === IE.sel) IE.sel = null; ieSyncBar(); ieRedraw(); return; }
+    if (a === 'redo') { ieCloseText(false); var back = IE.redo.pop(); if (back) IE.ops.push(back); ieSyncBar(); ieRedraw(); return; }
     if (a === 'edit') { if (IE.sel) ieOpenText(IE.sel); return; }
     if (a === 'del') { if (IE.sel) { IE.ops.splice(IE.ops.indexOf(IE.sel), 1); IE.sel = null; ieSyncBar(); ieRedraw(); } return; }
     if (a === 'size') { togglePanel(sizePanel, b); return; }
