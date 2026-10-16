@@ -142,8 +142,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #anchorBar button.on{background:#fff;color:#111}
   .imgwrap.sel[data-anchor]::after{content:'📌';position:absolute;top:-10px;left:-10px;font-size:18px;pointer-events:none}
   .imgwrap img{width:100%;height:auto;display:block;background:transparent}
-  #rsz{position:absolute;display:none;pointer-events:none;border:1.5px solid ${c.text};border-radius:3px;z-index:3;
-        transform-origin:center center;box-shadow:0 0 0 .5px rgba(0,0,0,.35)}
+  /* Foto elegida: borde azul hielo con brillo + 2 luces blancas que giran alrededor */
+  @property --spin{syntax:'<angle>';inherits:false;initial-value:0deg}
+  #rsz{position:absolute;display:none;pointer-events:none;border:2px solid #5ccfff;border-radius:6px;z-index:3;
+        transform-origin:center center;
+        box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 12px 2px rgba(92,207,255,.55),inset 0 0 10px rgba(92,207,255,.35)}
+  #rsz::before{content:'';position:absolute;inset:-5px;border-radius:9px;padding:3px;pointer-events:none;
+        background:conic-gradient(from var(--spin),transparent 0deg,transparent 20deg,rgba(255,255,255,.9) 60deg,#fff 72deg,transparent 78deg,
+          transparent 200deg,rgba(255,255,255,.9) 240deg,#fff 252deg,transparent 258deg,transparent 360deg);
+        -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+        mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+        filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 8px rgba(92,207,255,.9));
+        animation:rszSpin 2.2s linear infinite}
+  @keyframes rszSpin{to{--spin:360deg}}
   /* Esquinas invisibles: no se ven, pero arrastrándolas cambia el tamaño */
   .rh{position:absolute;width:44px;height:44px;background:transparent;border:none;pointer-events:auto;touch-action:none}
   .rh[data-r=tl]{left:-22px;top:-22px}.rh[data-r=tr]{right:-22px;top:-22px}
@@ -254,7 +265,6 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .db.on,.chip.on{background:${c.text} !important;color:${c.inv} !important;box-shadow:none !important;border-color:transparent !important}
   .db svg{display:block}
   #sizeBig{background:none !important;-webkit-background-clip:initial !important;background-clip:initial !important;color:${c.text} !important}
-  #rsz{border-color:${c.text} !important}
   .rh{border:none !important}
   /* La barra se acomoda en 2 filas si no cabe (así ningún botón queda escondido) */
   .dock{flex-wrap:wrap;justify-content:center;overflow:visible !important;row-gap:2px}
