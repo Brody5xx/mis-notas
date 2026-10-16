@@ -900,69 +900,54 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
 const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círculo salga de ahí)
 const ND = Platform.OS !== 'web';
 const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-/* Círculo líquido (web): borde curvo y suave que ondula como agua y termina redondo */
-function blobPath(x, y, R, A, ph) {
-  const P = 18, pts = [];
-  for (let i = 0; i < P; i++) {
-    const a = (i / P) * Math.PI * 2;
-    const r = Math.max(0.3, R + A * (0.5 * Math.sin(2 * a + ph) + 0.32 * Math.sin(3 * a - 1.35 * ph + 1.1) + 0.18 * Math.sin(5 * a + 0.8 * ph + 2.3)));
-    pts.push([x + r * Math.cos(a), y + r * Math.sin(a)]);
-  }
-  // curvas suaves (Catmull-Rom → Bézier) para que se vea como líquido y no como polígono
-  const f = v => v.toFixed(1);
-  let d = 'M' + f(pts[0][0]) + ',' + f(pts[0][1]);
-  for (let i = 0; i < P; i++) {
-    const p0 = pts[(i - 1 + P) % P], p1 = pts[i], p2 = pts[(i + 1) % P], p3 = pts[(i + 2) % P];
-    d += 'C' + f(p1[0] + (p2[0] - p0[0]) / 6) + ',' + f(p1[1] + (p2[1] - p0[1]) / 6) + ' ' +
-         f(p2[0] - (p3[0] - p1[0]) / 6) + ',' + f(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + f(p2[0]) + ',' + f(p2[1]);
-  }
-  return d + 'Z';
-}
-function liquidFrames(x, y, W, H, opening) {
-  const K = 60, clip = [], rim = [];
-  const Rmax = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 16;
+/* Portal líquido para la web, hecho SOLO con "transform" y "opacity":
+   el navegador lo mueve con la tarjeta gráfica, así va fluido aunque la nota esté cargando. */
+function portalFrames(opening) {
+  const K = 48, out = [], inn = [], ring = [];
   for (let k = 0; k <= K; k++) {
     const t = k / K, e = easeIO(t);
-    const R = Math.max(0.5, e * Rmax);
-    const A = Math.min(R * 0.24, 46) * Math.pow(1 - e, 1.1);       // ondas: grandes al principio, se calman al final
-    const ph = t * Math.PI * 3.2;
-    const d = blobPath(x, y, R, A, ph);
-    clip.push("path('" + d + "')");
-    rim.push({ d: "path('" + d + "')", op: Math.min(1, t * 6) * Math.pow(1 - e, 0.7) });
+    const s = Math.max(0.003, e);
+    const calm = Math.pow(1 - e, 1.6);
+    const wob = 0.15 * Math.sin(t * Math.PI * 3.4) * calm;            // se estira y se aplasta como agua
+    const rot = 18 * Math.sin(t * Math.PI * 2.2) * calm;              // y gira un poquito
+    const sx = s * (1 + wob), sy = s * (1 - wob);
+    out.push({ transform: 'rotate(' + rot.toFixed(2) + 'deg) scale(' + sx.toFixed(5) + ',' + sy.toFixed(5) + ')' });
+    inn.push({ transform: 'scale(' + (1 / sx).toFixed(5) + ',' + (1 / sy).toFixed(5) + ') rotate(' + (-rot).toFixed(2) + 'deg)' });
+    ring.push({ transform: out[k].transform, opacity: +(Math.min(1, t * 8) * Math.pow(1 - e, 0.8)).toFixed(3) });
   }
-  if (!opening) { clip.reverse(); rim.reverse(); }
-  return {
-    clip: clip.map((cp, i) => ({ clipPath: cp, offset: i / K })),
-    rim: rim.map((r, i) => ({ d: r.d, opacity: r.op, offset: i / K })),
-  };
+  const fix = a => (opening ? a : a.slice().reverse()).map((f, i) => ({ ...f, offset: i / K }));
+  return { out: fix(out), inn: fix(inn), ring: fix(ring) };
 }
-/* Corre la animación líquida en la web (con un brillo suave en el borde) */
-function playLiquid(el, x, y, W, H, opening, ms, onDone) {
-  const fr = liquidFrames(x, y, W, H, opening);
-  el.style.willChange = 'clip-path';
-  let svg = null, rimAn = null;
-  try {
-    const NS = 'http://www.w3.org/2000/svg';
-    svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('width', W); svg.setAttribute('height', H);
-    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5';
-    const mk = (w, col) => { const pth = document.createElementNS(NS, 'path'); pth.setAttribute('fill', 'none');
-      pth.setAttribute('stroke', col); pth.setAttribute('stroke-width', w); svg.appendChild(pth); return pth; };
-    const glow = mk(7, 'rgba(160,225,255,0.16)'), line = mk(1.6, 'rgba(255,255,255,0.55)');
-    (el.parentNode || document.body).appendChild(svg);
-    const opts = { duration: ms, easing: 'linear', fill: 'forwards' };
-    rimAn = [glow.animate(fr.rim.map(f => ({ d: f.d, offset: f.offset })), opts),
-             line.animate(fr.rim.map(f => ({ d: f.d, offset: f.offset })), opts),
-             svg.animate(fr.rim.map(f => ({ opacity: f.opacity, offset: f.offset })), opts)];
-  } catch (e) { if (svg && svg.parentNode) svg.parentNode.removeChild(svg); svg = null; }
-  el.style.clipPath = fr.clip[0].clipPath;
-  const an = el.animate(fr.clip, { duration: ms, easing: 'linear', fill: 'forwards' });
-  an.onfinish = () => {
-    if (svg && svg.parentNode) svg.parentNode.removeChild(svg);
-    el.style.willChange = '';
-    onDone && onDone(an);
-  };
-  return an;
+function portalPrep(root, o, W, H) {
+  const outer = root && root.firstChild, inner = outer && outer.firstChild, content = inner && inner.firstChild;
+  if (!content || !outer.animate) return null;
+  const saved = [outer, inner, content].map(el => el.getAttribute('style'));   // para dejarlos como estaban
+  const D = Math.ceil(2 * Math.hypot(Math.max(o.x, W - o.x), Math.max(o.y, H - o.y))) + 40;
+  Object.assign(outer.style, { position: 'absolute', left: (o.x - D / 2) + 'px', top: (o.y - D / 2) + 'px', width: D + 'px', height: D + 'px',
+    borderRadius: '50%', overflow: 'hidden', flex: 'none', willChange: 'transform', transform: 'scale(0.003)' });
+  Object.assign(inner.style, { position: 'absolute', left: '0px', top: '0px', width: D + 'px', height: D + 'px', flex: 'none', willChange: 'transform' });
+  Object.assign(content.style, { position: 'absolute', left: (D / 2 - o.x) + 'px', top: (D / 2 - o.y) + 'px', width: W + 'px', height: H + 'px', flex: 'none' });
+  let ring = root.querySelector('.portalRing');
+  if (!ring) { ring = document.createElement('div'); ring.className = 'portalRing'; root.appendChild(ring); }
+  Object.assign(ring.style, { position: 'absolute', left: outer.style.left, top: outer.style.top, width: D + 'px', height: D + 'px', borderRadius: '50%',
+    pointerEvents: 'none', opacity: '0', willChange: 'transform, opacity',
+    background: 'radial-gradient(circle, rgba(0,0,0,0) 0 95.6%, rgba(170,230,255,0.38) 97.6%, rgba(255,255,255,0.75) 98.9%, rgba(0,0,0,0) 100%)' });
+  return { outer, inner, content, ring, saved };
+}
+function portalClear(P) {
+  if (!P) return;
+  [P.outer, P.inner, P.content].forEach((el, i) => {
+    if (P.saved[i] == null) el.removeAttribute('style'); else el.setAttribute('style', P.saved[i]);
+  });
+  if (P.ring.parentNode) P.ring.parentNode.removeChild(P.ring);
+}
+function playPortal(P, opening, ms, onDone) {
+  const fr = portalFrames(opening);
+  const opt = { duration: ms, easing: 'linear', fill: 'forwards' };
+  const a = P.outer.animate(fr.out, opt);
+  P.inner.animate(fr.inn, opt);
+  P.ring.animate(fr.ring, opt);
+  a.onfinish = () => onDone && onDone();
 }
 /* Para Android/iPhone: el círculo crece con un temblor de agua (escala X/Y) */
 const LIQ = (() => {
@@ -1099,14 +1084,16 @@ function NotesApp() {
     const o = DROP.openPt;
     const finish = () => { setRevealing(false); revBusy.current = false; };
     if (Platform.OS === 'web') {
-      const el = revEl.current;
-      if (!el || !el.animate) { finish(); return; }
-      el.style.clipPath = 'circle(0px at ' + o.x + 'px ' + o.y + 'px)';   // escondida hasta que empiece
+      const P = portalPrep(revEl.current, o, width, winH);     // escondida (puntito) hasta que empiece
+      if (!P) { finish(); return; }
       let started = false;
       const go = () => {
         if (started) return; started = true;
         requestAnimationFrame(() => {
-          playLiquid(el, o.x, o.y, width, winH, true, 680, an => { el.style.clipPath = ''; an.cancel(); finish(); });
+          playPortal(P, true, 640, () => {
+            P.outer.getAnimations().concat(P.inner.getAnimations()).forEach(x => x.cancel());
+            portalClear(P); finish();
+          });
         });
       };
       const fr2 = iframeRef.current;
@@ -1283,10 +1270,11 @@ function NotesApp() {
     setRevealing(true);                    // la pantalla de inicio aparece detrás
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
-      const el = revEl.current;
-      if (!el || !el.animate) { closeEditorNow(); return; }
+      const P = portalPrep(revEl.current, o, width, winH);
+      if (!P) { closeEditorNow(); return; }
+      P.outer.style.transform = '';                            // empieza a pantalla completa
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        playLiquid(el, o.x, o.y, width, winH, false, 620, () => closeEditorNow());
+        playPortal(P, false, 600, () => closeEditorNow());
       }));
     } else {
       setTimeout(() => {
