@@ -1021,10 +1021,12 @@ export default function App() {
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
   const calcState = useRef({});                     // lo que la calculadora recuerda
+  const colorPrefs = useRef({});                    // colores recientes y favoritos
   const calcWeb = useRef(null), calcFrame = useRef(null);
   const fxCache = useRef(null);                     // tasas de cambio guardadas
   useEffect(() => {
     AsyncStorage.getItem('calcState').then(v => { if (v) calcState.current = JSON.parse(v); }).catch(() => {});
+    AsyncStorage.getItem('colorPrefs').then(v => { if (v) colorPrefs.current = JSON.parse(v); }).catch(() => {});
     AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
   }, []);
   const webRef = useRef(null);
@@ -2019,6 +2021,7 @@ export default function App() {
       if (m.type === 'spell') runSpell(m);
       if (m.type === 'rwOpen') setRwOn(!!m.open);
       if (m.type === 'rewrite') runRewrite(m);
+      if (m.type === 'colorPrefs' && m.prefs) { colorPrefs.current = m.prefs; AsyncStorage.setItem('colorPrefs', JSON.stringify(m.prefs)).catch(() => {}); }
       if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
     } catch (e) {}
   }
@@ -2039,7 +2042,7 @@ export default function App() {
     return buildEditorHtml({
       id: current.id, content: toHtml(current), titleHtml: toTitleHtml(current),
       updated: current.updated, editable: !current.deleted, c,
-      kind: current.kind, ink: current.ink, tr, locale: LOCALE,
+      kind: current.kind, ink: current.ink, tr, locale: LOCALE, colors: colorPrefs.current,
     });
   }, [currentId, dark, langCode, current && current.deleted, editorRev]);
 

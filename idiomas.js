@@ -3544,6 +3544,54 @@ for (const code in RWT) {
   RWK.forEach((k, i) => { S[code][k] = RWT[code][i]; });
 }
 
+/* Textos nuevos: colores recientes y favoritos */
+const COLK = ['colRecent', 'colFav', 'colFavSaved', 'colFavRemoved', 'colFavHint'];
+const COLT = {
+  es: ['Recientes', 'Favoritos', '⭐ Guardado en favoritos', 'Quitado de favoritos', 'Toca ＋ para guardar el color actual. Mantén presionado un favorito para quitarlo.'],
+  en: ['Recent', 'Favorites', '⭐ Saved to favorites', 'Removed from favorites', 'Tap ＋ to save the current color. Press and hold a favorite to remove it.'],
+  pt: ['Recentes', 'Favoritos', '⭐ Salvo nos favoritos', 'Removido dos favoritos', 'Toque em ＋ para salvar a cor atual. Mantenha pressionado um favorito para removê-lo.'],
+  fr: ['Récents', 'Favoris', '⭐ Ajouté aux favoris', 'Retiré des favoris', 'Touchez ＋ pour enregistrer la couleur actuelle. Maintenez un favori pour le retirer.'],
+  de: ['Zuletzt', 'Favoriten', '⭐ Zu Favoriten hinzugefügt', 'Aus Favoriten entfernt', 'Tippe auf ＋, um die aktuelle Farbe zu speichern. Halte einen Favoriten gedrückt, um ihn zu entfernen.'],
+  it: ['Recenti', 'Preferiti', '⭐ Salvato nei preferiti', 'Rimosso dai preferiti', 'Tocca ＋ per salvare il colore attuale. Tieni premuto un preferito per rimuoverlo.'],
+  ca: ['Recents', 'Preferits', '⭐ Desat als preferits', 'Tret dels preferits', 'Toca ＋ per desar el color actual. Mantén premut un preferit per treure’l.'],
+  nl: ['Recent', 'Favorieten', '⭐ Opgeslagen in favorieten', 'Uit favorieten verwijderd', 'Tik op ＋ om de huidige kleur op te slaan. Houd een favoriet ingedrukt om hem te verwijderen.'],
+  sv: ['Senaste', 'Favoriter', '⭐ Sparad i favoriter', 'Borttagen från favoriter', 'Tryck på ＋ för att spara aktuell färg. Håll in en favorit för att ta bort den.'],
+  nb: ['Nylige', 'Favoritter', '⭐ Lagret i favoritter', 'Fjernet fra favoritter', 'Trykk på ＋ for å lagre gjeldende farge. Hold inne en favoritt for å fjerne den.'],
+  da: ['Seneste', 'Favoritter', '⭐ Gemt i favoritter', 'Fjernet fra favoritter', 'Tryk på ＋ for at gemme den aktuelle farve. Hold en favorit nede for at fjerne den.'],
+  fi: ['Viimeisimmät', 'Suosikit', '⭐ Tallennettu suosikkeihin', 'Poistettu suosikeista', 'Napauta ＋ tallentaaksesi nykyisen värin. Pidä suosikkia painettuna poistaaksesi sen.'],
+  pl: ['Ostatnie', 'Ulubione', '⭐ Zapisano w ulubionych', 'Usunięto z ulubionych', 'Dotknij ＋, aby zapisać bieżący kolor. Przytrzymaj ulubiony, aby go usunąć.'],
+  cs: ['Nedávné', 'Oblíbené', '⭐ Uloženo do oblíbených', 'Odebráno z oblíbených', 'Klepnutím na ＋ uložíte aktuální barvu. Podržením oblíbené ji odeberete.'],
+  sk: ['Nedávne', 'Obľúbené', '⭐ Uložené do obľúbených', 'Odstránené z obľúbených', 'Ťuknutím na ＋ uložíte aktuálnu farbu. Podržaním obľúbenej ju odstránite.'],
+  hu: ['Legutóbbi', 'Kedvencek', '⭐ Mentve a kedvencekhez', 'Eltávolítva a kedvencekből', 'Koppints a ＋ gombra az aktuális szín mentéséhez. Tarts nyomva egy kedvencet a törléshez.'],
+  ro: ['Recente', 'Favorite', '⭐ Salvat la favorite', 'Eliminat din favorite', 'Atinge ＋ pentru a salva culoarea curentă. Ține apăsat pe un favorit pentru a-l elimina.'],
+  hr: ['Nedavne', 'Favoriti', '⭐ Spremljeno u favorite', 'Uklonjeno iz favorita', 'Dodirnite ＋ za spremanje trenutne boje. Držite favorit za uklanjanje.'],
+  el: ['Πρόσφατα', 'Αγαπημένα', '⭐ Αποθηκεύτηκε στα αγαπημένα', 'Αφαιρέθηκε από τα αγαπημένα', 'Πατήστε ＋ για να αποθηκεύσετε το τρέχον χρώμα. Κρατήστε πατημένο ένα αγαπημένο για να το αφαιρέσετε.'],
+  bg: ['Последни', 'Любими', '⭐ Запазено в любими', 'Премахнато от любими', 'Докоснете ＋, за да запазите текущия цвят. Задръжте любим, за да го премахнете.'],
+  ru: ['Недавние', 'Избранное', '⭐ Добавлено в избранное', 'Удалено из избранного', 'Нажмите ＋, чтобы сохранить текущий цвет. Удерживайте цвет из избранного, чтобы удалить его.'],
+  uk: ['Нещодавні', 'Обране', '⭐ Додано до обраного', 'Видалено з обраного', 'Натисніть ＋, щоб зберегти поточний колір. Утримуйте колір в обраному, щоб видалити його.'],
+  tr: ['Son kullanılan', 'Favoriler', '⭐ Favorilere kaydedildi', 'Favorilerden kaldırıldı', 'Geçerli rengi kaydetmek için ＋ simgesine dokunun. Kaldırmak için bir favoriye basılı tutun.'],
+  ar: ['الأخيرة', 'المفضلة', '⭐ حُفظ في المفضلة', 'أُزيل من المفضلة', 'اضغط ＋ لحفظ اللون الحالي. اضغط مطولًا على لون مفضل لإزالته.'],
+  he: ['אחרונים', 'מועדפים', '⭐ נשמר במועדפים', 'הוסר מהמועדפים', 'הקש ＋ כדי לשמור את הצבע הנוכחי. לחץ לחיצה ארוכה על מועדף כדי להסיר אותו.'],
+  fa: ['اخیر', 'برگزیده‌ها', '⭐ در برگزیده‌ها ذخیره شد', 'از برگزیده‌ها حذف شد', 'برای ذخیرهٔ رنگ فعلی ＋ را بزنید. برای حذف، یک رنگ برگزیده را نگه دارید.'],
+  ur: ['حالیہ', 'پسندیدہ', '⭐ پسندیدہ میں محفوظ', 'پسندیدہ سے ہٹا دیا', 'موجودہ رنگ محفوظ کرنے کے لیے ＋ دبائیں۔ ہٹانے کے لیے پسندیدہ رنگ کو دبائے رکھیں۔'],
+  hi: ['हाल के', 'पसंदीदा', '⭐ पसंदीदा में सहेजा गया', 'पसंदीदा से हटाया गया', 'मौजूदा रंग सहेजने के लिए ＋ दबाएँ। हटाने के लिए किसी पसंदीदा को दबाकर रखें।'],
+  bn: ['সাম্প্রতিক', 'প্রিয়', '⭐ প্রিয়তে সংরক্ষিত', 'প্রিয় থেকে সরানো হয়েছে', 'বর্তমান রং সংরক্ষণ করতে ＋ চাপুন। সরাতে কোনো প্রিয় রং চেপে ধরে রাখুন।'],
+  id: ['Terbaru', 'Favorit', '⭐ Disimpan ke favorit', 'Dihapus dari favorit', 'Ketuk ＋ untuk menyimpan warna saat ini. Tekan lama favorit untuk menghapusnya.'],
+  ms: ['Terkini', 'Kegemaran', '⭐ Disimpan ke kegemaran', 'Dibuang dari kegemaran', 'Ketik ＋ untuk menyimpan warna semasa. Tekan lama kegemaran untuk membuangnya.'],
+  fil: ['Kamakailan', 'Mga paborito', '⭐ Na-save sa mga paborito', 'Inalis sa mga paborito', 'I-tap ang ＋ para i-save ang kasalukuyang kulay. Pindutin nang matagal ang paborito para alisin ito.'],
+  vi: ['Gần đây', 'Yêu thích', '⭐ Đã lưu vào yêu thích', 'Đã bỏ khỏi yêu thích', 'Chạm ＋ để lưu màu hiện tại. Nhấn giữ một màu yêu thích để xóa.'],
+  th: ['ล่าสุด', 'รายการโปรด', '⭐ บันทึกในรายการโปรดแล้ว', 'นำออกจากรายการโปรดแล้ว', 'แตะ ＋ เพื่อบันทึกสีปัจจุบัน กดค้างที่สีโปรดเพื่อลบ'],
+  'zh-Hans': ['最近', '收藏', '⭐ 已加入收藏', '已从收藏中移除', '点 ＋ 保存当前颜色。长按收藏的颜色可将其移除。'],
+  'zh-Hant': ['最近', '收藏', '⭐ 已加入收藏', '已從收藏中移除', '點 ＋ 儲存目前顏色。長按收藏的顏色可將其移除。'],
+  ja: ['最近', 'お気に入り', '⭐ お気に入りに保存しました', 'お気に入りから削除しました', '＋ で今の色を保存。お気に入りを長押しすると削除できます。'],
+  ko: ['최근', '즐겨찾기', '⭐ 즐겨찾기에 저장했어요', '즐겨찾기에서 삭제했어요', '＋를 눌러 현재 색을 저장하세요. 즐겨찾기를 길게 누르면 삭제돼요.'],
+  sw: ['Za karibuni', 'Vipendwa', '⭐ Imehifadhiwa kwenye vipendwa', 'Imeondolewa kwenye vipendwa', 'Gusa ＋ kuhifadhi rangi ya sasa. Bonyeza na ushikilie kipendwa ili kukiondoa.'],
+};
+for (const code in COLT) {
+  if (COLT[code].length !== COLK.length) throw new Error('col ' + code);
+  COLK.forEach((k, i) => { S[code][k] = COLT[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

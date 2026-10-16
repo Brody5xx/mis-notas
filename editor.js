@@ -13,7 +13,7 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors }) {
   /* exportJob = { kind: 'pdf' | 'img', name, notes: [{ t, h, k, u, locked, bg }] } → hace el archivo y lo manda a la app */
   const safeJob = JSON.stringify(exportJob || null).replace(/</g, '\\u003c');
   /* Textos traducidos: H = para HTML, J = para JavaScript, C = para CSS */
@@ -24,6 +24,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   const safeInk = JSON.stringify(ink || []).replace(/</g, '\\u003c');
   const safeContent = JSON.stringify(content).replace(/</g, '\\u003c');
   const safeTitle = JSON.stringify(titleHtml || '').replace(/</g, '\\u003c');
+  const safeColors = JSON.stringify(colors || {}).replace(/</g, '\\u003c');
   const glass = c.dockFill;
   const chips = SIZE_CHIPS.map(v => `<button class="chip" data-size="${v}">${v}</button>`).join('');
   const swatches = COLORS.map(col =>
@@ -116,9 +117,26 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .cbright{flex:1}
   #bright{width:100%;height:30px;accent-color:${c.text}}
   .clabel{font-size:12px;color:${c.muted};letter-spacing:.06em}
-  .cquick{display:flex;align-items:center;gap:12px;padding:10px 4px 0}
-  .cquick .sw{width:32px;height:32px}
-  #chex{margin-left:auto;font-variant-numeric:tabular-nums}
+  #chex{font-variant-numeric:tabular-nums}
+  .cbtop{display:flex;align-items:center;justify-content:space-between}
+  .cbRow{margin:4px 0 0 !important;gap:10px !important}
+  .cbRow .szStep{width:36px;height:36px;border-radius:18px}
+  #colorPanel,#fxPanel{max-height:calc(100vh - var(--dockH, 56px) - 40px - var(--kb));overflow-y:auto;overscroll-behavior:contain}
+  .cpal{padding:10px 2px 0}
+  .cplab{display:flex;align-items:center;gap:6px;font-size:12px;color:${c.muted};letter-spacing:.04em;margin:0 0 6px 2px}
+  .cprow{display:flex;align-items:center;gap:10px}
+  .cpsw{flex:1;min-width:0;display:flex;gap:10px;overflow-x:auto;padding:4px 2px 6px;scrollbar-width:none;min-height:44px;align-items:center}
+  .cpsw::-webkit-scrollbar{display:none}
+  .cpsw .sw{flex:none;width:34px;height:34px;border-radius:17px;touch-action:pan-x;
+            transition:transform .18s ease,opacity .18s ease,box-shadow .15s}
+  .cpsw .sw.bye{transform:scale(0);opacity:0}
+  .cpsw .sw.hold{transform:scale(.82)}
+  .cpsw:empty:before{content:'—';color:${c.muted};font-size:14px;padding-left:6px}
+  .cpadd{flex:none;width:36px;height:36px;border-radius:18px;border:1.5px dashed ${c.muted};background:transparent;color:${c.text};
+         display:flex;align-items:center;justify-content:center;padding:0;transition:transform .12s}
+  .cpadd:active{transform:scale(.88)}
+  .sw.pop{animation:swPop .35s ease}
+  @keyframes swPop{0%{transform:scale(0)}70%{transform:scale(1.18)}100%{transform:scale(1)}}
   .sws{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;justify-items:center;padding:4px 0}
   .sw{width:40px;height:40px;border-radius:20px;border:2px solid rgba(255,255,255,.7);padding:0;
       box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .1s}
@@ -400,6 +418,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div class="panel" id="fxPanel">
   <div class="ptitle"><span id="fxTitle">${H('highlighter')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sws" id="fxSws">${swatches}</div>
+  <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><span>${H('colRecent')}</span></div><div class="cpsw" id="fxRecent"></div></div>
+  <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><span>${H('colFav')}</span></div><div class="cprow"><div class="cpsw" id="fxFav"></div><button class="cpadd" id="fxFavAdd" title="${H('colFavHint')}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div></div>
   <button class="fxNone" id="fxNone">${H('removeIt')}</button>
 </div>
 
@@ -421,17 +441,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <div class="crow">
     <span id="cprev"></span>
     <div class="cbright">
-      <span class="clabel">${H('brightness')}</span>
-      <input type="range" id="bright" min="0" max="100" value="100">
+      <div class="cbtop"><span class="clabel">${H('brightness')}</span><span class="clabel" id="chex"></span></div>
+      <div class="szRow cbRow"><button class="szStep" data-bstep="-5" aria-label="-"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><input type="range" id="bright" min="0" max="100" value="100"><button class="szStep" data-bstep="5" aria-label="+"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div>
     </div>
   </div>
-  <div class="cquick" id="sws">
-    <button class="sw" data-color="${c.text}" style="background:${c.text}" title="${H('normal')}"></button>
-    <button class="sw" data-color="#ffffff" style="background:#ffffff"></button>
-    <button class="sw" data-color="#9e9e9e" style="background:#9e9e9e"></button>
-    <button class="sw" data-color="#000000" style="background:#000000"></button>
-    <span class="clabel" id="chex"></span>
-  </div>
+  <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><span>${H('colRecent')}</span></div><div class="cpsw" id="cRecent"></div></div>
+  <div class="cpal"><div class="cplab"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg><span>${H('colFav')}</span></div><div class="cprow"><div class="cpsw" id="cFav"></div><button class="cpadd" id="cFavAdd" title="${H('colFavHint')}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div></div>
   <button class="fxNone" id="olNone">${H('removeOutline')}</button>
 </div>
 
@@ -863,6 +878,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   $('olNone').addEventListener('mousedown', function(e){ e.preventDefault(); });
   $('olNone').addEventListener('click', function(){ applyOutline(null); });
   function applyColor(col, quiet){
+    addRecent(col, quiet);                 // con el brillo solo se cambia el último reciente
     if (ieOn()) { if (cmode === 'ol' && IE.mode === 'text') ieApplyOutline(col); else ieApplyColor(col); return; }
     if (!drawing && cmode === 'ol') {   // pestaña Contorno: color del borde de las letras
       lastOutline = col;
@@ -885,13 +901,6 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     colorDot.style.background = col;
     if (!quiet) showTip(${J('colorApplied')});
   }
-  $('sws').addEventListener('click', function(e){
-    var sw = e.target.closest('.sw');
-    if (!sw) return;
-    colorPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
-    syncWheel(sw.dataset.color);
-    applyColor(sw.dataset.color);
-  });
 
   /* ---------- Rueda de colores ---------- */
   var wheel = $('wheel'), knob = $('wheelKnob'), shade = $('wheelShade');
@@ -977,6 +986,112 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   $('cwrap').addEventListener('pointercancel', function(){ wdrag = false; });
   bright.addEventListener('input', function(){ HSV.v = bright.value / 100; showWheel(); });
   bright.addEventListener('change', function(){ applyColor(showWheel(), true); });
+  /* Botones − / + del brillo (mantener presionado sigue cambiando) */
+  colorPanel.querySelectorAll('[data-bstep]').forEach(function(b){
+    var t1 = null, t2 = null, moved = false;
+    function step(){
+      var v = Math.max(0, Math.min(100, (+bright.value) + (+b.dataset.bstep)));
+      if (v === +bright.value) return;
+      HSV.v = v / 100; showWheel(); moved = true;
+    }
+    function stop(){
+      clearTimeout(t1); clearInterval(t2); t1 = t2 = null;
+      b.classList.remove('press');
+      if (moved) { moved = false; applyColor(showWheel(), true); }
+    }
+    b.addEventListener('pointerdown', function(e){
+      e.preventDefault(); b.classList.add('press'); step();
+      t1 = setTimeout(function(){ t2 = setInterval(step, 70); }, 380);
+    });
+    b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(ev){ b.addEventListener(ev, function(){ if (b.classList.contains('press')) stop(); }); });
+  });
+
+  /* ---------- Colores recientes y favoritos ---------- */
+  var CP = (function(){
+    var d = ${safeColors};
+    return { recent: Array.isArray(d.recent) ? d.recent.slice(0, 14) : [], fav: Array.isArray(d.fav) ? d.fav.slice(0, 40) : [] };
+  })();
+  var lastFx = null;
+  function toHex(col){
+    if (!col) return null;
+    if (/^#[0-9a-f]{6}$/i.test(col)) return col.toUpperCase();
+    var h = cssToHsv(col);
+    return h ? hsvToHex(h.h, h.s, h.v).toUpperCase() : null;
+  }
+  function saveCP(){ send({ type: 'colorPrefs', prefs: CP }); }
+  var recentT = null;
+  var lastRecentAt = 0;
+  function addRecent(col, tweak){
+    var hx = toHex(col); if (!hx) return;
+    var rest = CP.recent.filter(function(x){ return x !== hx; });
+    if (tweak && Date.now() - lastRecentAt < 15000) rest = rest.slice(1);   // ajuste de brillo: reemplaza el último
+    lastRecentAt = Date.now();
+    CP.recent = [hx].concat(rest).slice(0, 14);
+    clearTimeout(recentT);
+    recentT = setTimeout(function(){ renderPal(); saveCP(); }, 250);   // espera un poquito por si estás arrastrando
+  }
+  function swHtml(col){ return '<button class="sw" data-color="' + col + '" style="background:' + col + '"></button>'; }
+  function renderPal(popFav){
+    ['c', 'fx'].forEach(function(pre){
+      $(pre + 'Recent').innerHTML = CP.recent.map(swHtml).join('');
+      $(pre + 'Fav').innerHTML = CP.fav.map(swHtml).join('');
+      if (popFav) { var f = $(pre + 'Fav').querySelector('[data-color="' + popFav + '"]'); if (f) { f.classList.add('pop'); f.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } }
+    });
+  }
+  function useColor(pre, col){
+    if (pre === 'c') { syncWheel(col); applyColor(col); }
+    else { lastFx = col; if (fxMode === 'hl') applyHighlight(col); else applyOutline(col); }
+  }
+  ['c', 'fx'].forEach(function(pre){
+    var panel = pre === 'c' ? colorPanel : fxPanel;
+    // tocar un color reciente
+    $(pre + 'Recent').addEventListener('mousedown', function(e){ e.preventDefault(); });
+    $(pre + 'Recent').addEventListener('click', function(e){
+      var sw = e.target.closest('.sw'); if (!sw) return;
+      panel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
+      useColor(pre, sw.dataset.color);
+    });
+    // favoritos: tocar = usar, mantener presionado = quitar
+    var fav = $(pre + 'Fav'), holdT = null, held = false, sx = 0, sy = 0;
+    fav.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    fav.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    fav.addEventListener('pointerdown', function(e){
+      var sw = e.target.closest('.sw'); if (!sw) return;
+      held = false; sx = e.clientX; sy = e.clientY;
+      sw.classList.add('hold');
+      holdT = setTimeout(function(){
+        held = true; sw.classList.remove('hold'); sw.classList.add('bye');
+        var col = sw.dataset.color;
+        setTimeout(function(){
+          CP.fav = CP.fav.filter(function(x){ return x !== col; });
+          renderPal(); saveCP();
+        }, 200);
+        showTip(${J('colFavRemoved')});
+      }, 600);
+    });
+    function cancelHold(){ clearTimeout(holdT); fav.querySelectorAll('.hold').forEach(function(x){ x.classList.remove('hold'); }); }
+    fav.addEventListener('pointermove', function(e){ if (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8) cancelHold(); });
+    fav.addEventListener('pointerup', cancelHold);
+    fav.addEventListener('pointercancel', cancelHold);
+    fav.addEventListener('pointerleave', cancelHold);
+    fav.addEventListener('click', function(e){
+      var sw = e.target.closest('.sw'); if (!sw || held) { held = false; return; }
+      panel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
+      useColor(pre, sw.dataset.color);
+    });
+    // ＋ guarda el color actual
+    var add = $(pre + 'FavAdd');
+    add.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    add.addEventListener('click', function(){
+      var col = pre === 'c' ? toHex(hsvToHex(HSV.h, HSV.s, HSV.v)) : toHex(lastFx || CP.recent[0]);
+      if (!col) { showTip(${J('colFavHint')}); return; }
+      CP.fav = [col].concat(CP.fav.filter(function(x){ return x !== col; })).slice(0, 40);
+      renderPal(col); saveCP();
+      showTip(${J('colFavSaved')});
+    });
+  });
+  renderPal();
 
   /* ---------- Resaltador y contorno de letras ---------- */
   var fxPanel = $('fxPanel'), fxMode = 'hl';
@@ -1005,6 +1120,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
   function applyHighlight(col){
+    if (col) addRecent(col);
     restore();
     var bg = col ? withAlpha(col, 0.45) : 'transparent';
     if (!collapsedSpan({ backgroundColor: bg })) {
@@ -1015,6 +1131,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     showTip(col ? ${J('hlOn')} : ${J('hlOff')});
   }
   function applyOutline(col){
+    if (col) addRecent(col);
     if (ieOn()) { ieApplyOutline(col); return; }
     restore();
     var css = outlineStyle(col);
@@ -1053,6 +1170,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   $('fxSws').addEventListener('click', function(e){
     var sw = e.target.closest('.sw');
     if (!sw) return;
+    lastFx = sw.dataset.color;
     if (fxMode === 'hl') applyHighlight(sw.dataset.color); else applyOutline(sw.dataset.color);
     fxPanel.querySelectorAll('.sw').forEach(function(x){ x.classList.toggle('on', x === sw); });
   });
