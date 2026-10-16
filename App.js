@@ -1009,6 +1009,7 @@ function NotesApp() {
   const menuIn = useRef(new Animated.Value(0)).current;     // 0 → 1 al abrir
   const menuOff = useRef(new Animated.Value(0)).current;    // 0 → 1 → 2 al cerrar
   const menuClosing = useRef(false);
+  const [menuLeaving, setMenuLeaving] = useState(false);   // cerrándose: ya deja tocar lo de abajo
   /* En la vista web, la animación la hace el navegador directamente en la tarjeta
      gráfica (Web Animations): así va igual de fluida que en el teléfono. */
   const panelRef = useRef(null), glowRef = useRef(null), scrimRef = useRef(null), starRefs = useRef([]);
@@ -1016,8 +1017,9 @@ function NotesApp() {
   const canWeb = () => Platform.OS === 'web' && panelRef.current && typeof panelRef.current.animate === 'function';
   const stopWebAnims = () => { webAnims.current.forEach(a => { try { a.cancel(); } catch (e) {} }); webAnims.current = []; };
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) { setMenuLeaving(false); return; }
     menuClosing.current = false;
+    setMenuLeaving(false);
     menuOff.setValue(0);
     if (Platform.OS === 'web') {
       menuIn.setValue(1);
@@ -1064,6 +1066,7 @@ function NotesApp() {
   function closeMenu(after) {
     if (menuClosing.current) return;
     menuClosing.current = true;
+    setMenuLeaving(true);
     if (canWeb()) { closeMenuWeb(after); return; }
     const nd = Platform.OS !== 'web';
     Animated.sequence([
@@ -1127,7 +1130,7 @@ function NotesApp() {
       };
       const fr2 = iframeRef.current;
       if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
-      setTimeout(go, 380);                 // por si acaso
+      setTimeout(go, 150);                 // no espera más que esto: se siente al instante
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -2802,6 +2805,146 @@ function NotesApp() {
         fav: ['star', tr('noFav')],
         trash: ['trash-2', tr('trashEmpty')] }[view] || ['file-text', '']);
 
+  /* El menú ☰ va en una capa encima (no en una ventana aparte): así, apenas empieza a
+     cerrarse, ya no bloquea los toques y puedes abrir una nota al instante */
+  const menuLayer = menuOpen && (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 50, elevation: 50 }]} pointerEvents={menuLeaving ? 'none' : 'box-none'}>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <Animated.View ref={scrimRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
+          <Animated.View ref={panelRef} renderToHardwareTextureAndroid shouldRasterizeIOS needsOffscreenAlphaCompositing
+            style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
+          <Glass t={c} strong radius={28}>
+           <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
+             contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
+              <BackBtn onPress={() => closeMenu()} t={c} />
+              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
+              <DoneBtn onPress={() => closeMenu()} t={c} />
+            </View>
+            {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
+              <TouchableOpacity key={key} onPress={() => { setView(key); closeMenu(); }} activeOpacity={0.7}>
+                {view === key ? (
+                  <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
+                    <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
+                    <Text style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
+                    <Text style={s.navCount}>{counts[key]}</Text>
+                  </Glass>
+                ) : (
+                  <View style={[s.navItem, { marginBottom: 4 }]}>
+                    <Feather name={icon} size={19} color={c.muted} style={s.navIcon} />
+                    <Text style={s.navText}>{tr(key)}</Text>
+                    <Text style={s.navCount}>{counts[key]}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            <View style={s.sep} />
+
+            {/* Carpetas */}
+            <View style={s.sideHeader}>
+              <Text style={s.sideHeaderText}>{tr('folders')}</Text>
+              <TouchableOpacity onPress={() => openFolderEdit(null)} hitSlop={10}>
+                <Feather name="plus" size={20} color={c.text} />
+              </TouchableOpacity>
+            </View>
+            {folders.length === 0 && (
+              <TouchableOpacity style={s.navItem} onPress={() => openFolderEdit(null)} activeOpacity={0.7}>
+                <Feather name="folder-plus" size={19} color={c.muted} style={s.navIcon} />
+                <Text style={[s.navText, { color: c.muted }]}>{tr('createFolder')}</Text>
+              </TouchableOpacity>
+            )}
+            {folders.map(f => {
+              const on = view === 'f:' + f.id;
+              const body = (
+                <>
+                  <Feather name="folder" size={19} color={f.color} style={s.navIcon} />
+                  <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
+                  <Text style={s.navCount}>{folderCount(f.id)}</Text>
+                  <TouchableOpacity onPress={() => openFolderEdit(f)} hitSlop={10} style={{ marginLeft: 10 }}>
+                    <Feather name="more-horizontal" size={18} color={c.muted} />
+                  </TouchableOpacity>
+                </>
+              );
+              return (
+                <TouchableOpacity key={f.id} onPress={() => { setView('f:' + f.id); closeMenu(); }}
+                  onLongPress={() => openFolderEdit(f)} activeOpacity={0.7}>
+                  {on
+                    ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
+                    : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Etiquetas */}
+            {allTags.length > 0 && (
+              <>
+                <View style={s.sideHeader}><Text style={s.sideHeaderText}>{tr('tags')}</Text></View>
+                {allTags.map(([tg, n]) => {
+                  const on = view === 't:' + tg;
+                  const body = (
+                    <>
+                      <Feather name="hash" size={18} color={on ? c.text : c.muted} style={s.navIcon} />
+                      <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{tg}</Text>
+                      <Text style={s.navCount}>{n}</Text>
+                    </>
+                  );
+                  return (
+                    <TouchableOpacity key={tg} onPress={() => { setView('t:' + tg); closeMenu(); }} activeOpacity={0.7}>
+                      {on
+                        ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
+                        : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
+
+            <View style={s.sep} />
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => openWall(null)}>
+              <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('wallpaper')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setTransferOpen(true)}>
+              <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('transfer')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setVaultOpen(true)}>
+              <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('vault')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
+              <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={toggleAppLock}>
+              <Feather name="shield" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.navText}>{tr('lockApp')}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('lockAppHint')}</Text>
+              </View>
+              <View style={[s.toggle, { borderColor: c.text }, appLock && { backgroundColor: c.text }]}>
+                <View style={[s.toggleKnob, { backgroundColor: appLock ? c.inv : c.text }, appLock && { alignSelf: 'flex-end' }]} />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setLangOpen(true)}>
+              <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('language')}</Text>
+              <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
+            </TouchableOpacity>
+           </ScrollView>
+          </Glass>
+            {/* destello de "apagado": el panel se vuelve una línea de luz */}
+            <Animated.View ref={glowRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 28, backgroundColor: '#ffffff', opacity: menuGlow,
+              shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
+          </Animated.View>
+          <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
+          <Sparkles anim={menuOff} screenW={width} groups={starGroups} starRefs={starRefs}
+            top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
+            height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
+        </View>
+      </View>
+  );
+
   const homeView = (
     <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
       <Background t={c} wall={seeNow ? null : wallpaper} blur={wallBlur} see={seeNow} />
@@ -3021,141 +3164,6 @@ function NotesApp() {
       )}
 
       {/* Menú lateral de cristal */}
-      <Modal visible={menuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          <Animated.View ref={scrimRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
-          <Animated.View ref={panelRef} renderToHardwareTextureAndroid shouldRasterizeIOS needsOffscreenAlphaCompositing
-            style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
-          <Glass t={c} strong radius={28}>
-           <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
-             contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
-              <BackBtn onPress={() => closeMenu()} t={c} />
-              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
-              <DoneBtn onPress={() => closeMenu()} t={c} />
-            </View>
-            {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
-              <TouchableOpacity key={key} onPress={() => { setView(key); closeMenu(); }} activeOpacity={0.7}>
-                {view === key ? (
-                  <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
-                    <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
-                    <Text style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}</Text>
-                  </Glass>
-                ) : (
-                  <View style={[s.navItem, { marginBottom: 4 }]}>
-                    <Feather name={icon} size={19} color={c.muted} style={s.navIcon} />
-                    <Text style={s.navText}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-            <View style={s.sep} />
-
-            {/* Carpetas */}
-            <View style={s.sideHeader}>
-              <Text style={s.sideHeaderText}>{tr('folders')}</Text>
-              <TouchableOpacity onPress={() => openFolderEdit(null)} hitSlop={10}>
-                <Feather name="plus" size={20} color={c.text} />
-              </TouchableOpacity>
-            </View>
-            {folders.length === 0 && (
-              <TouchableOpacity style={s.navItem} onPress={() => openFolderEdit(null)} activeOpacity={0.7}>
-                <Feather name="folder-plus" size={19} color={c.muted} style={s.navIcon} />
-                <Text style={[s.navText, { color: c.muted }]}>{tr('createFolder')}</Text>
-              </TouchableOpacity>
-            )}
-            {folders.map(f => {
-              const on = view === 'f:' + f.id;
-              const body = (
-                <>
-                  <Feather name="folder" size={19} color={f.color} style={s.navIcon} />
-                  <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
-                  <Text style={s.navCount}>{folderCount(f.id)}</Text>
-                  <TouchableOpacity onPress={() => openFolderEdit(f)} hitSlop={10} style={{ marginLeft: 10 }}>
-                    <Feather name="more-horizontal" size={18} color={c.muted} />
-                  </TouchableOpacity>
-                </>
-              );
-              return (
-                <TouchableOpacity key={f.id} onPress={() => { setView('f:' + f.id); closeMenu(); }}
-                  onLongPress={() => openFolderEdit(f)} activeOpacity={0.7}>
-                  {on
-                    ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
-                    : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Etiquetas */}
-            {allTags.length > 0 && (
-              <>
-                <View style={s.sideHeader}><Text style={s.sideHeaderText}>{tr('tags')}</Text></View>
-                {allTags.map(([tg, n]) => {
-                  const on = view === 't:' + tg;
-                  const body = (
-                    <>
-                      <Feather name="hash" size={18} color={on ? c.text : c.muted} style={s.navIcon} />
-                      <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{tg}</Text>
-                      <Text style={s.navCount}>{n}</Text>
-                    </>
-                  );
-                  return (
-                    <TouchableOpacity key={tg} onPress={() => { setView('t:' + tg); closeMenu(); }} activeOpacity={0.7}>
-                      {on
-                        ? <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>{body}</Glass>
-                        : <View style={[s.navItem, { marginBottom: 4 }]}>{body}</View>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </>
-            )}
-
-            <View style={s.sep} />
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => openWall(null)}>
-              <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('wallpaper')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setTransferOpen(true)}>
-              <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('transfer')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setVaultOpen(true)}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('vault')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
-              <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={toggleAppLock}>
-              <Feather name="shield" size={19} color={c.muted} style={s.navIcon} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.navText}>{tr('lockApp')}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('lockAppHint')}</Text>
-              </View>
-              <View style={[s.toggle, { borderColor: c.text }, appLock && { backgroundColor: c.text }]}>
-                <View style={[s.toggleKnob, { backgroundColor: appLock ? c.inv : c.text }, appLock && { alignSelf: 'flex-end' }]} />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setLangOpen(true)}>
-              <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('language')}</Text>
-              <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
-            </TouchableOpacity>
-           </ScrollView>
-          </Glass>
-            {/* destello de "apagado": el panel se vuelve una línea de luz */}
-            <Animated.View ref={glowRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 28, backgroundColor: '#ffffff', opacity: menuGlow,
-              shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
-          </Animated.View>
-          <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
-          <Sparkles anim={menuOff} screenW={width} groups={starGroups} starRefs={starRefs}
-            top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
-            height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
-        </View>
-      </Modal>
 
       {!current && wallModal}
       {!current && colorSheet}
@@ -3182,6 +3190,7 @@ function NotesApp() {
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
       <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
