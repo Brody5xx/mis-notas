@@ -818,22 +818,28 @@ function makeStarGroups(H, seed, screenW) {
   }
   return groups;
 }
-function Sparkles({ anim, top, height, screenW }) {
-  const groups = useMemo(() => makeStarGroups(height, Math.floor(height), screenW), [height, screenW]);
+/* Una sola regla para el brillo de cada grupo (la usan el teléfono y la vista web) */
+function starRange(gr) {
+  const a = gr.start, l = gr.life;
+  return {
+    inR: [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2],
+    op: gr.alt ? [0, 0, 0.9, 1, 0.3, 0.8, 0, 0] : [0, 0, 1, 0.25, 1, 0.55, 0, 0],
+    tx: [0, 0, gr.drift * 0.2, gr.drift * 0.4, gr.drift * 0.6, gr.drift * 0.8, gr.drift, gr.drift],
+  };
+}
+function Sparkles({ anim, top, height, screenW, groups, starRefs }) {
   const styles = useMemo(() => groups.map(gr => {
-    const a = gr.start, l = gr.life;
-    const inputRange = [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2];
-    const range = { inputRange, extrapolate: 'clamp' };
-    const op = gr.alt ? [0, 0, 0.9, 1, 0.3, 0.8, 0, 0] : [0, 0, 1, 0.25, 1, 0.55, 0, 0];   // titilan a destiempo
+    const r = starRange(gr), range = { inputRange: r.inR, extrapolate: 'clamp' };
     return {
-      opacity: anim.interpolate({ ...range, outputRange: op }),
-      transform: [{ translateX: anim.interpolate({ ...range, outputRange: [0, 0, gr.drift * 0.2, gr.drift * 0.4, gr.drift * 0.6, gr.drift * 0.8, gr.drift, gr.drift] }) }],
+      opacity: anim.interpolate({ ...range, outputRange: r.op }),                       // titilan a destiempo
+      transform: [{ translateX: anim.interpolate({ ...range, outputRange: r.tx }) }],
     };
   }), [groups, anim]);
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: Math.max(MENU_PANEL_W, (screenW || 400) - 10) }}>
       {groups.map((gr, gi) => (
-        <Animated.View key={gi} style={[StyleSheet.absoluteFill, styles[gi]]} renderToHardwareTextureAndroid>
+        <Animated.View key={gi} ref={el => { if (starRefs) starRefs.current[gi] = el; }}
+          style={[StyleSheet.absoluteFill, styles[gi]]} renderToHardwareTextureAndroid>
           {gr.stars.map((st, i) => (
             <Text key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
               transform: [{ rotate: st.rot + 'deg' }] }}>✦</Text>
@@ -881,21 +887,69 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchFocus = useRef(false);   // el teclado solo se abre al tocar la lupa
+  const { width, height: winH } = useWindowDimensions();
   const [menuOpen, setMenuOpen] = useState(false);
   /* Animación del menú: entra deslizando; al cerrar se "apaga" como una pantalla
      futurista: se aplasta en una línea de luz y la línea se encoge hasta desaparecer */
   const menuIn = useRef(new Animated.Value(0)).current;     // 0 → 1 al abrir
   const menuOff = useRef(new Animated.Value(0)).current;    // 0 → 1 → 2 al cerrar
   const menuClosing = useRef(false);
+  /* En la vista web, la animación la hace el navegador directamente en la tarjeta
+     gráfica (Web Animations): así va igual de fluida que en el teléfono. */
+  const panelRef = useRef(null), glowRef = useRef(null), scrimRef = useRef(null), starRefs = useRef([]);
+  const webAnims = useRef([]);
+  const canWeb = () => Platform.OS === 'web' && panelRef.current && typeof panelRef.current.animate === 'function';
+  const stopWebAnims = () => { webAnims.current.forEach(a => { try { a.cancel(); } catch (e) {} }); webAnims.current = []; };
   useEffect(() => {
     if (!menuOpen) return;
     menuClosing.current = false;
-    menuOff.setValue(0); menuIn.setValue(0);
-    Animated.timing(menuIn, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(1.1)), useNativeDriver: Platform.OS !== 'web' }).start();
+    menuOff.setValue(0);
+    if (Platform.OS === 'web') {
+      menuIn.setValue(1);
+      requestAnimationFrame(() => {
+        stopWebAnims();
+        if (!canWeb()) return;
+        const ease = 'cubic-bezier(.34,1.22,.64,1)';
+        webAnims.current.push(panelRef.current.animate([{ transform: 'translateX(-320px)', opacity: 0 }, { transform: 'translateX(0px)', opacity: 1 }], { duration: 560, easing: ease }));
+        if (scrimRef.current) webAnims.current.push(scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease-out' }));
+      });
+      return;
+    }
+    menuIn.setValue(0);
+    Animated.timing(menuIn, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(1.1)), useNativeDriver: true }).start();
   }, [menuOpen]);
+  function closeMenuWeb(after) {
+    const T = 1390, N = 70;
+    const eCubic = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+    const eQuad = x => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+    const phase = t => (t < 650 ? eCubic(t / 650) : t < 910 ? 1 + 0.2 * (t - 650) / 260 : 1.2 + 0.8 * eQuad(Math.min(1, (t - 910) / 480)));
+    const lerp = (v, inR, out) => {
+      if (v <= inR[0]) return out[0];
+      for (let i = 1; i < inR.length; i++) if (v <= inR[i]) { const k = (v - inR[i - 1]) / ((inR[i] - inR[i - 1]) || 1); return out[i - 1] + (out[i] - out[i - 1]) * k; }
+      return out[out.length - 1];
+    };
+    const P = []; for (let i = 0; i <= N; i++) P.push(phase(T * i / N));
+    const opts = { duration: T, easing: 'linear', fill: 'forwards' };
+    stopWebAnims();
+    const half = (MENU_W / 2) * 0.985;
+    webAnims.current.push(panelRef.current.animate(P.map(p => ({
+      transform: `translateX(${lerp(p, [0, 1, 2], [0, -half, -half])}px) scaleX(${lerp(p, [0, 1, 2], [1, 0.015, 0.015])}) scaleY(${lerp(p, [0, 1.2, 2], [1, 1, 0.001])})`,
+      opacity: lerp(p, [0, 1.8, 2], [1, 1, 0]),
+    })), opts));
+    if (glowRef.current && glowRef.current.animate) webAnims.current.push(glowRef.current.animate(P.map(p => ({ opacity: lerp(p, [0, 0.5, 1, 1.85, 2], [0, 0.35, 1, 1, 0]) })), opts));
+    if (scrimRef.current && scrimRef.current.animate) webAnims.current.push(scrimRef.current.animate(P.map(p => ({ opacity: lerp(p, [0, 2], [1, 0]) })), opts));
+    starGroups.forEach((gr, gi) => {
+      const el = starRefs.current[gi];
+      if (!el || !el.animate) return;
+      const r = starRange(gr);
+      webAnims.current.push(el.animate(P.map(p => ({ opacity: lerp(p, r.inR, r.op), transform: `translateX(${lerp(p, r.inR, r.tx)}px)` })), opts));
+    });
+    setTimeout(() => { setMenuOpen(false); stopWebAnims(); if (after) after(); }, T + 20);
+  }
   function closeMenu(after) {
     if (menuClosing.current) return;
     menuClosing.current = true;
+    if (canWeb()) { closeMenuWeb(after); return; }
     const nd = Platform.OS !== 'web';
     Animated.sequence([
       Animated.timing(menuOff, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: nd }),  // se aplasta en línea de luz
@@ -904,6 +958,9 @@ export default function App() {
     ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
   }
   const MENU_W = 290;
+  const sideTop = (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10;
+  const sideH = winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70;
+  const starGroups = useMemo(() => makeStarGroups(sideH, Math.floor(sideH), width), [sideH, width]);
   const menuX = Animated.add(
     menuIn.interpolate({ inputRange: [0, 1], outputRange: [-MENU_W - 20, 0] }),
     menuOff.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -(MENU_W / 2) * 0.985, -(MENU_W / 2) * 0.985] }));
@@ -971,7 +1028,6 @@ export default function App() {
   }, []);
   const webRef = useRef(null);
 
-  const { width, height: winH } = useWindowDimensions();
   const c = dark ? THEMES.dark : THEMES.light;
   const s = useMemo(() => makeStyles(c), [dark]);
 
@@ -2696,8 +2752,8 @@ export default function App() {
       {/* Menú lateral de cristal */}
       <Modal visible={menuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
-          <Animated.View renderToHardwareTextureAndroid shouldRasterizeIOS needsOffscreenAlphaCompositing
+          <Animated.View ref={scrimRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
+          <Animated.View ref={panelRef} renderToHardwareTextureAndroid shouldRasterizeIOS needsOffscreenAlphaCompositing
             style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
           <Glass t={c} strong radius={28}>
            <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
@@ -2819,11 +2875,11 @@ export default function App() {
            </ScrollView>
           </Glass>
             {/* destello de "apagado": el panel se vuelve una línea de luz */}
-            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 28, backgroundColor: '#ffffff', opacity: menuGlow,
+            <Animated.View ref={glowRef} pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 28, backgroundColor: '#ffffff', opacity: menuGlow,
               shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
           </Animated.View>
           <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
-          <Sparkles anim={menuOff} screenW={width}
+          <Sparkles anim={menuOff} screenW={width} groups={starGroups} starRefs={starRefs}
             top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
             height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
         </View>
