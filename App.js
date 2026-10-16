@@ -1143,6 +1143,7 @@ function NotesApp() {
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
   const revSeed = useRef(null);
+  const homeCache = useRef(null);           // pantalla de inicio guardada mientras hay una nota abierta
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -3034,7 +3035,7 @@ function NotesApp() {
       </View>
   );
 
-  const homeView = (
+  const buildHome = () => (
     <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
       <Background t={c} wall={seeNow ? null : wallpaper} blur={wallBlur} see={seeNow} />
       <StatusBar barStyle={c.bar} backgroundColor="transparent" translucent />
@@ -3270,6 +3271,10 @@ function NotesApp() {
       {!current && toast}
     </View>
   );
+  /* Mientras una nota está abierta (o abriéndose), la pantalla de inicio no cambia:
+     se reusa la misma de antes y así React no la vuelve a armar (todo va más rápido) */
+  if (!current || !homeCache.current) homeCache.current = buildHome();
+  const homeView = homeCache.current;
 
   /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
