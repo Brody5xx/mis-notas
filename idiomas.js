@@ -3451,6 +3451,50 @@ for (const code in VT) {
   VK.forEach((k, i) => { S[code][k] = VT[code][i]; });
 }
 
+/* Textos nuevos: la bóveda en "Transferir notas" [se copió, ya había otra] */
+const VTR = {
+  es: ['🔐 También llegó tu bóveda. Ábrela con la contraseña de tu bóveda de siempre.', '🔐 Tu bóveda no se copió porque este teléfono ya tiene otra bóveda. Para traerla, borra la bóveda de este teléfono (Olvidé mi contraseña) e importa otra vez.'],
+  en: ['🔐 Your vault came too. Open it with your usual vault password.', '🔐 Your vault was not copied because this phone already has another vault. To bring it, delete this phone’s vault (I forgot my password) and import again.'],
+  pt: ['🔐 Seu cofre também veio. Abra com a senha de sempre do cofre.', '🔐 O cofre não foi copiado porque este celular já tem outro. Para trazê-lo, apague o cofre deste celular (Esqueci minha senha) e importe de novo.'],
+  fr: ['🔐 Votre coffre est arrivé aussi. Ouvrez-le avec le mot de passe habituel du coffre.', '🔐 Le coffre n’a pas été copié car ce téléphone en a déjà un. Pour le récupérer, supprimez le coffre de ce téléphone (J’ai oublié mon mot de passe) et importez à nouveau.'],
+  de: ['🔐 Dein Tresor ist auch da. Öffne ihn mit deinem gewohnten Tresor-Passwort.', '🔐 Der Tresor wurde nicht kopiert, weil dieses Handy schon einen hat. Lösche den Tresor hier (Passwort vergessen) und importiere erneut.'],
+  it: ['🔐 È arrivata anche la cassaforte. Aprila con la solita password della cassaforte.', '🔐 La cassaforte non è stata copiata perché questo telefono ne ha già una. Elimina quella di questo telefono (Ho dimenticato la password) e importa di nuovo.'],
+  ca: ['🔐 També ha arribat la caixa forta. Obre-la amb la contrasenya de sempre.', '🔐 La caixa forta no s’ha copiat perquè aquest telèfon ja en té una. Esborra la d’aquest telèfon (He oblidat la contrasenya) i torna a importar.'],
+  nl: ['🔐 Je kluis is ook meegekomen. Open hem met je gewone kluiswachtwoord.', '🔐 De kluis is niet gekopieerd omdat deze telefoon al een kluis heeft. Wis de kluis hier (Wachtwoord vergeten) en importeer opnieuw.'],
+  sv: ['🔐 Ditt valv kom också. Öppna det med ditt vanliga valvlösenord.', '🔐 Valvet kopierades inte eftersom telefonen redan har ett. Radera valvet här (Jag har glömt lösenordet) och importera igen.'],
+  nb: ['🔐 Hvelvet ditt kom også. Åpne det med det vanlige hvelvpassordet.', '🔐 Hvelvet ble ikke kopiert fordi telefonen allerede har et. Slett hvelvet her (Jeg har glemt passordet) og importer igjen.'],
+  da: ['🔐 Din boks kom også med. Åbn den med din sædvanlige adgangskode.', '🔐 Boksen blev ikke kopieret, fordi telefonen allerede har en. Slet boksen her (Jeg har glemt adgangskoden) og importer igen.'],
+  fi: ['🔐 Myös holvisi tuli. Avaa se tavallisella holvin salasanalla.', '🔐 Holvia ei kopioitu, koska puhelimessa on jo holvi. Poista tämän puhelimen holvi (Unohdin salasanan) ja tuo uudelleen.'],
+  pl: ['🔐 Sejf też dotarł. Otwórz go swoim zwykłym hasłem do sejfu.', '🔐 Sejf nie został skopiowany, bo ten telefon ma już sejf. Usuń sejf tutaj (Nie pamiętam hasła) i zaimportuj ponownie.'],
+  cs: ['🔐 Dorazil i trezor. Otevřete ho svým obvyklým heslem k trezoru.', '🔐 Trezor se nezkopíroval, protože tento telefon už jeden má. Smažte trezor zde (Zapomněl jsem heslo) a importujte znovu.'],
+  sk: ['🔐 Prišiel aj trezor. Otvorte ho svojím obvyklým heslom k trezoru.', '🔐 Trezor sa neskopíroval, lebo tento telefón už jeden má. Vymažte trezor tu (Zabudol som heslo) a importujte znova.'],
+  hu: ['🔐 A széf is megérkezett. A szokásos széfjelszóval nyisd meg.', '🔐 A széf nem lett átmásolva, mert ezen a telefonon már van egy. Töröld az itteni széfet (Elfelejtettem a jelszót), és importálj újra.'],
+  ro: ['🔐 A venit și seiful. Deschide-l cu parola obișnuită a seifului.', '🔐 Seiful nu a fost copiat pentru că acest telefon are deja unul. Șterge seiful de aici (Am uitat parola) și importă din nou.'],
+  hr: ['🔐 Stigao je i sef. Otvorite ga uobičajenom lozinkom sefa.', '🔐 Sef nije kopiran jer ovaj telefon već ima sef. Izbrišite ovdašnji sef (Zaboravio sam lozinku) i uvezite ponovno.'],
+  el: ['🔐 Ήρθε και το θησαυροφυλάκιο. Ανοίξτε το με τον συνηθισμένο κωδικό του.', '🔐 Δεν αντιγράφηκε γιατί αυτό το κινητό έχει ήδη θησαυροφυλάκιο. Διαγράψτε το εδώ (Ξέχασα τον κωδικό) και κάντε ξανά εισαγωγή.'],
+  bg: ['🔐 Сейфът също пристигна. Отворете го с обичайната му парола.', '🔐 Сейфът не беше копиран, защото този телефон вече има сейф. Изтрийте го тук (Забравих паролата) и внесете отново.'],
+  ru: ['🔐 Сейф тоже перенесён. Откройте его своим обычным паролем от сейфа.', '🔐 Сейф не скопирован: на этом телефоне уже есть сейф. Удалите его здесь («Я забыл пароль») и импортируйте снова.'],
+  uk: ['🔐 Сейф теж перенесено. Відкрийте його своїм звичним паролем.', '🔐 Сейф не скопійовано: на цьому телефоні вже є сейф. Видаліть його тут («Я забув пароль») і імпортуйте знову.'],
+  tr: ['🔐 Kasan da geldi. Her zamanki kasa şifrenle aç.', '🔐 Bu telefonda zaten bir kasa olduğu için kasan kopyalanmadı. Buradaki kasayı sil (Şifremi unuttum) ve tekrar içe aktar.'],
+  ar: ['🔐 وصلت خزنتك أيضًا. افتحها بكلمة مرور الخزنة المعتادة.', '🔐 لم تُنسخ الخزنة لأن هذا الهاتف فيه خزنة أخرى. احذف خزنة هذا الهاتف (نسيت كلمة المرور) ثم استورد مرة أخرى.'],
+  he: ['🔐 גם הכספת הגיעה. פתח אותה בסיסמת הכספת הרגילה.', '🔐 הכספת לא הועתקה כי בטלפון הזה כבר יש כספת. מחק את הכספת כאן (שכחתי את הסיסמה) וייבא שוב.'],
+  fa: ['🔐 گاوصندوق هم منتقل شد. با رمز همیشگی گاوصندوق بازش کنید.', '🔐 گاوصندوق کپی نشد چون این گوشی گاوصندوق دیگری دارد. گاوصندوق این گوشی را پاک کنید (رمز را فراموش کرده‌ام) و دوباره وارد کنید.'],
+  ur: ['🔐 آپ کی تجوری بھی آ گئی۔ اسے تجوری کے پرانے پاس ورڈ سے کھولیں۔', '🔐 تجوری کاپی نہیں ہوئی کیونکہ اس فون میں پہلے سے تجوری ہے۔ یہاں کی تجوری مٹائیں (پاس ورڈ بھول گیا) اور دوبارہ امپورٹ کریں۔'],
+  hi: ['🔐 आपकी तिजोरी भी आ गई। इसे तिजोरी के अपने पुराने पासवर्ड से खोलें।', '🔐 तिजोरी कॉपी नहीं हुई क्योंकि इस फ़ोन में पहले से तिजोरी है। यहाँ की तिजोरी मिटाएँ (मैं पासवर्ड भूल गया) और फिर से इम्पोर्ट करें।'],
+  bn: ['🔐 আপনার ভল্টও এসেছে। ভল্টের পুরোনো পাসওয়ার্ড দিয়ে খুলুন।', '🔐 ভল্ট কপি হয়নি কারণ এই ফোনে আগে থেকেই ভল্ট আছে। এখানকার ভল্ট মুছুন (পাসওয়ার্ড ভুলে গেছি) এবং আবার ইমপোর্ট করুন।'],
+  id: ['🔐 Brankasmu juga ikut. Buka dengan kata sandi brankas yang biasa.', '🔐 Brankas tidak disalin karena ponsel ini sudah punya brankas. Hapus brankas di sini (Saya lupa kata sandi) lalu impor lagi.'],
+  ms: ['🔐 Peti besi anda juga sampai. Buka dengan kata laluan peti besi biasa.', '🔐 Peti besi tidak disalin kerana telefon ini sudah ada peti besi. Padam peti besi di sini (Saya lupa kata laluan) dan import semula.'],
+  fil: ['🔐 Dumating din ang vault mo. Buksan ito gamit ang dati mong password ng vault.', '🔐 Hindi nakopya ang vault dahil may vault na ang phone na ito. Burahin ang vault dito (Nakalimutan ko ang password) at mag-import ulit.'],
+  vi: ['🔐 Két sắt cũng đã được chuyển. Mở bằng mật khẩu két sắt như cũ.', '🔐 Két sắt không được chép vì điện thoại này đã có két sắt. Xóa két sắt ở đây (Tôi quên mật khẩu) rồi nhập lại.'],
+  th: ['🔐 ตู้นิรภัยของคุณมาด้วย เปิดด้วยรหัสผ่านตู้นิรภัยเดิม', '🔐 ไม่ได้คัดลอกตู้นิรภัยเพราะเครื่องนี้มีตู้นิรภัยอยู่แล้ว ลบตู้นิรภัยในเครื่องนี้ (ลืมรหัสผ่าน) แล้วนำเข้าอีกครั้ง'],
+  'zh-Hans': ['🔐 你的保险箱也转移过来了。用原来的保险箱密码打开。', '🔐 保险箱没有复制，因为这部手机已有保险箱。请删除这里的保险箱（我忘记密码了）后再导入。'],
+  'zh-Hant': ['🔐 你的保險箱也轉移過來了。用原本的保險箱密碼開啟。', '🔐 保險箱沒有複製，因為這支手機已有保險箱。請刪除這裡的保險箱（我忘記密碼了）後再匯入。'],
+  ja: ['🔐 金庫も移行されました。いつもの金庫のパスワードで開けます。', '🔐 このスマホには別の金庫があるため、金庫はコピーされませんでした。ここの金庫を削除（パスワードを忘れた）してから、もう一度読み込んでください。'],
+  ko: ['🔐 금고도 옮겨졌어요. 원래 금고 비밀번호로 여세요.', '🔐 이 휴대폰에 이미 금고가 있어서 복사하지 않았어요. 여기 금고를 삭제(비밀번호를 잊었어요)한 뒤 다시 가져오세요.'],
+  sw: ['🔐 Kasha lako pia limefika. Lifungue kwa nenosiri lako la kawaida la kasha.', '🔐 Kasha halikunakiliwa kwa sababu simu hii tayari ina kasha. Futa kasha hapa (Nimesahau nenosiri) kisha uingize tena.'],
+};
+for (const code in VTR) Object.assign(S[code], { bkVaultOk: VTR[code][0], bkVaultExists: VTR[code][1] });
+
 
 /* ============================================================
    VARIANTES POR PAÍS

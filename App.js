@@ -13,7 +13,7 @@ import { buildEditorHtml } from './editor';
 import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
-import Vault from './boveda';
+import Vault, { exportVaultRaw, importVaultRaw } from './boveda';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -676,7 +676,11 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
     if (!file) { setErr(tr('bkPick')); return; }
     if (!p1) { setErr(tr('bkPass')); return; }
     setBusy(tr('bkOpening'));
-    try { const n = await onImport(file.text, p1); setOk(n === 1 ? tr('bkDone1') : tr('bkDone', { n })); }
+    try {
+      const r = await onImport(file.text, p1);
+      const n = r.n;
+      setOk((n === 1 ? tr('bkDone1') : tr('bkDone', { n })) + (r.vaultMsg ? '\n\n' + r.vaultMsg : ''));
+    }
     catch (e) { setErr(e && e.message === 'pass' ? tr('bkWrongPass') : tr('bkBadFile')); }
     setBusy('');
   }
@@ -1183,6 +1187,7 @@ export default function App() {
     const data = {
       v: 1, made: Date.now(), notes: all, folders, walls, wallpaper: mainWall, calc: calcState.current,
       settings: { layout, dark, translucent, lang, wallBlur, sortBy, pinHash, appLock },
+      vault: await exportVaultRaw().catch(() => null),
     };
     const text = await makeBackup(data, password);
     const d = new Date(), pad = x => String(x).padStart(2, '0');
@@ -1228,7 +1233,13 @@ export default function App() {
       if (b.wallpaper) { setWallpaper(b.wallpaper); try { await saveWallpaper(b.wallpaper); } catch (e) {} }
       if (b.calc) { calcState.current = b.calc; AsyncStorage.setItem('calcState', JSON.stringify(b.calc)).catch(() => {}); }
     }
-    return incoming.length;
+    // La bóveda llega todavía cerrada: se abre con SU contraseña de siempre
+    let vaultMsg = '';
+    if (b.vault) {
+      const r = await importVaultRaw(b.vault).catch(() => 'fail');
+      vaultMsg = r === 'ok' ? tr('bkVaultOk') : r === 'exists' ? tr('bkVaultExists') : '';
+    }
+    return { n: incoming.length, vaultMsg };
   }
 
   /* ---------- Compartir ---------- */

@@ -74,6 +74,37 @@ const Store = {
   async wipe(names) { for (const n of names) await this.del(n); },
 };
 
+/* ---------- Para "Transferir notas": la bóveda viaja tal cual (sigue cifrada con su contraseña) ---------- */
+async function vaultNames() {
+  if (FS) {
+    try {
+      const d = new FS.Directory(FS.Paths.document, 'boveda');
+      if (!d.exists) return [];
+      return d.list().filter(x => !(x instanceof FS.Directory)).map(x => x.name);
+    } catch (e) { return []; }
+  }
+  const all = await AsyncStorage.getAllKeys();
+  return all.filter(k => k.startsWith('boveda_')).map(k => k.slice(7));
+}
+export async function exportVaultRaw() {
+  const names = await vaultNames();
+  if (!names.includes('meta.json')) return null;
+  const files = {};
+  for (const n of names) { const v = await Store.get(n); if (v != null) files[n] = v; }
+  return files;
+}
+/* Devuelve 'ok' (se copió), 'exists' (este teléfono ya tiene otra bóveda) o 'none' */
+export async function importVaultRaw(files) {
+  if (!files || !files['meta.json']) return 'none';
+  const mine = await Store.get('meta.json');
+  if (mine && mine !== files['meta.json']) return 'exists';
+  for (const n in files) {
+    if (!/^[\w.\-]+$/.test(n)) continue;
+    await Store.set(n, files[n]);
+  }
+  return 'ok';
+}
+
 /* Leer los bytes de una foto, video o archivo elegido */
 async function readUriBytes(uri) {
   if (Platform.OS === 'web' || !FS) {
