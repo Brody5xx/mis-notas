@@ -415,7 +415,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Panel de tamaño -->
 <div class="panel" id="sizePanel">
-  <div class="ptitle"><span>${H('sizeTitle')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
+  <div class="ptitle"><div class="pleft"><button class="pback" data-close="1" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><span>${H('sizeTitle')}</span></div><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sizeTop"><span id="sizeBig">17</span><span id="sample" style="font-size:17px">Aa</span></div>
   <div class="szRow"><button class="szStep" data-step="-1" aria-label="-"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><input type="range" id="range" min="5" max="100" step="1" value="17"><button class="szStep" data-step="1" aria-label="+"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div>
   <div class="chips" id="chips">${chips}</div>
@@ -2442,7 +2442,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     spLayer.innerHTML = h;
   }
   function spCard(html){
-    spEl.innerHTML = '<div class="spHead"><span id="spHd">' + spEsc(${J('spellTitle')}) + '</span><button class="spX" data-sp="x">✕</button></div>' + html;
+    spEl.innerHTML = '<div class="spHead"><div class="pleft"><button class="pback" data-sp="x" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><span id="spHd">' + spEsc(${J('spellTitle')}) + '</span></div><button class="pclose" data-sp="x">' + spEsc(${J('done')}) + '</button></div>' + html;
     spEl.classList.add('show');
   }
   function spInfo(text, spin){ spCard('<div class="spInfo">' + (spin ? '<span class="spSpin"></span>' : '') + spEsc(text) + '</div>'); }
@@ -2626,7 +2626,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     closePanels(); document.body.classList.add('rw');
     rwShowStyles();
   });
-  function rwHead(title){ return '<div class="rwHead"><span>✨ ' + rwEsc(title) + '</span><button class="rwX" data-rw="x">✕</button></div>'; }
+  function rwHead(title){ return '<div class="rwHead"><div class="pleft"><button class="pback" data-rw="x" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><span>✨ ' + rwEsc(title) + '</span></div><button class="pclose" data-rw="x">' + rwEsc(${J('done')}) + '</button></div>'; }
   function rwShowStyles(){
     rwEl.innerHTML = rwHead(${J('rwTitle')}) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 220)) + (RW.text.length > 220 ? '…' : '') + '”</div>' +
       '<div class="rwGrid">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';

@@ -504,12 +504,11 @@ function Sheet({ visible, onClose, title, s, t, children, onBack }) {
       <Pressable style={[s.newScrim, { backgroundColor: t.scrim }]} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
           <Glass t={t} strong radius={26} inner={{ paddingVertical: 10 }}>
-            {onBack ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingTop: 6 }}>
-                <BackBtn onPress={onBack} t={t} />
-                {title ? <Text style={[s.sheetTitle, { flex: 1, paddingLeft: 10 }]}>{title}</Text> : null}
-              </View>
-            ) : (title ? <Text style={s.sheetTitle}>{title}</Text> : null)}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 }}>
+              <BackBtn onPress={onBack || onClose} t={t} />
+              <Text style={[s.sheetTitle, { flex: 1, paddingLeft: 10, paddingRight: 8 }]} numberOfLines={1}>{title || ''}</Text>
+              <DoneBtn onPress={onClose} t={t} />
+            </View>
             <ScrollView style={{ maxHeight: 420 }}>{children}</ScrollView>
           </Glass>
         </Pressable>
@@ -597,7 +596,7 @@ function ColorSheet({ visible, title, value, allowNone, onDone, onClose, s, t })
       <Pressable style={[s.wallScrim, { backgroundColor: t.scrim }]} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 380 }}>
           <Glass t={t} strong radius={28} inner={{ padding: 18 }}>
-            <Text style={[s.wallTitle, { marginBottom: 12 }]}>{title}</Text>
+            <PanelHead title={title} onBack={onClose} onDone={() => onDone(cur)} s={s} t={t} style={{ marginBottom: 12 }} />
             <ColorWheel value={cur} onChange={setCur} t={t} size={210} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               {allowNone && (
@@ -725,7 +724,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
               <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>
                 {step === 'make' ? tr('bkMake') : step === 'import' ? tr('bkImport') : tr('transfer')}
               </Text>
-              {!busy && <TouchableOpacity onPress={onClose} hitSlop={10}><Feather name="x" size={22} color={t.text} /></TouchableOpacity>}
+              {!busy && <DoneBtn onPress={onClose} t={t} />}
             </View>
 
             {ok ? (
@@ -857,6 +856,28 @@ function BackBtn({ onPress, t, style }) {
       style={[{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.border }, style]}>
       <Feather name="arrow-left" size={20} color={t.text} />
     </TouchableOpacity>
+  );
+}
+
+/* Botón "Listo" (cierra el panel) */
+function DoneBtn({ onPress, t, style }) {
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={10} activeOpacity={0.6}
+      style={[{ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: t.text }, style]}>
+      <Text style={{ color: t.inv, fontSize: 15, fontWeight: '700' }}>{tr('done')}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/* Encabezado de panel: ← título Listo */
+function PanelHead({ title, onBack, onDone, s, t, style }) {
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, style]}>
+      <BackBtn onPress={onBack} t={t} />
+      <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{title}</Text>
+      <DoneBtn onPress={onDone || onBack} t={t} />
+    </View>
   );
 }
 
@@ -1986,8 +2007,8 @@ export default function App() {
         <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setWebFile(null)}>
           <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 360 }}>
             <Glass t={c} strong radius={28} inner={{ padding: 22, alignItems: 'center' }}>
+              <PanelHead title={tr('fileReady')} onBack={() => setWebFile(null)} s={s} t={c} style={{ alignSelf: 'stretch', marginBottom: 14 }} />
               <Feather name={webFile && webFile.name.endsWith('.pdf') ? 'file-text' : 'image'} size={40} color={c.text} />
-              <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{tr('fileReady')}</Text>
               <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }} numberOfLines={2}>{webFile ? webFile.name : ''}</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, alignSelf: 'stretch' }}>
                 <TouchableOpacity onPress={webDownload} activeOpacity={0.8}
@@ -2142,6 +2163,7 @@ export default function App() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <BackBtn onPress={() => setWallOpen(false)} t={c} />
               <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
+              <DoneBtn onPress={() => setWallOpen(false)} t={c} />
             </View>
             <Text style={s.wallHint}>{wallFor ? tr('bgNoteHint') : tr('bgMainHint')}</Text>
 
@@ -2208,6 +2230,7 @@ export default function App() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <BackBtn onPress={() => setFolderEdit(null)} t={c} />
                 <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
+                <DoneBtn onPress={() => setFolderEdit(null)} t={c} />
               </View>
               <View style={[s.folderInputWrap, { borderColor: c.border }]}>
                 <Feather name="folder" size={20} color={folderEdit.color} />
@@ -2470,11 +2493,10 @@ export default function App() {
                 {!histView ? (
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <MaterialCommunityIcons name="history" size={24} color={c.text} />
-                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('history')}</Text>
-                      <TouchableOpacity onPress={() => setHistOpen(false)} hitSlop={10}>
-                        <Feather name="x" size={22} color={c.muted} />
-                      </TouchableOpacity>
+                      <BackBtn onPress={() => setHistOpen(false)} t={c} />
+                      <MaterialCommunityIcons name="history" size={22} color={c.text} style={{ marginLeft: 10 }} />
+                      <Text style={[s.wallTitle, { marginLeft: 8, marginBottom: 0, flex: 1 }]}>{tr('history')}</Text>
+                      <DoneBtn onPress={() => setHistOpen(false)} t={c} />
                     </View>
                     <Text style={[s.wallHint, { marginTop: 6 }]}>
                       {tr('histIntro')}
@@ -2528,13 +2550,12 @@ export default function App() {
                 ) : histView.rec ? (
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TouchableOpacity onPress={() => setHistView(null)} hitSlop={10}>
-                        <Feather name="arrow-left" size={22} color={c.text} />
-                      </TouchableOpacity>
+                      <BackBtn onPress={() => setHistView(null)} t={c} />
                       <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('record')}</Text>
-                      <TouchableOpacity onPress={clearRecord} hitSlop={10}>
+                      <TouchableOpacity onPress={clearRecord} hitSlop={10} style={{ marginRight: 12 }}>
                         <Feather name="trash-2" size={20} color="#e53935" />
                       </TouchableOpacity>
+                      <DoneBtn onPress={() => { setHistView(null); setHistOpen(false); }} t={c} />
                     </View>
                     <Text style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
@@ -2551,13 +2572,12 @@ export default function App() {
                 ) : (
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TouchableOpacity onPress={() => setHistView(null)} hitSlop={10}>
-                        <Feather name="arrow-left" size={22} color={c.text} />
-                      </TouchableOpacity>
+                      <BackBtn onPress={() => setHistView(null)} t={c} />
                       <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]} numberOfLines={1}>{fmtDate(histView.at)}</Text>
-                      <TouchableOpacity onPress={() => deleteVersion(histView)} hitSlop={10}>
+                      <TouchableOpacity onPress={() => deleteVersion(histView)} hitSlop={10} style={{ marginRight: 12 }}>
                         <Feather name="trash-2" size={20} color="#e53935" />
                       </TouchableOpacity>
+                      <DoneBtn onPress={() => { setHistView(null); setHistOpen(false); }} t={c} />
                     </View>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 14 }}>
                       {!!histView.title && <Text style={s.histViewTitle}>{histView.title}</Text>}
@@ -2834,7 +2854,8 @@ export default function App() {
              contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
               <BackBtn onPress={() => closeMenu()} t={c} />
-              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10 }]}>{tr('appName')}</Text>
+              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
+              <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); closeMenu(); }} activeOpacity={0.7}>
