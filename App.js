@@ -12,6 +12,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml } from './editor';
 import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
+import { makeBackup, openBackup } from './respaldo';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -639,6 +640,141 @@ function WarnSheet({ visible, title, msg, okText, onOk, onClose, s, t }) {
   );
 }
 
+/* ============================================================
+   TRANSFERIR NOTAS: archivo de respaldo con contraseña
+   ============================================================ */
+/* Botón para elegir un archivo (en el teléfono lo hace una mini página web) */
+const PICK_HTML = (label, c) => `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;background:transparent;height:100%}label{display:flex;align-items:center;justify-content:center;gap:8px;height:100%;
+border:1.5px dashed ${c.border};border-radius:16px;color:${c.text};font:600 16px -apple-system,Roboto,sans-serif;box-sizing:border-box}
+input{display:none}</style></head><body><label>📁 <span>${label.replace(/</g, '&lt;')}</span><input id="f" type="file"></label>
+<script>document.getElementById('f').addEventListener('change',function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
+r.onload=function(){window.ReactNativeWebView.postMessage(JSON.stringify({name:f.name,text:r.result}));};r.readAsText(f);});</script></body></html>`;
+
+function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
+  const [step, setStep] = useState('menu');          // 'menu' | 'make' | 'import'
+  const [p1, setP1] = useState(''), [p2, setP2] = useState(''), [show, setShow] = useState(false);
+  const [file, setFile] = useState(null);           // { name, text }
+  const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [ok, setOk] = useState('');
+  useEffect(() => { if (visible) { setStep('menu'); setP1(''); setP2(''); setFile(null); setErr(''); setOk(''); setBusy(''); setShow(false); } }, [visible]);
+  const pickWeb = () => {
+    const inp = document.createElement('input'); inp.type = 'file';
+    inp.onchange = () => { const f = inp.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setFile({ name: f.name, text: r.result }); r.readAsText(f); };
+    inp.click();
+  };
+  async function doMake() {
+    setErr('');
+    if (p1.length < 6) { setErr(tr('bkShort')); return; }
+    if (p1 !== p2) { setErr(tr('bkMismatch')); return; }
+    setBusy(tr('bkWorking'));
+    try { const r = await onMake(p1); if (r === 'web') { setBusy(''); onClose(); return; } setOk(tr('bkMade')); } catch (e) { setErr(tr('exportFail')); }
+    setBusy('');
+  }
+  async function doImport() {
+    setErr('');
+    if (!file) { setErr(tr('bkPick')); return; }
+    if (!p1) { setErr(tr('bkPass')); return; }
+    setBusy(tr('bkOpening'));
+    try { const n = await onImport(file.text, p1); setOk(n === 1 ? tr('bkDone1') : tr('bkDone', { n })); }
+    catch (e) { setErr(e && e.message === 'pass' ? tr('bkWrongPass') : tr('bkBadFile')); }
+    setBusy('');
+  }
+  const input = (val, set, ph) => (
+    <View style={[s.folderInputWrap, { borderColor: t.border, marginTop: 10 }]}>
+      <Feather name="lock" size={16} color={t.muted} />
+      <TextInput style={[s.folderInput, { flex: 1 }]} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
+        placeholderTextColor={t.muted} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} />
+      <TouchableOpacity onPress={() => setShow(!show)} hitSlop={10}><Feather name={show ? 'eye-off' : 'eye'} size={18} color={t.muted} /></TouchableOpacity>
+    </View>
+  );
+  const bigBtn = (icon, title, sub, onPress) => (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 18,
+      borderWidth: 1, borderColor: t.border, marginTop: 10 }}>
+      <Feather name={icon} size={24} color={t.text} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.text, fontSize: 17, fontWeight: '700' }}>{title}</Text>
+        <Text style={{ color: t.muted, fontSize: 13, marginTop: 2 }}>{sub}</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={t.muted} />
+    </TouchableOpacity>
+  );
+  const mainBtn = (label, onPress) => (
+    <TouchableOpacity onPress={onPress} disabled={!!busy} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: t.text, marginTop: 16, opacity: busy ? 0.5 : 1 }]}>
+      <Text style={[s.wallBtnText, { color: t.inv }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => { if (!busy) (step === 'menu' || ok ? onClose() : setStep('menu')); }}>
+      <Pressable style={[s.wallScrim, { backgroundColor: t.scrim }]} onPress={() => { if (!busy) onClose(); }}>
+        <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 400 }}>
+          <Glass t={t} strong radius={28} inner={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {step !== 'menu' && !busy && !ok && (
+                <TouchableOpacity onPress={() => { setStep('menu'); setErr(''); setP1(''); setP2(''); }} hitSlop={10}><Feather name="arrow-left" size={22} color={t.text} /></TouchableOpacity>
+              )}
+              <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>
+                {step === 'make' ? tr('bkMake') : step === 'import' ? tr('bkImport') : tr('transfer')}
+              </Text>
+              {!busy && <TouchableOpacity onPress={onClose} hitSlop={10}><Feather name="x" size={22} color={t.text} /></TouchableOpacity>}
+            </View>
+
+            {ok ? (
+              <View style={{ alignItems: 'center', paddingVertical: 14 }}>
+                <Feather name="check-circle" size={44} color="#43a047" />
+                <Text style={{ color: t.text, fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>{ok}</Text>
+                {mainBtn(tr('done'), onClose)}
+              </View>
+            ) : busy ? (
+              <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+                <ActivityIndicator size="large" color={t.text} />
+                <Text style={{ color: t.text, fontSize: 15 }}>{busy}</Text>
+              </View>
+            ) : step === 'menu' ? (
+              <>
+                <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('transferHint')}</Text>
+                {bigBtn('upload', tr('bkMake'), tr('bkMakeSub'), () => setStep('make'))}
+                {bigBtn('download', tr('bkImport'), tr('bkImportSub'), () => setStep('import'))}
+              </>
+            ) : step === 'make' ? (
+              <>
+                <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('bkPassHint')}</Text>
+                {input(p1, setP1, tr('bkPass'))}
+                {input(p2, setP2, tr('bkPass2'))}
+                {!!err && <Text style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
+                {mainBtn(tr('bkCreateFile'), doMake)}
+              </>
+            ) : (
+              <>
+                <View style={{ height: 56, marginTop: 12 }}>
+                  {Platform.OS === 'web' ? (
+                    <TouchableOpacity onPress={pickWeb} activeOpacity={0.75} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.border, borderRadius: 16 }}>
+                      <Text style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>📁 {tr('bkPick')}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <WebView originWhitelist={['*']} source={{ html: PICK_HTML(tr('bkPick'), t) }} style={{ flex: 1, backgroundColor: 'transparent' }}
+                      scrollEnabled={false} allowFileAccess
+                      onMessage={e => { try { const m = JSON.parse(e.nativeEvent.data); setFile(m); setErr(''); } catch (_) {} }} />
+                  )}
+                </View>
+                {file && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <Feather name="file" size={16} color="#43a047" />
+                    <Text style={{ color: t.text, fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+                  </View>
+                )}
+                {input(p1, setP1, tr('bkPass'))}
+                {!!err && <Text style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
+                {mainBtn(tr('bkImportBtn'), doImport)}
+              </>
+            )}
+          </Glass>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={s.row}>
@@ -711,6 +847,7 @@ export default function App() {
   const [clearAsk, setClearAsk] = useState(false);  // aviso antes de borrar todo
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
+  const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
   const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
@@ -1034,6 +1171,64 @@ export default function App() {
     const all = {}; visible.forEach(n => { all[n.id] = true; });
     setSelected(selIds.length === visible.length ? {} : all);
   }
+  /* ---------- Transferir notas (archivo de respaldo) ---------- */
+  async function makeTransferFile(password) {
+    await new Promise(r => (currentId ? flushEditor(r) : r()));
+    const all = notesRef.current;
+    const walls = {};
+    for (const n of all) if (n.hasWall) { try { const w = await loadWallpaper(n.id); if (w) walls[n.id] = w; } catch (e) {} }
+    let mainWall = null; try { mainWall = await loadWallpaper(); } catch (e) {}
+    const data = {
+      v: 1, made: Date.now(), notes: all, folders, walls, wallpaper: mainWall, calc: calcState.current,
+      settings: { layout, dark, translucent, lang, wallBlur, sortBy, pinHash, appLock },
+    };
+    const text = await makeBackup(data, password);
+    const d = new Date(), pad = x => String(x).padStart(2, '0');
+    const name = `MisNotas_respaldo_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+    if (Platform.OS === 'web') {
+      const file = new File([text], name, { type: 'application/json' });
+      setWebFile({ file, url: URL.createObjectURL(file), name });
+      return 'web';
+    }
+    const f = new FS.File(FS.Paths.cache, name);
+    try { if (f.exists) f.delete(); } catch (e) {}
+    try { f.create(); } catch (e) {}
+    f.write(text);
+    const ok = await shareFile(f.uri, 'application/json', name);
+    if (!ok) throw new Error('share');
+  }
+  async function importTransferFile(text, password) {
+    const b = await openBackup(text, password);          // lanza 'pass' o 'file'
+    const incoming = Array.isArray(b.notes) ? b.notes : [];
+    const wasEmpty = notesRef.current.length === 0;
+    const set = b.settings || {};
+    // Notas: se juntan; si una nota ya existe, se queda la más nueva
+    setNotes(ns => {
+      const map = {}; ns.forEach(n => { map[n.id] = n; });
+      incoming.forEach(n => { if (!n || !n.id) return; const old = map[n.id]; if (!old || (n.updated || 0) > (old.updated || 0)) map[n.id] = n; });
+      return Object.values(map);
+    });
+    setFolders(fs => {
+      const map = {}; fs.forEach(f => { map[f.id] = f; });
+      (b.folders || []).forEach(f => { if (f && f.id && !map[f.id]) map[f.id] = f; });
+      return Object.values(map);
+    });
+    for (const id in (b.walls || {})) { try { await saveWallpaper(b.walls[id], id); } catch (e) {} }
+    if (set.pinHash && !pinHash) setPinHash(set.pinHash);   // así las notas con PIN se abren con tu mismo PIN
+    if (wasEmpty) {                                          // teléfono nuevo: también tus ajustes
+      if (set.layout) setLayout(set.layout);
+      if (typeof set.dark === 'boolean') setDark(set.dark);
+      if (typeof set.translucent === 'boolean') setTranslucent(set.translucent);
+      if (set.lang) setLang(set.lang);
+      if (typeof set.wallBlur === 'number') setWallBlur(set.wallBlur);
+      if (set.sortBy) setSortBy(set.sortBy);
+      if (set.appLock && set.pinHash) setAppLock(true);
+      if (b.wallpaper) { setWallpaper(b.wallpaper); try { await saveWallpaper(b.wallpaper); } catch (e) {} }
+      if (b.calc) { calcState.current = b.calc; AsyncStorage.setItem('calcState', JSON.stringify(b.calc)).catch(() => {}); }
+    }
+    return incoming.length;
+  }
+
   /* ---------- Compartir ---------- */
   async function shareText(list) {
     const text = list.map(n => {
@@ -2460,6 +2655,10 @@ export default function App() {
               <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => { setMenuOpen(false); setTransferOpen(true); }}>
+              <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
+              <Text style={s.navText}>{tr('transfer')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
               <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
@@ -2489,6 +2688,8 @@ export default function App() {
       {colorSheet}
       {calcModal}
       {shareLayer}
+      <TransferModal visible={transferOpen} onClose={() => setTransferOpen(false)}
+        onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} />
       {sortSheet}
       {langSheet}
       {folderModal}
