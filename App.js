@@ -901,12 +901,12 @@ const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círcu
 const ND = Platform.OS !== 'web';
 const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 /* Cuadros del círculo líquido (para la web): se mueve como agua y termina redondo */
-function liquidFrames(x, y, W, H, opening) {
+function liquidFrames(x, y, W, H, opening, R0 = 0) {
   const K = 40, P = 36, out = [];
   const Rmax = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 12;
   for (let k = 0; k <= K; k++) {
-    const t = k / K, e = easeIO(t);
-    const R = Math.max(0.5, e * Rmax);
+    const t = k / K, e = R0 ? 1 - Math.pow(1 - t, 3) : easeIO(t);   // si ya hay semilla, sigue desde ahí sin frenar
+    const R = Math.max(0.5, R0 + e * (Rmax - R0));
     const amp = 0.15 * Math.pow(1 - e, 1.4);
     const ph = t * Math.PI * 2.6;
     const pts = [];
@@ -919,6 +919,32 @@ function liquidFrames(x, y, W, H, opening) {
   }
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
+}
+/* Semilla: un circulito líquido que aparece AL INSTANTE de tocar (lo mueve la tarjeta gráfica),
+   así no se siente pausa mientras la nota se prepara. Luego el círculo de la nota sale desde ella. */
+const SEED_R = 70;
+function startSeed(o, color) {
+  if (typeof document === 'undefined') return null;
+  const d = document.createElement('div');
+  const S = SEED_R * 2;
+  d.style.cssText = 'position:fixed;left:' + (o.x - SEED_R) + 'px;top:' + (o.y - SEED_R) + 'px;width:' + S + 'px;height:' + S +
+    'px;border-radius:50%;background:' + color + ';pointer-events:none;z-index:2147482000;will-change:transform,opacity;transform:scale(0.02)';
+  document.body.appendChild(d);
+  const kf = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24, e = 1 - Math.pow(1 - t, 3), calm = Math.pow(1 - t, 1.3);
+    const w = 0.14 * Math.sin(t * Math.PI * 3.2) * calm, sc = Math.max(0.02, e);
+    kf.push({ offset: t, transform: 'rotate(' + (12 * Math.sin(t * Math.PI * 2) * calm).toFixed(2) + 'deg) scale(' + (sc * (1 + w)).toFixed(4) + ',' + (sc * (1 - w)).toFixed(4) + ')' });
+  }
+  d.animate(kf, { duration: 340, easing: 'linear', fill: 'forwards' });
+  return d;
+}
+function endSeed(d, delay) {
+  if (!d) return;
+  setTimeout(() => {
+    const a = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out', fill: 'forwards' });
+    a.onfinish = () => { if (d.parentNode) d.parentNode.removeChild(d); };
+  }, delay || 0);
 }
 /* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
 function ringStars(o, W, H, opening, Rmax) {
@@ -1094,6 +1120,7 @@ function NotesApp() {
   const revBusy = useRef(false);
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
+  const revSeed = useRef(null);
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1117,20 +1144,22 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const fr = liquidFrames(o.x, o.y, width, winH, true);
-      el.style.clipPath = fr[0].clipPath;
+      const seed = revSeed.current; revSeed.current = null;
+      const fr = liquidFrames(o.x, o.y, width, winH, true, seed ? SEED_R * 0.92 : 0);
+      el.style.clipPath = 'circle(0px at ' + o.x + 'px ' + o.y + 'px)';
       let started = false;
       const go = () => {
         if (started) return; started = true;
         requestAnimationFrame(() => {
-          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
-          startStars(o, true, 640);
+          el.style.clipPath = fr[0].clipPath;
+          const an = el.animate(fr, { duration: seed ? 560 : 640, easing: 'linear', fill: 'forwards' });
+          if (seed) endSeed(seed, 60); else startStars(o, true, 640);
           an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
       const fr2 = iframeRef.current;
-      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
-      setTimeout(go, 150);                 // no espera más que esto: se siente al instante
+      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 20), { once: true });
+      setTimeout(go, 260);                 // la semilla ya está creciendo, así que esperar un poquito no se nota
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1978,6 +2007,14 @@ function NotesApp() {
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
     revP.setValue(0);
     revPending.current = 'open';
+    if (Platform.OS === 'web') {
+      // 1) la semilla y las estrellitas salen YA (aunque el teléfono esté ocupado)
+      revSeed.current = startSeed(DROP.openPt, c.grad[0]);
+      startStars(DROP.openPt, true, 640);
+      // 2) en el siguiente cuadro se prepara la nota (lo pesado), con la animación ya corriendo
+      requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
+      return;
+    }
     setRevealing(true);
     setCurrentId(id);
   }
@@ -3189,7 +3226,8 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      <View pointerEvents={current && !revealing ? 'none' : 'auto'}
+        style={[{ flex: 1 }, current && !revealing && (Platform.OS === 'web' ? { opacity: 0 } : { display: 'none' })]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
