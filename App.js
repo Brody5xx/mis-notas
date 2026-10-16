@@ -2587,7 +2587,7 @@ export default function App() {
         <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.scrim }}>
           <Glass t={c} strong radius={28} style={s.sidebar}>
            <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
-             contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+             contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
             <Text style={s.sideTitle}>{tr('appName')}</Text>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); setMenuOpen(false); }} activeOpacity={0.7}>
