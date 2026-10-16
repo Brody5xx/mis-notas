@@ -796,13 +796,13 @@ function makeStars(H, seed) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
   const stars = [];
-  for (let i = 0; i < 38; i++) {
+  for (let i = 0; i < 64; i++) {
     const px = 6 + rnd() * (MENU_PANEL_W - 12);
     const passed = (1 - px / MENU_PANEL_W) / 0.985;      // cuándo pasa el borde del panel por aquí
     const start = Math.max(0.02, Math.min(1.05, passed - 0.04 + rnd() * 0.05));
     stars.push({
       x: px, y: 8 + rnd() * (H - 16),
-      start, life: 0.26 + rnd() * 0.16,
+      start, life: 0.5 + rnd() * 0.3,                   // más tiempo para apagarse despacito
       size: 4 + rnd() * 6,                               // diminutas
       drift: -(4 + rnd() * 14),                          // se van un poquito hacia la izquierda
       spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
@@ -816,9 +816,9 @@ function Sparkles({ anim, top, height }) {
     <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: MENU_PANEL_W }}>
       {stars.map((st, i) => {
         const a = st.start, l = st.life;
-        const inR = [0, a, a + l * 0.18, a + l * 0.4, a + l * 0.6, a + l * 0.8, Math.min(1.97, a + l), 2];
+        const inR = [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2];
         const range = { inputRange: inR, extrapolate: 'clamp' };
-        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0.2, 0.95, 0.15, 0, 0] });   // titila
+        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0.25, 1, 0.55, 0, 0] });     // titila y se apaga lento
         const sc = anim.interpolate({ ...range, outputRange: [0.2, 0.2, 1, 0.7, 1, 0.6, 0.2, 0.2] });
         const tx = anim.interpolate({ ...range, outputRange: [0, 0, st.drift * 0.2, st.drift * 0.4, st.drift * 0.6, st.drift * 0.8, st.drift, st.drift] });
         const rot = anim.interpolate({ ...range, outputRange: ['0deg', '0deg', st.spin * 0.2 + 'deg', st.spin * 0.4 + 'deg', st.spin * 0.6 + 'deg', st.spin * 0.8 + 'deg', st.spin + 'deg', st.spin + 'deg'] });
