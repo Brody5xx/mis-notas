@@ -286,6 +286,33 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .sw.on{box-shadow:0 0 0 3px rgba(0,0,0,.35),0 0 0 6px ${c.text} !important}
   #tip{background:rgba(20,20,40,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
        border:0.5px solid rgba(255,255,255,.35);box-shadow:inset 0 2px 2px rgba(255,255,255,.2)}
+  /* ===== Reescribir con IA ===== */
+  #rwChip{position:absolute;z-index:8;display:none;border:none;border-radius:18px;padding:9px 16px;font-size:15px;font-weight:700;
+          color:#111;background:linear-gradient(135deg,#ffffff,#d9f1ff);box-shadow:0 6px 20px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.5);
+          font-family:inherit;transform:translateX(-50%);animation:rwPop .18s ease-out}
+  #rwChip.show{display:block}
+  @keyframes rwPop{from{opacity:0;transform:translateX(-50%) scale(.85)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+  body.rw #dock{display:none !important}
+  #rw{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:14px 14px 12px;max-height:72vh;overflow:auto}
+  #rw .rwHead{display:flex;align-items:center;justify-content:space-between;color:${c.muted};font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
+  #rw .rwX{border:none;background:none;color:${c.text};font-size:20px;padding:2px 6px;line-height:1}
+  #rw .rwGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  #rw .rwOpt{border:1px solid ${c.border};background:rgba(255,255,255,.06);color:${c.text};border-radius:16px;padding:10px 4px;font-size:13px;
+             font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:inherit}
+  #rw .rwOpt b{font-size:20px;font-weight:400}
+  #rw .rwOpt:active{transform:scale(.96);background:rgba(255,255,255,.15)}
+  #rw .rwOrig{font-size:13px;color:${c.muted};margin-bottom:10px;max-height:3.6em;overflow:hidden;font-style:italic}
+  #rw .rwOut{font-size:16px;line-height:1.45;color:${c.text};white-space:pre-wrap;padding:12px;border-radius:14px;background:rgba(255,255,255,.07);
+             border:1px solid ${c.border};max-height:38vh;overflow:auto;-webkit-user-select:text;user-select:text}
+  #rw .rwRow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  #rw .rwRow button{flex:1;min-width:30%;border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:16px;padding:10px 8px;font-size:14px;font-weight:700;font-family:inherit}
+  #rw .rwRow .main{background:${c.text};color:${c.inv};border-color:transparent}
+  #rw .rwWait{display:flex;flex-direction:column;align-items:center;gap:12px;padding:22px 0;color:${c.text};font-size:15px}
+  #rw .rwDots{display:flex;gap:6px}
+  #rw .rwDots i{width:9px;height:9px;border-radius:50%;background:${c.text};animation:rwDot 1s ease-in-out infinite}
+  #rw .rwDots i:nth-child(2){animation-delay:.15s}#rw .rwDots i:nth-child(3){animation-delay:.3s}
+  @keyframes rwDot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-6px)}}
+  #rw .rwErr{color:#ff6b6b;font-size:14px;padding:6px 0}
   /* ===== Revisar ortografía ===== */
   #spLayer{position:absolute;left:0;top:0;width:0;height:0;z-index:2;pointer-events:none}
   .spm{position:absolute;border-bottom:2.5px solid #ff5252;pointer-events:none;border-radius:2px}
@@ -441,6 +468,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div id="tip"></div>
 <div id="spLayer"></div>
 <div class="panel" id="spell"></div>
+<button id="rwChip">${H('rwBtn')}</button>
+<div class="panel" id="rw"></div>
 <div id="imged">
   <div id="ieTop">
   <div id="ieHead"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
@@ -2365,6 +2394,121 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     showTip(${J('calcInserted')});
   };
 
+
+  /* =========================================================
+     REESCRIBIR CON IA ✨ (como Gmail)
+     Seleccionas un texto → sale "✨ Reescribir" → eliges el estilo
+     → la app le pide a la IA otra versión → Reemplazar o Insertar.
+     ========================================================= */
+  var RW = { range: null, text: '', style: null, req: 0, out: '' };
+  var rwChip = $('rwChip'), rwEl = $('rw');
+  var RW_STYLES = [
+    ['formal', '🎩', ${J('rwFormal')}], ['pro', '💼', ${J('rwPro')}], ['biz', '📈', ${J('rwBiz')}],
+    ['friendly', '😊', ${J('rwFriendly')}], ['funny', '😂', ${J('rwFunny')}], ['persuasive', '🎯', ${J('rwPersuasive')}],
+    ['short', '✂️', ${J('rwShort')}], ['long', '📝', ${J('rwLong')}], ['clear', '💡', ${J('rwClear')}],
+    ['fix', '✅', ${J('rwFix')}], ['emoji', '🤩', ${J('rwEmoji')}], ['translate', '🌍', ${J('rwTranslate')}]
+  ];
+  function rwEsc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function rwSelRange(){
+    var sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return null;
+    var r = sel.getRangeAt(0);
+    if (!(ed.contains(r.commonAncestorContainer) || ttl.contains(r.commonAncestorContainer))) return null;
+    var t = sel.toString();
+    if (t.replace(/\\s+/g, '').length < 2) return null;
+    return r;
+  }
+  function rwPlaceChip(){
+    if (!editable || rwEl.classList.contains('show') || (typeof SP !== 'undefined' && SP.on) || ieOn()) { rwChip.classList.remove('show'); return; }
+    var r = rwSelRange();
+    if (!r) { rwChip.classList.remove('show'); return; }
+    var b = r.getBoundingClientRect();
+    var y = b.bottom + 14;
+    var dock = document.getElementById('dock'), lim = window.innerHeight - ((dock && dock.offsetHeight) || 100) - 70;
+    if (y > lim) y = Math.max(70, b.top - 56);                     // si no cabe abajo, va arriba
+    var x = Math.max(80, Math.min(window.innerWidth - 80, b.left + b.width / 2));
+    rwChip.style.left = (x + window.scrollX) + 'px';
+    rwChip.style.top = (y + window.scrollY) + 'px';
+    rwChip.classList.add('show');
+  }
+  var rwT = null;
+  document.addEventListener('selectionchange', function(){ clearTimeout(rwT); rwT = setTimeout(rwPlaceChip, 180); });
+  window.addEventListener('scroll', function(){ if (rwChip.classList.contains('show')) rwPlaceChip(); }, { passive: true });
+  rwChip.addEventListener('pointerdown', function(e){ e.preventDefault(); });           // no perder la selección
+  rwChip.addEventListener('click', function(){
+    var r = rwSelRange(); if (!r) return;
+    RW.range = r.cloneRange(); RW.text = window.getSelection().toString();
+    rwChip.classList.remove('show');
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // bajar el teclado
+    closePanels(); document.body.classList.add('rw');
+    rwShowStyles();
+  });
+  function rwHead(title){ return '<div class="rwHead"><span>✨ ' + rwEsc(title) + '</span><button class="rwX" data-rw="x">✕</button></div>'; }
+  function rwShowStyles(){
+    rwEl.innerHTML = rwHead(${J('rwTitle')}) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 220)) + (RW.text.length > 220 ? '…' : '') + '”</div>' +
+      '<div class="rwGrid">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
+    rwEl.classList.add('show');
+    send({ type: 'rwOpen', open: true });
+  }
+  function rwAsk(style){
+    RW.style = style; RW.req++; RW.out = '';
+    var lbl = (RW_STYLES.filter(function(s){ return s[0] === style; })[0] || ['', '✨', ''])[2];
+    rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
+    send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
+  }
+  window.rewriteResult = function(res){
+    if (!res || res.req !== RW.req || !rwEl.classList.contains('show')) return;
+    var lbl = (RW_STYLES.filter(function(s){ return s[0] === RW.style; })[0] || ['', '✨', ''])[2];
+    if (!res.ok || !res.text) {
+      rwEl.innerHTML = rwHead(lbl) + '<div class="rwErr">' + rwEsc(${J('rwFail')}) + '</div>' +
+        '<div class="rwRow"><button data-rw="back">←</button><button class="main" data-rw="again">' + rwEsc(${J('rwAgain')}) + '</button></div>';
+      return;
+    }
+    RW.out = res.text;
+    rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(res.text) + '</div>' +
+      '<div class="rwRow"><button class="main" data-rw="replace">' + rwEsc(${J('rwReplace')}) + '</button>' +
+      '<button data-rw="insert">' + rwEsc(${J('rwInsert')}) + '</button></div>' +
+      '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
+  };
+  function rwClose(){
+    rwEl.classList.remove('show'); document.body.classList.remove('rw');
+    RW.req++; RW.range = null;
+    send({ type: 'rwOpen', open: false });
+  }
+  window.rewriteClose = function(){ if (rwEl.classList.contains('show')) { rwClose(); return true; } return false; };
+  function rwFrag(text){
+    var f = document.createDocumentFragment(), lines = text.split('\\n');
+    lines.forEach(function(l, i){ if (i) f.appendChild(document.createElement('br')); if (l) f.appendChild(document.createTextNode(l)); });
+    return f;
+  }
+  function rwPut(mode){
+    var r = RW.range; if (!r || !RW.out) return;
+    if (mode === 'replace') {
+      r.deleteContents();
+      var last = rwFrag(RW.out), lastNode = last.lastChild;
+      r.insertNode(last);
+      if (lastNode) { var nr = document.createRange(); nr.setStartAfter(lastNode); nr.collapse(true); saved = nr; }
+    } else {
+      // debajo: en una línea nueva después del bloque donde termina la selección
+      var n = r.endContainer; while (n && n.parentNode !== ed && n !== ed) n = n.parentNode;
+      var d = document.createElement('div'); d.appendChild(rwFrag(RW.out));
+      if (n && n !== ed && n.parentNode === ed) ed.insertBefore(d, n.nextSibling); else ed.appendChild(d);
+    }
+    window.getSelection().removeAllRanges();
+    rwClose();
+    changedNow();                          // se guarda (y Deshacer lo regresa)
+    showTip(${J('rwDone')});
+  }
+  rwEl.addEventListener('pointerdown', function(e){ if (!e.target.closest('.rwOut')) e.preventDefault(); });
+  rwEl.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.style) return rwAsk(b.dataset.style);
+    var a = b.dataset.rw;
+    if (a === 'x') rwClose();
+    else if (a === 'back') rwShowStyles();
+    else if (a === 'again') rwAsk(RW.style);
+    else if (a === 'replace' || a === 'insert') rwPut(a);
+  });
   /* =========================================================
      BORRAR TODO EL CONTENIDO (con animación suave)
      Las líneas se van desvaneciendo de abajo hacia arriba.

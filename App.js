@@ -1011,6 +1011,7 @@ export default function App() {
   const toastTimer = useRef(null);
   const iframeRef = useRef(null);
   const [spellOn, setSpellOn] = useState(false);   // revisando ortografía
+  const [rwOn, setRwOn] = useState(false);         // panel de reescribir abierto
   const [clearAsk, setClearAsk] = useState(false);  // aviso antes de borrar todo
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
@@ -1131,7 +1132,7 @@ export default function App() {
       // Si la nota quedó vacía, se descarta (menos si la vaciaste con "Vaciar chat")
       setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)));
       setCurrentId(cur => (cur === id ? null : cur));
-      setCropOpen(false); setSpellOn(false);
+      setCropOpen(false); setSpellOn(false); setRwOn(false);
       setTitleColorOpen(false);
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
@@ -1785,6 +1786,73 @@ export default function App() {
     setSearchOpen(!searchOpen);
   }
 
+  /* ---------- Reescribir con IA (Pollinations: gratis, sin cuenta) ---------- */
+  const RW_HOW = {
+    formal: 'Rewrite it in a formal, polite and respectful tone.',
+    pro: 'Rewrite it in a clear, confident, professional tone suitable for work.',
+    biz: 'Rewrite it as polished business communication: concise, results-oriented, with a courteous corporate tone.',
+    friendly: 'Rewrite it in a warm, friendly and relaxed tone.',
+    funny: 'Rewrite it so it is funny and witty, keeping the same meaning. Light, good-natured humor.',
+    persuasive: 'Rewrite it to be persuasive and convincing, with a strong call to action when it fits.',
+    short: 'Rewrite it much shorter and more concise, keeping the key information.',
+    long: 'Rewrite it longer and more detailed, expanding naturally on the ideas without inventing facts.',
+    clear: 'Rewrite it in simple, clear words that are very easy to understand.',
+    fix: 'Correct spelling, grammar and punctuation only. Keep the wording and style as close as possible to the original.',
+    emoji: 'Rewrite it in a lively tone and add fitting emojis.',
+  };
+  function rwReply(data) {
+    if (Platform.OS === 'web') {
+      try { const w = iframeRef.current && iframeRef.current.contentWindow; if (w && w.rewriteResult) w.rewriteResult(data); } catch (e) {}
+    } else if (webRef.current) {
+      const js = JSON.stringify(data).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+      webRef.current.injectJavaScript(`window.rewriteResult && window.rewriteResult(${js}); true;`);
+    }
+  }
+  async function runRewrite(m) {
+    const appLang = langLabel(langCode).replace(/^\S+\s/, '');
+    const how = m.style === 'translate'
+      ? `If the text is written in ${appLang}, translate it into English; otherwise translate it into ${appLang}. Keep the meaning and tone.`
+      : RW_HOW[m.style] || RW_HOW.pro;
+    const system = 'You are a writing assistant inside a notes app. ' + how +
+      (m.style === 'translate' ? '' : ' Always answer in the SAME language as the original text.') +
+      ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.';
+    const text = String(m.text || '').slice(0, 6000);
+    const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
+    let timer;
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timeout')), ms); })]);
+    const seed = Math.floor(Math.random() * 1e6);
+    try {
+      // 1) Forma moderna (igual que OpenAI)
+      const r = await withTimeout(fetch('https://text.pollinations.ai/openai', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'openai', seed, private: true, referrer: 'misnotas',
+          messages: [{ role: 'system', content: system }, { role: 'user', content: text }] }),
+      }), 35000);
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      const out = clean(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+      if (!out) throw new Error('empty');
+      rwReply({ req: m.req, ok: true, text: out });
+    } catch (e1) {
+      clearTimeout(timer);
+      try {
+        // 2) Forma sencilla (por si la primera falla)
+        const url = 'https://text.pollinations.ai/' + encodeURIComponent(text) +
+          '?model=openai&private=true&referrer=misnotas&seed=' + seed + '&system=' + encodeURIComponent(system);
+        const r2 = await withTimeout(fetch(url), 35000);
+        clearTimeout(timer);
+        if (!r2.ok) throw new Error('http ' + r2.status);
+        const out2 = clean(await r2.text());
+        if (!out2) throw new Error('empty');
+        rwReply({ req: m.req, ok: true, text: out2 });
+      } catch (e2) {
+        clearTimeout(timer);
+        rwReply({ req: m.req, ok: false });
+      }
+    }
+  }
+
   /* ---------- Revisar ortografía (LanguageTool, por internet) ---------- */
   function spellReply(data) {
     if (Platform.OS === 'web') {
@@ -1949,6 +2017,8 @@ export default function App() {
       if (m.type === 'crop') setCropOpen(!!m.open);
       if (m.type === 'spellOpen') setSpellOn(!!m.open);
       if (m.type === 'spell') runSpell(m);
+      if (m.type === 'rwOpen') setRwOn(!!m.open);
+      if (m.type === 'rewrite') runRewrite(m);
       if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
     } catch (e) {}
   }
@@ -1977,6 +2047,7 @@ export default function App() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (spellOn) { callEditor('spellClose'); return true; }
+      if (rwOn) { callEditor('rewriteClose'); return true; }
       if (cropOpen && webRef.current) {
         webRef.current.injectJavaScript('window.closeCrop && window.closeCrop(); true;');
         return true;
@@ -1997,7 +2068,7 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, query, cropOpen, spellOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
+  }, [currentId, menuOpen, query, cropOpen, spellOn, rwOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
 
   /* ---------- Notas que se muestran ---------- */
   useEffect(() => { setSelected({}); }, [view]);
