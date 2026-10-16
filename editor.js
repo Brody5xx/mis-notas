@@ -82,7 +82,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #sizeBig{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;
            color:${c.text}}
   #sample{color:${c.text};font-weight:600;line-height:1;max-width:60%;overflow:hidden;white-space:nowrap}
-  #range{width:100%;height:34px;margin:6px 0 10px;accent-color:#ffffff}
+  #range{flex:1;min-width:0;width:100%;height:34px;margin:0;accent-color:#ffffff}
+  .szRow{display:flex;align-items:center;gap:12px;margin:6px 0 10px}
+  .szStep{flex:none;width:40px;height:40px;border-radius:20px;border:1px solid ${c.border};background:rgba(255,255,255,.08);
+          color:${c.text};display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;
+          transition:transform .12s ease,background .12s ease}
+  .szStep:active,.szStep.press{transform:scale(.9);background:rgba(255,255,255,.22)}
   .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0}
   .chip{flex:none;min-width:46px;height:36px;border-radius:18px;border:1px solid ${c.border};background:transparent;
         color:${c.text};font-size:15px;font-variant-numeric:tabular-nums}
@@ -387,7 +392,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div class="panel" id="sizePanel">
   <div class="ptitle"><span>${H('sizeTitle')}</span><button class="pclose" data-close="1">${H('done')}</button></div>
   <div class="sizeTop"><span id="sizeBig">17</span><span id="sample" style="font-size:17px">Aa</span></div>
-  <input type="range" id="range" min="5" max="100" step="1" value="17">
+  <div class="szRow"><button class="szStep" data-step="-1" aria-label="-"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><input type="range" id="range" min="5" max="100" step="1" value="17"><button class="szStep" data-step="1" aria-label="+"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></button></div>
   <div class="chips" id="chips">${chips}</div>
 </div>
 
@@ -815,6 +820,25 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   range.addEventListener('input', function(){ showSizePreview(+range.value); });
   range.addEventListener('change', function(){ applySize(+range.value); });
+  /* Botones − / + : un toque cambia 1; mantener presionado sigue cambiando */
+  sizePanel.querySelectorAll('.szStep').forEach(function(b){
+    var t1 = null, t2 = null, moved = false;
+    function step(){
+      var v = Math.max(+range.min, Math.min(+range.max, (+range.value || 17) + (+b.dataset.step)));
+      if (v === +range.value) return;
+      range.value = v; showSizePreview(v); moved = true;
+    }
+    function stop(){
+      clearTimeout(t1); clearInterval(t2); t1 = t2 = null;
+      b.classList.remove('press');
+      if (moved) { moved = false; applySize(+range.value); }
+    }
+    b.addEventListener('pointerdown', function(e){
+      e.preventDefault(); b.classList.add('press'); step();
+      t1 = setTimeout(function(){ t2 = setInterval(step, 70); }, 380);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function(ev){ b.addEventListener(ev, function(){ if (b.classList.contains('press')) stop(); }); });
+  });
   $('chips').addEventListener('click', function(e){
     var ch = e.target.closest('.chip');
     if (!ch) return;
@@ -1040,6 +1064,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* ---------- Paneles ---------- */
   function closePanels(){
     sizePanel.classList.remove('show'); colorPanel.classList.remove('show'); fxPanel.classList.remove('show');
+    if (typeof rwPlaceChip === 'function') setTimeout(rwPlaceChip, 60);                 // vuelve a salir si sigue habiendo texto seleccionado
     var ib = document.getElementById('iebar');
     if (ib) ib.querySelectorAll('[data-ie=size],[data-ie=color]').forEach(function(b){ b.classList.remove('on'); });
     dock.querySelectorAll('[data-act=size],[data-act=color],[data-act=hl],[data-act=ol]').forEach(function(b){ b.classList.remove('on'); });
@@ -1049,6 +1074,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     closePanels();
     if (!open) return;
     p.classList.add('show'); btn.classList.add('on');
+    var rc = document.getElementById('rwChip'); if (rc) rc.classList.remove('show');   // ✨ Reescribir se esconde mientras hay un panel abierto
     if (p === sizePanel) {
       var v = ieOn() ? +$('ieSizeNum').textContent : (+sizeNum.textContent || 17);
       range.value = v; showSizePreview(v);
@@ -2422,7 +2448,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     return r;
   }
   function rwPlaceChip(){
-    if (!editable || rwEl.classList.contains('show') || (typeof SP !== 'undefined' && SP.on) || ieOn()) { rwChip.classList.remove('show'); return; }
+    if (!editable || document.querySelector('.panel.show') || (typeof SP !== 'undefined' && SP.on) || ieOn()) { rwChip.classList.remove('show'); return; }
     var r = rwSelRange();
     if (!r) { rwChip.classList.remove('show'); return; }
     var b = r.getBoundingClientRect();
