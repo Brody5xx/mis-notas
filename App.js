@@ -792,54 +792,54 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
    (titilan) y desaparecen detrás del panel, de derecha a izquierda.
    ============================================================ */
 const MENU_PANEL_W = 290;
-function makeStars(H, seed, screenW) {
+/* Para que se vea fluido, las estrellitas van en grupos: cada grupo se anima
+   como una sola pieza (mucho menos trabajo por cuadro), pero cada grupo
+   sale en su momento y titila a su ritmo. */
+function makeStarGroups(H, seed, screenW) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
-  const stars = [];
-  for (let i = 0; i < 110; i++) {
-    const px = 6 + rnd() * (MENU_PANEL_W - 12);
-    const passed = (1 - px / MENU_PANEL_W) / 0.985;      // cuándo pasa el borde del panel por aquí
-    const start = Math.max(0.02, Math.min(1.05, passed - 0.04 + rnd() * 0.05));
-    stars.push({
-      x: px, y: 8 + rnd() * (H - 16),
-      start, life: 0.5 + rnd() * 0.3,                   // más tiempo para apagarse despacito
-      size: 4 + rnd() * 6,                               // diminutas
-      drift: -(4 + rnd() * 14),                          // se van un poquito hacia la izquierda
-      spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
-    });
+  const W = MENU_PANEL_W, groups = [];
+  const star = (x0, x1) => ({ x: x0 + rnd() * (x1 - x0), y: 8 + rnd() * (H - 16), size: 4 + rnd() * 6, rot: Math.floor(rnd() * 45) });
+  // franjas del panel: de derecha a izquierda, siguiendo el borde que se encoge
+  const BANDS = 14;
+  for (let g = 0; g < BANDS; g++) {
+    const x1 = W * (1 - g / BANDS), x0 = W * (1 - (g + 1) / BANDS);
+    const passed = Math.min(1.05, Math.max(0.02, (1 - x1 / W) / 0.985));
+    for (let k = 0; k < 2; k++) {
+      const stars = []; for (let i = 0; i < 4; i++) stars.push(star(x0 + 4, x1 - 4));
+      groups.push({ start: passed + k * 0.05, life: 0.55 + rnd() * 0.25, drift: -(6 + rnd() * 12), alt: k, stars });
+    }
   }
-  // más estrellitas hacia la derecha de la pantalla (salen al empezar a cerrar)
-  const right = Math.max(0, (screenW || 400) - 10);
-  for (let i = 0; i < 70; i++) {
-    const px = MENU_PANEL_W * 0.55 + rnd() * (right - MENU_PANEL_W * 0.55 - 10);
-    stars.push({
-      x: px, y: 8 + rnd() * (H - 16),
-      start: 0.02 + rnd() * 0.45, life: 0.5 + rnd() * 0.3,
-      size: 4 + rnd() * 6,
-      drift: -(6 + rnd() * 20),
-      spin: (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * 90),
-    });
+  // lado derecho de la pantalla: salen al empezar a cerrar
+  const right = Math.max(W, (screenW || 400) - 20);
+  for (let g = 0; g < 8; g++) {
+    const stars = []; for (let i = 0; i < 9; i++) stars.push(star(W * 0.55, right));
+    groups.push({ start: 0.02 + g * 0.06, life: 0.55 + rnd() * 0.25, drift: -(8 + rnd() * 16), alt: g % 2, stars });
   }
-  return stars;
+  return groups;
 }
 function Sparkles({ anim, top, height, screenW }) {
-  const stars = useMemo(() => makeStars(height, Math.floor(height), screenW), [height, screenW]);
+  const groups = useMemo(() => makeStarGroups(height, Math.floor(height), screenW), [height, screenW]);
+  const styles = useMemo(() => groups.map(gr => {
+    const a = gr.start, l = gr.life;
+    const inputRange = [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2];
+    const range = { inputRange, extrapolate: 'clamp' };
+    const op = gr.alt ? [0, 0, 0.9, 1, 0.3, 0.8, 0, 0] : [0, 0, 1, 0.25, 1, 0.55, 0, 0];   // titilan a destiempo
+    return {
+      opacity: anim.interpolate({ ...range, outputRange: op }),
+      transform: [{ translateX: anim.interpolate({ ...range, outputRange: [0, 0, gr.drift * 0.2, gr.drift * 0.4, gr.drift * 0.6, gr.drift * 0.8, gr.drift, gr.drift] }) }],
+    };
+  }), [groups, anim]);
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: Math.max(MENU_PANEL_W, (screenW || 400) - 10) }}>
-      {stars.map((st, i) => {
-        const a = st.start, l = st.life;
-        const inR = [0, a, a + l * 0.12, a + l * 0.28, a + l * 0.44, a + l * 0.62, Math.min(1.97, a + l), 2];
-        const range = { inputRange: inR, extrapolate: 'clamp' };
-        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0.25, 1, 0.55, 0, 0] });     // titila y se apaga lento
-        const sc = anim.interpolate({ ...range, outputRange: [0.2, 0.2, 1, 0.7, 1, 0.6, 0.2, 0.2] });
-        const tx = anim.interpolate({ ...range, outputRange: [0, 0, st.drift * 0.2, st.drift * 0.4, st.drift * 0.6, st.drift * 0.8, st.drift, st.drift] });
-        const rot = anim.interpolate({ ...range, outputRange: ['0deg', '0deg', st.spin * 0.2 + 'deg', st.spin * 0.4 + 'deg', st.spin * 0.6 + 'deg', st.spin * 0.8 + 'deg', st.spin + 'deg', st.spin + 'deg'] });
-        return (
-          <Animated.Text key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
-            textShadowColor: 'rgba(200,230,255,0.95)', textShadowRadius: 5, textShadowOffset: { width: 0, height: 0 },
-            opacity, transform: [{ translateX: tx }, { scale: sc }, { rotate: rot }] }}>✦</Animated.Text>
-        );
-      })}
+      {groups.map((gr, gi) => (
+        <Animated.View key={gi} style={[StyleSheet.absoluteFill, styles[gi]]} renderToHardwareTextureAndroid>
+          {gr.stars.map((st, i) => (
+            <Text key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
+              transform: [{ rotate: st.rot + 'deg' }] }}>✦</Text>
+          ))}
+        </Animated.View>
+      ))}
     </View>
   );
 }
@@ -2697,7 +2697,8 @@ export default function App() {
       <Modal visible={menuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: menuScrim }]} />
-          <Animated.View style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
+          <Animated.View renderToHardwareTextureAndroid shouldRasterizeIOS needsOffscreenAlphaCompositing
+            style={[s.sidebar, { opacity: menuOpacity, transform: [{ translateX: menuX }, { scaleX: menuSX }, { scaleY: menuSY }] }]}>
           <Glass t={c} strong radius={28}>
            <ScrollView style={{ height: winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70 }}
              contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
