@@ -597,13 +597,16 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         return n;
       }
     } catch (e) {}
-    return t.split(/\s+/).length;
+    return t.split(/\\s+/).length;
   }
   function modText(t){
     var w = countWords();
     return ${J('modified')}.replace('{d}', fmtDate(t)) + (w ? '  ·  ' + (w === 1 ? ${J('nWords1')} : ${J('nWords')}).replace('{n}', w) : '');
   }
-  $('meta').textContent = modText(${Number(updated) || Date.now()});
+  // La fecha y el conteo de palabras se calculan un ratito después de abrir
+  // (son lentos la primera vez y harían que la animación de abrir se trabe)
+  $('meta').innerHTML = '&nbsp;';
+  setTimeout(function(){ $('meta').textContent = modText(${Number(updated) || Date.now()}); }, 950);
 
   /* ¿El texto tocado está en el título o en la nota? */
   function owner(node){

@@ -1230,6 +1230,25 @@ function NotesApp() {
     AsyncStorage.getItem('colorPrefs').then(v => { if (v) colorPrefs.current = JSON.parse(v); }).catch(() => {});
     AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
   }, []);
+  /* Web: al arrancar, se "calienta" el editor una vez en secreto (fuera de la pantalla).
+     Así la PRIMERA nota que abras carga igual de rápido que las demás. */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !loaded || typeof document === 'undefined') return;
+    const tm = setTimeout(() => {
+      try {
+        try { new Intl.Segmenter(LOCALE, { granularity: 'word' }).segment('a b'); new Date().toLocaleString(LOCALE, { month: 'short' }); } catch (e) {}
+        const f = document.createElement('iframe');
+        f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
+        f.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + width + 'px;height:' + winH + 'px;border:0;opacity:0;pointer-events:none';
+        f.srcdoc = buildEditorHtml({ id: 'warm', content: '<div>Hola</div>', titleHtml: 'T', updated: Date.now(), editable: true, c,
+          kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current });
+        document.body.appendChild(f);
+        setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 2500);
+      } catch (e) {}
+    }, 1200);
+    return () => clearTimeout(tm);
+  }, [loaded]);
+
   const webRef = useRef(null);
 
   const c = dark ? THEMES.dark : THEMES.light;
