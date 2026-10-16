@@ -894,7 +894,104 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
 /* ============================================================
    APP PRINCIPAL
    ============================================================ */
+/* ============================================================
+   GOTA DE AGUA al abrir y cerrar una nota
+   ============================================================ */
+const DROP = { run: null, pt: null, openPt: null, busy: false };
+const ND = Platform.OS !== 'web';
+function DropLayer() {
+  const { width: W, height: H } = useWindowDimensions();
+  const p = useRef(new Animated.Value(0)).current;      // tamaño de la gota (0 = gotita, 1 = toda la pantalla)
+  const fade = useRef(new Animated.Value(0)).current;
+  const ring = useRef(new Animated.Value(0)).current;   // onda que sale alrededor
+  const [st, setSt] = useState({ x: 0, y: 0, color: '#1c1c1c', k: 0 });
+  const job = useRef(null);
+  const curves = useMemo(() => {
+    const inR = [], sx = [], sy = [];
+    const N = 48;
+    for (let i = 0; i <= N; i++) {
+      const q = i / N;
+      const wob = 0.16 * Math.sin(q * Math.PI * 3.4) * (1 - q) * (1 - q);   // se mueve como agua y se calma al final
+      const base = Math.max(0.002, q);
+      inR.push(q); sx.push(base * (1 + wob)); sy.push(base * (1 - wob));
+    }
+    return { inR, sx, sy };
+  }, []);
+  useEffect(() => {
+    DROP.run = (kind, opts, onCovered) => {
+      if (DROP.busy) { onCovered && onCovered(); return; }
+      DROP.busy = true;
+      const pt = kind === 'open' ? (DROP.pt || { x: W / 2, y: H / 2 }) : (DROP.openPt || { x: W / 2, y: H * 0.4 });
+      if (kind === 'open') DROP.openPt = pt;
+      job.current = { kind, onCovered };
+      setSt(v => ({ x: pt.x, y: pt.y, color: opts.color || v.color, k: v.k + 1 }));
+    };
+    return () => { DROP.run = null; };
+  });
+  useEffect(() => {
+    const j = job.current; if (!j) return;
+    job.current = null;
+    const done = () => { DROP.busy = false; };
+    if (j.kind === 'open') {
+      p.setValue(0); ring.setValue(0); fade.setValue(1);
+      Animated.parallel([
+        Animated.timing(p, { toValue: 1, duration: 680, easing: Easing.bezier(0.6, 0, 0.25, 1), useNativeDriver: ND }),
+        Animated.timing(ring, { toValue: 1, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
+      ]).start(() => {
+        j.onCovered && j.onCovered();
+        setTimeout(() => {
+          Animated.timing(fade, { toValue: 0, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: ND }).start(done);
+        }, Platform.OS === 'web' ? 90 : 160);
+      });
+    } else {
+      p.setValue(1); ring.setValue(0); fade.setValue(0);
+      Animated.timing(fade, { toValue: 1, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: ND }).start(() => {
+        j.onCovered && j.onCovered();
+        setTimeout(() => {
+          Animated.timing(p, { toValue: 0, duration: 660, easing: Easing.bezier(0.6, 0, 0.3, 1), useNativeDriver: ND }).start(() => {
+            Animated.timing(ring, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: ND }).start();
+            fade.setValue(0); done();
+          });
+        }, Platform.OS === 'web' ? 120 : 280);
+      });
+    }
+  }, [st.k]);
+  const D = Math.ceil(2 * Math.hypot(W, H)) + 40;
+  const scaleX = p.interpolate({ inputRange: curves.inR, outputRange: curves.sx });
+  const scaleY = p.interpolate({ inputRange: curves.inR, outputRange: curves.sy });
+  const shine = p.interpolate({ inputRange: [0, 0.12, 0.35], outputRange: [1, 0.85, 0], extrapolate: 'clamp' });
+  const R = 120;
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Animated.View style={{ position: 'absolute', left: st.x - R, top: st.y - R, width: R * 2, height: R * 2, borderRadius: R,
+        borderWidth: 2, borderColor: 'rgba(150,225,255,0.9)',
+        opacity: ring.interpolate({ inputRange: [0, 0.12, 1], outputRange: [0, 0.9, 0] }),
+        transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.08, 1.5] }) }] }} />
+      <Animated.View style={{ position: 'absolute', left: st.x - D / 2, top: st.y - D / 2, width: D, height: D, borderRadius: D / 2,
+        backgroundColor: st.color, opacity: fade, overflow: 'hidden', transform: [{ scaleX }, { scaleY }] }}>
+        {/* borde de agua y brillo (solo se ven mientras es una gota) */}
+        <Animated.View style={{ position: 'absolute', left: 0, top: 0, width: D, height: D, borderRadius: D / 2,
+          borderWidth: D * 0.02, borderColor: 'rgba(150,225,255,0.6)', opacity: shine }} />
+        <Animated.View style={{ position: 'absolute', left: D * 0.2, top: D * 0.15, width: D * 0.24, height: D * 0.13, borderRadius: D,
+          backgroundColor: 'rgba(255,255,255,0.6)', opacity: shine, transform: [{ rotate: '-35deg' }] }} />
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function App() {
+  return (
+    <View style={{ flex: 1 }} onStartShouldSetResponderCapture={e => {
+      const n = e.nativeEvent; if (n && n.pageX != null) DROP.pt = { x: n.pageX, y: n.pageY };
+      return false;
+    }}>
+      <NotesApp />
+      <DropLayer />
+    </View>
+  );
+}
+
+function NotesApp() {
   const [notes, setNotes] = useState([]);
   const [layout, setLayout] = useState('grid');   // 'grid' o 'list'
   const [dark, setDark] = useState(true);
@@ -1119,9 +1216,9 @@ export default function App() {
     };
     setNewOpen(false);
     setNotes(ns => [...ns, n]);
-    setCurrentId(n.id);
+    openWithDrop(n.id);
     // Nota con dibujo: primero elegir un fondo (se puede omitir con "Listo")
-    if (kind === 'draw') setTimeout(() => openWall(n.id), 350);
+    if (kind === 'draw') setTimeout(() => openWall(n.id), 1100);
   }
 
   // Cambia algo de una nota. "touch" = actualizar la fecha de modificación
@@ -1149,7 +1246,12 @@ export default function App() {
     return () => { clearInterval(iv); sub && sub.remove && sub.remove(); };
   }, [loaded]);
 
+  // 💧 Al cerrar, la nota se encoge como una gota de agua (en reversa)
   function closeEditor() {
+    if (!DROP.run || DROP.busy) { closeEditorNow(); return; }
+    DROP.run('close', { color: c.grad[0] }, closeEditorNow);
+  }
+  function closeEditorNow() {
     const id = currentId;
     const finish = () => {
       // Si la nota quedó vacía, se descarta (menos si la vaciaste con "Vaciar chat")
@@ -1796,11 +1898,16 @@ export default function App() {
     if (n.locked && !unlocked[n.id]) {
       askPin('unlock', tr('lockedNote'), () => {
         setUnlocked(u => ({ ...u, [n.id]: true }));
-        setCurrentId(n.id);
+        openWithDrop(n.id);
       });
       return;
     }
-    setCurrentId(n.id);
+    openWithDrop(n.id);
+  }
+  // 💧 La nota se abre como una gota de agua que crece desde donde tocaste
+  function openWithDrop(id) {
+    if (!DROP.run) { setCurrentId(id); return; }
+    DROP.run('open', { color: c.grad[0] }, () => setCurrentId(id));
   }
 
   function toggleSearch() {
