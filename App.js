@@ -900,54 +900,25 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
 const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círculo salga de ahí)
 const ND = Platform.OS !== 'web';
 const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-/* Portal líquido para la web, hecho SOLO con "transform" y "opacity":
-   el navegador lo mueve con la tarjeta gráfica, así va fluido aunque la nota esté cargando. */
-function portalFrames(opening) {
-  const K = 48, out = [], inn = [], ring = [];
+/* Cuadros del círculo líquido (para la web): se mueve como agua y termina redondo */
+function liquidFrames(x, y, W, H, opening) {
+  const K = 40, P = 36, out = [];
+  const Rmax = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + 12;
   for (let k = 0; k <= K; k++) {
     const t = k / K, e = easeIO(t);
-    const s = Math.max(0.003, e);
-    const calm = Math.pow(1 - e, 1.6);
-    const wob = 0.15 * Math.sin(t * Math.PI * 3.4) * calm;            // se estira y se aplasta como agua
-    const rot = 18 * Math.sin(t * Math.PI * 2.2) * calm;              // y gira un poquito
-    const sx = s * (1 + wob), sy = s * (1 - wob);
-    out.push({ transform: 'rotate(' + rot.toFixed(2) + 'deg) scale(' + sx.toFixed(5) + ',' + sy.toFixed(5) + ')' });
-    inn.push({ transform: 'scale(' + (1 / sx).toFixed(5) + ',' + (1 / sy).toFixed(5) + ') rotate(' + (-rot).toFixed(2) + 'deg)' });
-    ring.push({ transform: out[k].transform, opacity: +(Math.min(1, t * 8) * Math.pow(1 - e, 0.8)).toFixed(3) });
+    const R = Math.max(0.5, e * Rmax);
+    const amp = 0.15 * Math.pow(1 - e, 1.4);
+    const ph = t * Math.PI * 2.6;
+    const pts = [];
+    for (let i = 0; i < P; i++) {
+      const a = (i / P) * Math.PI * 2;
+      const r = R * (1 + amp * (0.6 * Math.sin(2 * a + ph) + 0.4 * Math.sin(3 * a - 1.7 * ph)));
+      pts.push((x + r * Math.cos(a)).toFixed(1) + 'px ' + (y + r * Math.sin(a)).toFixed(1) + 'px');
+    }
+    out.push('polygon(' + pts.join(',') + ')');
   }
-  const fix = a => (opening ? a : a.slice().reverse()).map((f, i) => ({ ...f, offset: i / K }));
-  return { out: fix(out), inn: fix(inn), ring: fix(ring) };
-}
-function portalPrep(root, o, W, H) {
-  const outer = root && root.firstChild, inner = outer && outer.firstChild, content = inner && inner.firstChild;
-  if (!content || !outer.animate) return null;
-  const saved = [outer, inner, content].map(el => el.getAttribute('style'));   // para dejarlos como estaban
-  const D = Math.ceil(2 * Math.hypot(Math.max(o.x, W - o.x), Math.max(o.y, H - o.y))) + 40;
-  Object.assign(outer.style, { position: 'absolute', left: (o.x - D / 2) + 'px', top: (o.y - D / 2) + 'px', width: D + 'px', height: D + 'px',
-    borderRadius: '50%', overflow: 'hidden', flex: 'none', willChange: 'transform', transform: 'scale(0.003)' });
-  Object.assign(inner.style, { position: 'absolute', left: '0px', top: '0px', width: D + 'px', height: D + 'px', flex: 'none', willChange: 'transform' });
-  Object.assign(content.style, { position: 'absolute', left: (D / 2 - o.x) + 'px', top: (D / 2 - o.y) + 'px', width: W + 'px', height: H + 'px', flex: 'none' });
-  let ring = root.querySelector('.portalRing');
-  if (!ring) { ring = document.createElement('div'); ring.className = 'portalRing'; root.appendChild(ring); }
-  Object.assign(ring.style, { position: 'absolute', left: outer.style.left, top: outer.style.top, width: D + 'px', height: D + 'px', borderRadius: '50%',
-    pointerEvents: 'none', opacity: '0', willChange: 'transform, opacity',
-    background: 'radial-gradient(circle, rgba(0,0,0,0) 0 95.6%, rgba(170,230,255,0.38) 97.6%, rgba(255,255,255,0.75) 98.9%, rgba(0,0,0,0) 100%)' });
-  return { outer, inner, content, ring, saved };
-}
-function portalClear(P) {
-  if (!P) return;
-  [P.outer, P.inner, P.content].forEach((el, i) => {
-    if (P.saved[i] == null) el.removeAttribute('style'); else el.setAttribute('style', P.saved[i]);
-  });
-  if (P.ring.parentNode) P.ring.parentNode.removeChild(P.ring);
-}
-function playPortal(P, opening, ms, onDone) {
-  const fr = portalFrames(opening);
-  const opt = { duration: ms, easing: 'linear', fill: 'forwards' };
-  const a = P.outer.animate(fr.out, opt);
-  P.inner.animate(fr.inn, opt);
-  P.ring.animate(fr.ring, opt);
-  a.onfinish = () => onDone && onDone();
+  if (!opening) out.reverse();
+  return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
 }
 /* Para Android/iPhone: el círculo crece con un temblor de agua (escala X/Y) */
 const LIQ = (() => {
@@ -1084,16 +1055,16 @@ function NotesApp() {
     const o = DROP.openPt;
     const finish = () => { setRevealing(false); revBusy.current = false; };
     if (Platform.OS === 'web') {
-      const P = portalPrep(revEl.current, o, width, winH);     // escondida (puntito) hasta que empiece
-      if (!P) { finish(); return; }
+      const el = revEl.current;
+      if (!el || !el.animate) { finish(); return; }
+      const fr = liquidFrames(o.x, o.y, width, winH, true);
+      el.style.clipPath = fr[0].clipPath;
       let started = false;
       const go = () => {
         if (started) return; started = true;
         requestAnimationFrame(() => {
-          playPortal(P, true, 640, () => {
-            P.outer.getAnimations().concat(P.inner.getAnimations()).forEach(x => x.cancel());
-            portalClear(P); finish();
-          });
+          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
       const fr2 = iframeRef.current;
@@ -1270,11 +1241,11 @@ function NotesApp() {
     setRevealing(true);                    // la pantalla de inicio aparece detrás
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
-      const P = portalPrep(revEl.current, o, width, winH);
-      if (!P) { closeEditorNow(); return; }
-      P.outer.style.transform = '';                            // empieza a pantalla completa
+      const el = revEl.current;
+      if (!el || !el.animate) { closeEditorNow(); return; }
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        playPortal(P, false, 600, () => closeEditorNow());
+        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
+        an.onfinish = () => closeEditorNow();
       }));
     } else {
       setTimeout(() => {
