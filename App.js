@@ -920,31 +920,35 @@ function liquidFrames(x, y, W, H, opening, R0 = 0) {
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
 }
-/* Semilla: un circulito líquido que aparece AL INSTANTE de tocar (lo mueve la tarjeta gráfica),
-   así no se siente pausa mientras la nota se prepara. Luego el círculo de la nota sale desde ella. */
-const SEED_R = 70;
-function startSeed(o, color) {
+/* Círculo líquido (web) hecho SOLO con transform/opacity: lo mueve la tarjeta gráfica,
+   así sigue perfectamente fluido aunque el teléfono esté ocupado preparando la nota. */
+function makeCover(o, W, H, color, full) {
   if (typeof document === 'undefined') return null;
+  const R = Math.hypot(Math.max(o.x, W - o.x), Math.max(o.y, H - o.y)) + 24, D = R * 2;
   const d = document.createElement('div');
-  const S = SEED_R * 2;
-  d.style.cssText = 'position:fixed;left:' + (o.x - SEED_R) + 'px;top:' + (o.y - SEED_R) + 'px;width:' + S + 'px;height:' + S +
-    'px;border-radius:50%;background:' + color + ';pointer-events:none;z-index:2147482000;will-change:transform,opacity;transform:scale(0.02)';
+  d.style.cssText = 'position:fixed;left:' + (o.x - R) + 'px;top:' + (o.y - R) + 'px;width:' + D + 'px;height:' + D +
+    'px;border-radius:50%;background:' + color + ';pointer-events:none;z-index:2147482000;will-change:transform,opacity;' +
+    'backface-visibility:hidden;transform:' + (full ? 'none;opacity:0' : 'scale(0.004)');
   document.body.appendChild(d);
-  const kf = [];
-  for (let i = 0; i <= 24; i++) {
-    const t = i / 24, e = 1 - Math.pow(1 - t, 3), calm = Math.pow(1 - t, 1.3);
-    const w = 0.14 * Math.sin(t * Math.PI * 3.2) * calm, sc = Math.max(0.02, e);
-    kf.push({ offset: t, transform: 'rotate(' + (12 * Math.sin(t * Math.PI * 2) * calm).toFixed(2) + 'deg) scale(' + (sc * (1 + w)).toFixed(4) + ',' + (sc * (1 - w)).toFixed(4) + ')' });
-  }
-  d.animate(kf, { duration: 340, easing: 'linear', fill: 'forwards' });
   return d;
 }
-function endSeed(d, delay) {
+function coverFrames(opening) {
+  const K = 36, out = [];
+  for (let k = 0; k <= K; k++) {
+    const t = k / K;
+    const e = opening ? 1 - Math.pow(1 - t, 3) : Math.pow(t, 2.2);          // abrir: arranca rápido · cerrar: termina rápido
+    const sc = Math.max(0.004, opening ? e : 1 - e);
+    const calm = opening ? Math.pow(1 - e, 1.2) : Math.pow(e, 0.9) * (1 - Math.pow(t, 6));
+    const w = 0.16 * Math.sin(t * Math.PI * 3.4) * calm;                    // se estira y se aplasta como agua
+    const rot = 14 * Math.sin(t * Math.PI * 2.2) * calm;
+    out.push({ offset: t, transform: 'rotate(' + rot.toFixed(2) + 'deg) scale(' + (sc * (1 + w)).toFixed(4) + ',' + (sc * (1 - w)).toFixed(4) + ')' });
+  }
+  return out;
+}
+function dropCover(d, ms) {
   if (!d) return;
-  setTimeout(() => {
-    const a = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out', fill: 'forwards' });
-    a.onfinish = () => { if (d.parentNode) d.parentNode.removeChild(d); };
-  }, delay || 0);
+  const a = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms || 220, easing: 'ease-out', fill: 'forwards' });
+  a.onfinish = () => { if (d.parentNode) d.parentNode.removeChild(d); };
 }
 /* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
 function ringStars(o, W, H, opening, Rmax) {
@@ -1144,22 +1148,19 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const seed = revSeed.current; revSeed.current = null;
-      const fr = liquidFrames(o.x, o.y, width, winH, true, seed ? SEED_R * 0.92 : 0);
-      el.style.clipPath = 'circle(0px at ' + o.x + 'px ' + o.y + 'px)';
-      let started = false;
-      const go = () => {
-        if (started) return; started = true;
-        requestAnimationFrame(() => {
-          el.style.clipPath = fr[0].clipPath;
-          const an = el.animate(fr, { duration: seed ? 560 : 640, easing: 'linear', fill: 'forwards' });
-          if (seed) endSeed(seed, 60); else startStars(o, true, 640);
-          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
-        });
+      const st = revSeed.current || { cover: null, grown: true }; revSeed.current = null;
+      el.style.opacity = '0';                                   // la nota se prepara escondida
+      let done = false;
+      st.check = () => {
+        if (done || !st.grown || !st.ready) return; done = true;
+        el.style.opacity = '';                                  // la nota ya está lista debajo del círculo
+        requestAnimationFrame(() => requestAnimationFrame(() => { dropCover(st.cover, 230); finish(); }));
       };
+      const ready = () => { st.ready = true; st.check(); };
       const fr2 = iframeRef.current;
-      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 20), { once: true });
-      setTimeout(go, 260);                 // la semilla ya está creciendo, así que esperar un poquito no se nota
+      if (fr2) fr2.addEventListener('load', () => setTimeout(ready, 60), { once: true });
+      setTimeout(ready, 500);                                   // por si acaso
+      st.check();
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1333,12 +1334,17 @@ function NotesApp() {
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
       const el = revEl.current;
-      if (!el || !el.animate) { closeEditorNow(); return; }
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
-        startStars(o, false, 600);
-        an.onfinish = () => closeEditorNow();
-      }));
+      const cv = makeCover(o, width, winH, c.grad[0], true);
+      if (!el || !cv) { closeEditorNow(); return; }
+      // 1) el círculo cubre la nota (aparece suave)  2) se encoge hacia donde la abriste
+      cv.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out', fill: 'forwards' }).onfinish = () => {
+        el.style.opacity = '0';
+        cv.animate(coverFrames(false), { duration: 580, easing: 'linear', fill: 'forwards' }).onfinish = () => {
+          if (cv.parentNode) cv.parentNode.removeChild(cv);
+        };
+        startStars(o, false, 580);
+        requestAnimationFrame(() => setTimeout(() => closeEditorNow(), 0));   // lo pesado pasa mientras el círculo ya se mueve
+      };
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
@@ -2008,10 +2014,14 @@ function NotesApp() {
     revP.setValue(0);
     revPending.current = 'open';
     if (Platform.OS === 'web') {
-      // 1) la semilla y las estrellitas salen YA (aunque el teléfono esté ocupado)
-      revSeed.current = startSeed(DROP.openPt, c.grad[0]);
-      startStars(DROP.openPt, true, 640);
-      // 2) en el siguiente cuadro se prepara la nota (lo pesado), con la animación ya corriendo
+      // 1) el círculo líquido y las estrellitas salen YA (aunque el teléfono esté ocupado)
+      const cv = makeCover(DROP.openPt, width, winH, c.grad[0], false);
+      const st = { cover: cv, grown: false, ready: false };
+      revSeed.current = st;
+      if (cv) cv.animate(coverFrames(true), { duration: 600, easing: 'linear', fill: 'forwards' }).onfinish = () => { st.grown = true; st.check && st.check(); };
+      else st.grown = true;
+      startStars(DROP.openPt, true, 600);
+      // 2) en el siguiente cuadro se prepara la nota (lo pesado) debajo, escondida
       requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
       return;
     }
