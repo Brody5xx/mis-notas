@@ -945,6 +945,13 @@ function coverFrames(opening) {
   }
   return out;
 }
+/* Abrir: crece (73%) y luego se desvanece (27%) en UNA sola animación de la tarjeta gráfica,
+   así no depende de que el teléfono esté libre para seguir */
+const OPEN_MS = 820, OPEN_GROW = 0.73;
+function openCoverFrames() {
+  return coverFrames(true).map(f => ({ ...f, offset: f.offset * OPEN_GROW, opacity: 1 }))
+    .concat([{ offset: 1, transform: 'none', opacity: 0 }]);
+}
 function dropCover(d, ms) {
   if (!d) return;
   const a = d.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms || 220, easing: 'ease-out', fill: 'forwards' });
@@ -1148,19 +1155,15 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const st = revSeed.current || { cover: null, grown: true }; revSeed.current = null;
-      el.style.opacity = '0';                                   // la nota se prepara escondida
-      let done = false;
-      st.check = () => {
-        if (done || !st.grown || !st.ready) return; done = true;
-        el.style.opacity = '';                                  // la nota ya está lista debajo del círculo
-        requestAnimationFrame(() => requestAnimationFrame(() => { dropCover(st.cover, 230); finish(); }));
-      };
-      const ready = () => { st.ready = true; st.check(); };
-      const fr2 = iframeRef.current;
-      if (fr2) fr2.addEventListener('load', () => setTimeout(ready, 60), { once: true });
-      setTimeout(ready, 500);                                   // por si acaso
-      st.check();
+      const st = revSeed.current || { cover: null, anim: null }; revSeed.current = null;
+      if (!st.anim || !el.animate) { finish(); return; }
+      // La nota se queda invisible mientras el círculo crece y aparece justo cuando el círculo
+      // tapa toda la pantalla. Va en el MISMO reloj que el círculo (tarjeta gráfica): sin esperas.
+      const ea = el.animate([{ opacity: 0 }, { opacity: 0, offset: OPEN_GROW - 0.03 }, { opacity: 1, offset: OPEN_GROW + 0.01 }, { opacity: 1 }],
+        { duration: OPEN_MS, easing: 'linear', fill: 'forwards' });
+      const sync = () => { if (st.anim.startTime != null) ea.startTime = st.anim.startTime; };
+      sync(); if (st.anim.startTime == null && st.anim.ready) st.anim.ready.then(sync).catch(() => {});
+      ea.onfinish = () => { ea.cancel(); el.style.opacity = ''; finish(); };
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -2016,11 +2019,13 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       // 1) el círculo líquido y las estrellitas salen YA (aunque el teléfono esté ocupado)
       const cv = makeCover(DROP.openPt, width, winH, c.grad[0], false);
-      const st = { cover: cv, grown: false, ready: false };
+      const st = { cover: cv, anim: null };
       revSeed.current = st;
-      if (cv) cv.animate(coverFrames(true), { duration: 600, easing: 'linear', fill: 'forwards' }).onfinish = () => { st.grown = true; st.check && st.check(); };
-      else st.grown = true;
-      startStars(DROP.openPt, true, 600);
+      if (cv) {
+        st.anim = cv.animate(openCoverFrames(), { duration: OPEN_MS, easing: 'linear', fill: 'forwards' });
+        st.anim.onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
+      }
+      startStars(DROP.openPt, true, Math.round(OPEN_MS * OPEN_GROW));
       // 2) en el siguiente cuadro se prepara la nota (lo pesado) debajo, escondida
       requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
       return;
