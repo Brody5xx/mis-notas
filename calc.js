@@ -67,6 +67,7 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
   th,td{padding:8px 6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.08);font-size:15px;white-space:nowrap}
   th{position:sticky;top:0;background:${bg};font-size:14px}
   td:first-child,th:first-child{text-align:left;color:${c.muted}}
+  td.mul,th.mul{color:${c.muted};font-size:14px}
 
   /* ---- Teclado ---- */
   #pad{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:6px 10px 12px}
@@ -572,12 +573,13 @@ export function buildCalcHtml({ c, tr, state, canInsert }) {
     var fs = funcs();
     var a = parseFloat(($('tstart').value || '0').replace(',', '.').replace('−', '-')) || 0;
     var s = parseFloat(($('tstep').value || '1').replace(',', '.').replace('−', '-')) || 1;
-    var h = '<tr><th>x</th>' + fs.map(function(F){ return '<th style="color:' + COLORS[F.i] + '">Y' + (F.i + 1) + '</th>'; }).join('') + '</tr>';
+    var h = '<tr><th>x</th>' + fs.map(function(F){ return '<th style="color:' + COLORS[F.i] + '">Y' + (F.i + 1) + '</th>'; }).join('') + '<th class="mul">' + (a ? fmt(a) + ' + ' : '') + fmt(s) + ' × n</th></tr>';
     for (var k = 0; k < 40; k++) {
       var x = +(a + k * s).toPrecision(12);
-      h += '<tr><td>' + fmt(x) + '</td>' + fs.map(function(F){ var y; try { y = F.f(x); } catch (e) { y = NaN; } return '<td>' + fmt(y) + '</td>'; }).join('') + '</tr>';
+      h += '<tr><td>' + fmt(x) + '</td>' + fs.map(function(F){ var y; try { y = F.f(x); } catch (e) { y = NaN; } return '<td>' + fmt(y) + '</td>'; }).join('') +
+        '<td class="mul">' + (a ? fmt(a) + ' + ' : '') + fmt(s) + ' × ' + k + '</td></tr>';
     }
-    if (!fs.length) h += '<tr><td colspan="2" style="text-align:left;color:${c.muted}">Y= …</td></tr>';
+    
     $('tbl').innerHTML = h;
   }
   $('tstart').addEventListener('input', buildTable);
