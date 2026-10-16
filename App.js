@@ -1160,7 +1160,9 @@ function NotesApp() {
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
   const revStarsDone = useRef(false);
-  const revSeed = useRef(null);             // la tarjeta de cristal mientras se abre la nota
+  const revSeed = useRef(null);
+  const homeWrap = useRef(null);            // la pantalla de inicio (para esconderla al instante en la web)
+  const setHomeVis = v => { try { if (homeWrap.current && homeWrap.current.style) homeWrap.current.style.visibility = v ? '' : 'hidden'; } catch (e) {} };             // la tarjeta de cristal mientras se abre la nota
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1173,6 +1175,7 @@ function NotesApp() {
       .start(() => setPortalStars(null));
   }               // la capa del editor (en la web se recorta con el círculo)
   useEffect(() => {
+    if (!currentId) setHomeVis(true);      // al volver, la pantalla de inicio siempre se ve
     if (!currentId && revBusy.current) { revP.setValue(1); setRevealing(false); revBusy.current = false; }
   }, [currentId]);
   // Empieza a abrir cuando el editor ya está puesto (así no se traba)
@@ -1193,6 +1196,7 @@ function NotesApp() {
         // la nota ya está entera DEBAJO del cristal (opaca, sin transparencias); luego el cristal
         // se abre y se desvanece hacia ti, dejando ver la nota (no se mezcla con la pantalla de inicio)
         el.style.opacity = '';
+        setHomeVis(false);                                      // la pantalla de inicio ya no se ve detrás
         requestAnimationFrame(() => {
           st.ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate(-4%,-4%) scale(1.08)', offset: 1 }],
             { duration: 260, easing: 'cubic-bezier(.3,.6,.3,1)', fill: 'forwards' })
@@ -1372,16 +1376,17 @@ function NotesApp() {
   function closeEditor() {
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
-    setRevealing(true);                    // la pantalla de inicio aparece detrás
+    if (Platform.OS !== 'web') setRevealing(true);   // la pantalla de inicio aparece detrás
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
       const el = revEl.current;
-      if (!el || !el.animate) { closeEditorNow(); return; }
+      if (!el || !el.animate) { setHomeVis(true); closeEditorNow(); return; }
       const rect = DROP.rect || { x: o.x - 80, y: o.y - 80, w: 160, h: 160 };
       // la nota se vuelve cristal y regresa volando a su tarjeta, dejando estrellitas
       const g = makeGhost(rect, width, winH, c.grad[0], true);
       g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: 'ease-out', fill: 'forwards' }).onfinish = () => {
         el.style.opacity = '0';
+        setHomeVis(true); setRevealing(true);             // ahora sí: la pantalla de inicio detrás del cristal
         const an = g.animate(ghostFrames(rect, width, winH, false), { duration: 520, easing: 'linear', fill: 'forwards' });
         g.animate([{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 520, easing: 'linear', fill: 'forwards' });
         an.onfinish = () => { if (g.parentNode) g.remove(); };
@@ -3281,7 +3286,7 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      <View ref={homeWrap} style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
