@@ -948,6 +948,17 @@ function coverFrames(opening) {
 /* Abrir: crece (73%) y luego se desvanece (27%) en UNA sola animación de la tarjeta gráfica,
    así no depende de que el teléfono esté libre para seguir */
 const OPEN_MS = 820, OPEN_GROW = 0.73;
+/* Anillo líquido TRANSPARENTE: solo el borde brilla; adentro se ve lo de atrás (nunca hay pantalla oscura) */
+const RING_BG = 'radial-gradient(circle, rgba(200,235,255,0.06) 0 90%, rgba(170,230,255,0.28) 95.5%, rgba(255,255,255,0.85) 98.6%, rgba(255,255,255,0) 100%)';
+function ringFrames(opening) {
+  const fr = coverFrames(opening);
+  const n = fr.length - 1;
+  return fr.map((f, i) => {
+    const t = i / n;
+    const op = opening ? (t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3) : (t < 0.15 ? t / 0.15 : t > 0.85 ? (1 - t) / 0.15 : 1);
+    return { ...f, opacity: +op.toFixed(3) };
+  });
+}
 function openCoverFrames() {
   return coverFrames(true).map(f => ({ ...f, offset: f.offset * OPEN_GROW, opacity: 1 }))
     .concat([{ offset: 1, transform: 'none', opacity: 0 }]);
@@ -1155,15 +1166,25 @@ function NotesApp() {
     if (Platform.OS === 'web') {
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const st = revSeed.current || { cover: null, anim: null }; revSeed.current = null;
-      if (!st.anim || !el.animate) { finish(); return; }
-      // La nota se queda invisible mientras el círculo crece y aparece justo cuando el círculo
-      // tapa toda la pantalla. Va en el MISMO reloj que el círculo (tarjeta gráfica): sin esperas.
-      const ea = el.animate([{ opacity: 0 }, { opacity: 0, offset: OPEN_GROW - 0.03 }, { opacity: 1, offset: OPEN_GROW + 0.01 }, { opacity: 1 }],
-        { duration: OPEN_MS, easing: 'linear', fill: 'forwards' });
-      const sync = () => { if (st.anim.startTime != null) ea.startTime = st.anim.startTime; };
-      sync(); if (st.anim.startTime == null && st.anim.ready) st.anim.ready.then(sync).catch(() => {});
-      ea.onfinish = () => { ea.cancel(); el.style.opacity = ''; finish(); };
+      const st = revSeed.current || { t0: Date.now() }; revSeed.current = null;
+      // La nota se prepara invisible; mientras, se sigue viendo la pantalla de inicio con el anillo.
+      // Cuando ya está DIBUJADA, aparece suavecito (nunca se ve una pantalla oscura esperando).
+      el.style.opacity = '0';
+      let shown = false;
+      const show = () => {
+        if (shown) return; shown = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => {      // 2 cuadros = ya está pintada
+          const wait = Math.max(0, 300 - (Date.now() - st.t0));       // que el anillo alcance a crecer un poco
+          setTimeout(() => {
+            const a = el.animate([{ opacity: 0, transform: 'scale(1.035)' }, { opacity: 1, transform: 'scale(1)' }],
+              { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+            a.onfinish = () => { a.cancel(); el.style.opacity = ''; finish(); };
+          }, wait);
+        }));
+      };
+      const fr2 = iframeRef.current;
+      if (fr2) fr2.addEventListener('load', () => setTimeout(show, 30), { once: true });
+      setTimeout(show, 900);                                    // por si acaso
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1356,17 +1377,17 @@ function NotesApp() {
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
       const el = revEl.current;
-      const cv = makeCover(o, width, winH, c.grad[0], true);
-      if (!el || !cv) { closeEditorNow(); return; }
-      // 1) el círculo cubre la nota (aparece suave)  2) se encoge hacia donde la abriste
-      cv.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out', fill: 'forwards' }).onfinish = () => {
-        el.style.opacity = '0';
-        cv.animate(coverFrames(false), { duration: 580, easing: 'linear', fill: 'forwards' }).onfinish = () => {
-          if (cv.parentNode) cv.parentNode.removeChild(cv);
+      if (!el || !el.animate) { closeEditorNow(); return; }
+      // La nota se desvanece mientras el anillo líquido se encoge hacia donde la abriste
+      requestAnimationFrame(() => {
+        const cv = makeCover(o, width, winH, RING_BG, true);
+        if (cv) cv.animate(ringFrames(false), { duration: 600, easing: 'linear', fill: 'forwards' }).onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
+        startStars(o, false, 600);
+        el.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.965)' }],
+          { duration: 280, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' }).onfinish = () => {
+          setTimeout(() => closeEditorNow(), 0);
         };
-        startStars(o, false, 580);
-        requestAnimationFrame(() => setTimeout(() => closeEditorNow(), 0));   // lo pesado pasa mientras el círculo ya se mueve
-      };
+      });
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
@@ -2037,14 +2058,11 @@ function NotesApp() {
     revPending.current = 'open';
     if (Platform.OS === 'web') {
       // 1) el círculo líquido y las estrellitas salen YA (aunque el teléfono esté ocupado)
-      const cv = makeCover(DROP.openPt, width, winH, c.grad[0], false);
-      const st = { cover: cv, anim: null };
+      const cv = makeCover(DROP.openPt, width, winH, RING_BG, false);
+      const st = { cover: cv, t0: Date.now() };
       revSeed.current = st;
-      if (cv) {
-        st.anim = cv.animate(openCoverFrames(), { duration: OPEN_MS, easing: 'linear', fill: 'forwards' });
-        st.anim.onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
-      }
-      startStars(DROP.openPt, true, Math.round(OPEN_MS * OPEN_GROW));
+      if (cv) cv.animate(ringFrames(true), { duration: 640, easing: 'linear', fill: 'forwards' }).onfinish = () => { if (cv.parentNode) cv.parentNode.removeChild(cv); };
+      startStars(DROP.openPt, true, 640);
       // 2) en el siguiente cuadro se prepara la nota (lo pesado) debajo, escondida
       requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
       return;
