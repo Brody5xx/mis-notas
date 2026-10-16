@@ -3257,6 +3257,55 @@ for (const code in FXT) {
   Object.assign(S[code], { calcFx: v[0], fxSearch: v[1], fxLoading: v[2], fxFail: v[3], fxUpdated: v[4], fxOffline: v[5] });
 }
 
+/* Textos nuevos: compartir como PDF / imagen
+   [Compartir como, PDF (tal como se ve), Imagen (tal como se ve), Solo texto, Crear PDF, Creando archivo..., Tu archivo está listo, Descargar, No se pudo crear el archivo] */
+const SHR = {
+  es: ['Compartir como', 'PDF (tal como se ve)', 'Imagen (tal como se ve)', 'Solo texto', 'Crear PDF', 'Creando archivo...', 'Tu archivo está listo', 'Descargar', 'No se pudo crear el archivo'],
+  en: ['Share as', 'PDF (exactly as it looks)', 'Image (exactly as it looks)', 'Text only', 'Create PDF', 'Creating file...', 'Your file is ready', 'Download', 'Could not create the file'],
+  pt: ['Compartilhar como', 'PDF (do jeito que está)', 'Imagem (do jeito que está)', 'Só texto', 'Criar PDF', 'Criando arquivo...', 'Seu arquivo está pronto', 'Baixar', 'Não foi possível criar o arquivo'],
+  fr: ['Partager en', 'PDF (tel quel)', 'Image (telle quelle)', 'Texte seul', 'Créer un PDF', 'Création du fichier...', 'Votre fichier est prêt', 'Télécharger', 'Impossible de créer le fichier'],
+  de: ['Teilen als', 'PDF (wie angezeigt)', 'Bild (wie angezeigt)', 'Nur Text', 'PDF erstellen', 'Datei wird erstellt...', 'Deine Datei ist fertig', 'Herunterladen', 'Datei konnte nicht erstellt werden'],
+  it: ['Condividi come', 'PDF (così com’è)', 'Immagine (così com’è)', 'Solo testo', 'Crea PDF', 'Creazione file...', 'Il file è pronto', 'Scarica', 'Impossibile creare il file'],
+  ca: ['Comparteix com a', 'PDF (tal com es veu)', 'Imatge (tal com es veu)', 'Només text', 'Crea un PDF', 'Creant el fitxer...', 'El fitxer és a punt', 'Baixa', 'No s’ha pogut crear el fitxer'],
+  nl: ['Delen als', 'PDF (zoals het eruitziet)', 'Afbeelding (zoals het eruitziet)', 'Alleen tekst', 'PDF maken', 'Bestand maken...', 'Je bestand is klaar', 'Downloaden', 'Bestand kon niet worden gemaakt'],
+  sv: ['Dela som', 'PDF (som det ser ut)', 'Bild (som det ser ut)', 'Bara text', 'Skapa PDF', 'Skapar fil...', 'Filen är klar', 'Ladda ner', 'Kunde inte skapa filen'],
+  nb: ['Del som', 'PDF (slik det ser ut)', 'Bilde (slik det ser ut)', 'Bare tekst', 'Lag PDF', 'Lager fil...', 'Filen er klar', 'Last ned', 'Kunne ikke lage filen'],
+  da: ['Del som', 'PDF (som det ser ud)', 'Billede (som det ser ud)', 'Kun tekst', 'Opret PDF', 'Opretter fil...', 'Din fil er klar', 'Download', 'Filen kunne ikke oprettes'],
+  fi: ['Jaa muodossa', 'PDF (sellaisenaan)', 'Kuva (sellaisenaan)', 'Vain teksti', 'Luo PDF', 'Luodaan tiedostoa...', 'Tiedosto on valmis', 'Lataa', 'Tiedostoa ei voitu luoda'],
+  pl: ['Udostępnij jako', 'PDF (tak jak wygląda)', 'Obraz (tak jak wygląda)', 'Tylko tekst', 'Utwórz PDF', 'Tworzenie pliku...', 'Plik jest gotowy', 'Pobierz', 'Nie udało się utworzyć pliku'],
+  cs: ['Sdílet jako', 'PDF (tak, jak vypadá)', 'Obrázek (tak, jak vypadá)', 'Jen text', 'Vytvořit PDF', 'Vytvářím soubor...', 'Soubor je hotový', 'Stáhnout', 'Soubor se nepodařilo vytvořit'],
+  sk: ['Zdieľať ako', 'PDF (tak, ako vyzerá)', 'Obrázok (tak, ako vyzerá)', 'Len text', 'Vytvoriť PDF', 'Vytváram súbor...', 'Súbor je hotový', 'Stiahnuť', 'Súbor sa nepodarilo vytvoriť'],
+  hu: ['Megosztás mint', 'PDF (ahogy kinéz)', 'Kép (ahogy kinéz)', 'Csak szöveg', 'PDF készítése', 'Fájl készítése...', 'A fájl kész', 'Letöltés', 'Nem sikerült létrehozni a fájlt'],
+  ro: ['Partajează ca', 'PDF (exact cum arată)', 'Imagine (exact cum arată)', 'Doar text', 'Creează PDF', 'Se creează fișierul...', 'Fișierul este gata', 'Descarcă', 'Fișierul nu a putut fi creat'],
+  hr: ['Podijeli kao', 'PDF (kako izgleda)', 'Slika (kako izgleda)', 'Samo tekst', 'Izradi PDF', 'Izrada datoteke...', 'Datoteka je spremna', 'Preuzmi', 'Datoteka se nije mogla izraditi'],
+  el: ['Κοινοποίηση ως', 'PDF (όπως φαίνεται)', 'Εικόνα (όπως φαίνεται)', 'Μόνο κείμενο', 'Δημιουργία PDF', 'Δημιουργία αρχείου...', 'Το αρχείο είναι έτοιμο', 'Λήψη', 'Δεν δημιουργήθηκε το αρχείο'],
+  bg: ['Сподели като', 'PDF (както изглежда)', 'Изображение (както изглежда)', 'Само текст', 'Създай PDF', 'Създаване на файл...', 'Файлът е готов', 'Изтегли', 'Файлът не можа да се създаде'],
+  ru: ['Поделиться как', 'PDF (как выглядит)', 'Картинка (как выглядит)', 'Только текст', 'Создать PDF', 'Создание файла...', 'Файл готов', 'Скачать', 'Не удалось создать файл'],
+  uk: ['Поділитися як', 'PDF (як виглядає)', 'Зображення (як виглядає)', 'Лише текст', 'Створити PDF', 'Створення файлу...', 'Файл готовий', 'Завантажити', 'Не вдалося створити файл'],
+  tr: ['Şu şekilde paylaş', 'PDF (göründüğü gibi)', 'Resim (göründüğü gibi)', 'Yalnızca metin', 'PDF oluştur', 'Dosya oluşturuluyor...', 'Dosyanız hazır', 'İndir', 'Dosya oluşturulamadı'],
+  ar: ['مشاركة كـ', 'PDF (كما يظهر)', 'صورة (كما تظهر)', 'نص فقط', 'إنشاء PDF', 'جارٍ إنشاء الملف...', 'ملفك جاهز', 'تنزيل', 'تعذر إنشاء الملف'],
+  he: ['שיתוף בתור', 'PDF (כמו שזה נראה)', 'תמונה (כמו שזה נראה)', 'טקסט בלבד', 'יצירת PDF', 'יוצר קובץ...', 'הקובץ מוכן', 'הורדה', 'לא ניתן ליצור את הקובץ'],
+  fa: ['اشتراک به‌صورت', 'PDF (همان‌طور که دیده می‌شود)', 'تصویر (همان‌طور که دیده می‌شود)', 'فقط متن', 'ساخت PDF', 'در حال ساخت فایل...', 'فایل شما آماده است', 'دانلود', 'فایل ساخته نشد'],
+  ur: ['بطور شیئر کریں', 'PDF (جیسا دکھتا ہے)', 'تصویر (جیسا دکھتا ہے)', 'صرف متن', 'PDF بنائیں', 'فائل بن رہی ہے...', 'آپ کی فائل تیار ہے', 'ڈاؤن لوڈ', 'فائل نہیں بن سکی'],
+  hi: ['इस रूप में शेयर करें', 'PDF (जैसा दिखता है)', 'इमेज (जैसा दिखता है)', 'सिर्फ़ टेक्स्ट', 'PDF बनाएँ', 'फ़ाइल बन रही है...', 'आपकी फ़ाइल तैयार है', 'डाउनलोड', 'फ़ाइल नहीं बन सकी'],
+  bn: ['যেভাবে শেয়ার করবেন', 'PDF (যেমন দেখায়)', 'ছবি (যেমন দেখায়)', 'শুধু লেখা', 'PDF বানান', 'ফাইল তৈরি হচ্ছে...', 'আপনার ফাইল তৈরি', 'ডাউনলোড', 'ফাইল তৈরি করা যায়নি'],
+  id: ['Bagikan sebagai', 'PDF (persis seperti tampilannya)', 'Gambar (persis seperti tampilannya)', 'Hanya teks', 'Buat PDF', 'Membuat file...', 'File kamu sudah siap', 'Unduh', 'File tidak bisa dibuat'],
+  ms: ['Kongsi sebagai', 'PDF (seperti yang dilihat)', 'Imej (seperti yang dilihat)', 'Teks sahaja', 'Cipta PDF', 'Mencipta fail...', 'Fail anda sudah sedia', 'Muat turun', 'Fail tidak dapat dicipta'],
+  fil: ['Ibahagi bilang', 'PDF (kung ano ang itsura)', 'Larawan (kung ano ang itsura)', 'Teksto lang', 'Gumawa ng PDF', 'Ginagawa ang file...', 'Handa na ang file mo', 'I-download', 'Hindi magawa ang file'],
+  vi: ['Chia sẻ dưới dạng', 'PDF (đúng như hiển thị)', 'Ảnh (đúng như hiển thị)', 'Chỉ chữ', 'Tạo PDF', 'Đang tạo tệp...', 'Tệp đã sẵn sàng', 'Tải xuống', 'Không tạo được tệp'],
+  th: ['แชร์เป็น', 'PDF (ตามที่เห็น)', 'รูปภาพ (ตามที่เห็น)', 'ข้อความเท่านั้น', 'สร้าง PDF', 'กำลังสร้างไฟล์...', 'ไฟล์พร้อมแล้ว', 'ดาวน์โหลด', 'สร้างไฟล์ไม่ได้'],
+  'zh-Hans': ['分享为', 'PDF（原样）', '图片（原样）', '仅文字', '生成 PDF', '正在生成文件...', '文件已准备好', '下载', '无法生成文件'],
+  'zh-Hant': ['分享為', 'PDF（原樣）', '圖片（原樣）', '僅文字', '產生 PDF', '正在產生檔案...', '檔案已準備好', '下載', '無法產生檔案'],
+  ja: ['共有形式', 'PDF（見たまま）', '画像（見たまま）', 'テキストのみ', 'PDFを作成', 'ファイルを作成中...', 'ファイルの準備ができました', 'ダウンロード', 'ファイルを作成できませんでした'],
+  ko: ['공유 형식', 'PDF (보이는 그대로)', '이미지 (보이는 그대로)', '텍스트만', 'PDF 만들기', '파일 만드는 중...', '파일이 준비됐어요', '다운로드', '파일을 만들 수 없어요'],
+  sw: ['Shiriki kama', 'PDF (kama inavyoonekana)', 'Picha (kama inavyoonekana)', 'Maandishi tu', 'Tengeneza PDF', 'Inatengeneza faili...', 'Faili lako liko tayari', 'Pakua', 'Imeshindwa kutengeneza faili'],
+};
+for (const code in SHR) {
+  const v = SHR[code];
+  Object.assign(S[code], { shareAs: v[0], sharePdf: v[1], shareImg: v[2], shareText: v[3], makePdf: v[4], exporting: v[5],
+    fileReady: v[6], download: v[7], exportFail: v[8] });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

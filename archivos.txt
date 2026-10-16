@@ -3,3 +3,5 @@ editor.js
 idiomas.js
 translucido-plugin.js
 calc.js
+compartir.native.js
+compartir.web.js

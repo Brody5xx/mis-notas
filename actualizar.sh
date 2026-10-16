@@ -52,6 +52,16 @@ elif [ ! -f app.json ]; then
   echo "  (Aviso: no encontré app.json; el modo translúcido se configura al construir la app)"
 fi
 
+# Paquete para compartir archivos (PDF / imagen) en el teléfono — solo la primera vez
+if [ -f package.json ] && ! grep -q '"expo-sharing"' package.json; then
+  echo "  … instalando expo-sharing (para compartir PDF e imágenes). Espera un momento..."
+  if npx --yes expo install expo-sharing >/tmp/expo-sharing.log 2>&1; then
+    echo "  ✓ expo-sharing instalado"
+  else
+    echo "  ✗ No pude instalar expo-sharing. Escribe en el Shell:  npx expo install expo-sharing"
+  fi
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."

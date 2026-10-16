@@ -13,7 +13,9 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob }) {
+  /* exportJob = { kind: 'pdf' | 'img', name, notes: [{ t, h, k, u, locked, bg }] } → hace el archivo y lo manda a la app */
+  const safeJob = JSON.stringify(exportJob || null).replace(/</g, '\\u003c');
   /* Textos traducidos: H = para HTML, J = para JavaScript, C = para CSS */
   const T = (k, v) => (tr ? tr(k, v) : k);
   const H = (k, v) => String(T(k, v)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -288,7 +290,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #spell .spInfo{display:flex;align-items:center;gap:10px;font-size:16px;color:${c.text};padding:6px 0 4px}
   .spSpin{width:18px;height:18px;border-radius:50%;border:2.5px solid ${c.muted};border-top-color:${c.text};animation:spSpin .8s linear infinite}
   @keyframes spSpin{to{transform:rotate(360deg)}}
-</style></head><body>
+  /* ===== Modo "crear archivo" (PDF / imagen): solo el contenido ===== */
+  body.export>*:not(#ttl):not(#meta):not(#ed):not(#ink){display:none !important}
+  body.export #ed{padding-bottom:28px !important;min-height:0 !important}
+</style></head><body${exportJob ? ' class="export"' : ''}>
 
 <div id="ttl" dir="auto" spellcheck="false" autocorrect="off" contenteditable="${editable}"></div>
 <div id="meta"></div>
@@ -2346,6 +2351,159 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     showTip(${J('redone')});
   };
   lastSnap = snap();
+
+  /* =========================================================
+     CREAR PDF O IMAGEN "TAL COMO SE VE"
+     Dibuja la nota (texto, fotos, dibujos y fondo) en un lienzo
+     y arma un PDF de páginas tamaño carta/A4.
+     ========================================================= */
+  var JOB = ${safeJob};
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function loadImg(src){ return new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = src; }); }
+  function xesc(t){ return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  /* Partes que no se deben cortar entre páginas (líneas de texto y fotos) */
+  function blocks(){
+    var out = [], sy = window.scrollY;
+    [ttl, $('meta'), ed].forEach(function(root){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), n, r = document.createRange();
+      while ((n = w.nextNode())) {
+        if (!n.data.trim()) continue;
+        r.selectNodeContents(n);
+        var rs = r.getClientRects();
+        for (var i = 0; i < rs.length; i++) if (rs[i].height) out.push([rs[i].top + sy, rs[i].bottom + sy]);
+      }
+    });
+    ed.querySelectorAll('.imgwrap, li').forEach(function(el){
+      var q = el.getBoundingClientRect();
+      if (el.tagName === 'LI') q = { top: q.top, bottom: Math.min(q.bottom, q.top + 40) };
+      out.push([q.top + sy, q.bottom + sy]);
+    });
+    return out;
+  }
+  async function renderNote(n){
+    ttl.innerHTML = n.t || '';
+    ed.innerHTML = n.locked ? '<div>🔒 ' + xesc(n.lockedTxt || '') + '</div>' : (n.h || '');
+    $('meta').textContent = modText(n.u || Date.now());
+    strokes = n.locked ? [] : (n.k || []);
+    await Promise.all(Array.prototype.map.call(document.querySelectorAll('#ed img'), function(im){
+      return im.complete ? 0 : new Promise(function(r){ im.onload = im.onerror = r; });
+    }));
+    await wait(60);
+    var W = document.documentElement.clientWidth;
+    var inkBottom = 0;
+    strokes.forEach(function(st){ (st.p || []).forEach(function(pt){ inkBottom = Math.max(inkBottom, pt[1] * W + st.w * W); }); });
+    var H = Math.ceil(Math.max(ed.offsetTop + ed.offsetHeight, inkBottom + 20));
+    sizeInk(); redraw();
+    // 1) el texto y las fotos, tal cual, usando el mismo estilo del editor
+    var css = xesc(document.querySelector('style').textContent);
+    var ser = new XMLSerializer();
+    var body = ser.serializeToString(ttl) + ser.serializeToString($('meta')) + ser.serializeToString(ed);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '"><foreignObject x="0" y="0" width="100%" height="100%">' +
+      '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + W + 'px;height:' + H + 'px;color:${c.text};font-family:-apple-system,Roboto,Segoe UI,sans-serif">' +
+      '<style>' + css + '</style>' + body + '</div></foreignObject></svg>';
+    var im = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    var S = Math.min(2, 30000 / H);
+    var big = document.createElement('canvas');
+    big.width = Math.round(W * S); big.height = Math.round(H * S);
+    var g = big.getContext('2d');
+    g.drawImage(im, 0, 0, W * S, H * S);
+    // 2) los dibujos encima
+    var ih = parseFloat(ink.style.height) || H;
+    g.drawImage(ink, 0, 0, ink.width, ink.height, 0, 0, W * S, ih * S);
+    return { big: big, W: W, H: H, S: S, cuts: blocks() };
+  }
+  /* Fondo de la nota (color, foto de fondo con desenfoque y capa) */
+  var bgCache = {};
+  async function paintBg(g, w, h, bg){
+    g.fillStyle = bg && bg.color || '${c.grad[0]}';
+    g.fillRect(0, 0, w, h);
+    if (!bg || !bg.img) return;
+    try {
+      var im = bgCache[bg.img] || (bgCache[bg.img] = await loadImg(bg.img));
+      var sc = Math.max(w / im.width, h / im.height), dw = im.width * sc, dh = im.height * sc;
+      g.save();
+      if (bg.blur > 0) g.filter = 'blur(' + bg.blur * (w / 400) + 'px)';
+      g.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      g.restore();
+      if (bg.dim) { g.fillStyle = bg.dim; g.fillRect(0, 0, w, h); }
+    } catch (e) {}
+  }
+  /* Cortar en páginas sin partir líneas ni fotos */
+  function pageCuts(H, pageH, list){
+    var cuts = [0], y = 0, guard = 0;
+    while (H - y > pageH && guard++ < 500) {
+      var avail = cuts.length > 1 ? pageH - 24 : pageH;
+      var c = y + avail, moved = true;
+      while (moved) {
+        moved = false;
+        for (var i = 0; i < list.length; i++) {
+          var b = list[i];
+          if (b[0] < c && b[1] > c && b[0] > y + avail * 0.25) { c = b[0] - 2; moved = true; }
+        }
+      }
+      cuts.push(c); y = c;
+    }
+    cuts.push(H);
+    return cuts;
+  }
+  function jpegBin(cv){ return atob(cv.toDataURL('image/jpeg', 0.88).split(',')[1]); }
+  /* PDF hecho a mano: una foto por página */
+  function buildPdf(pages){
+    var PW = 595.28, PH = 841.89, out = '%PDF-1.4\\n%\\xE2\\xE3\\xCF\\xD3\\n', offs = [];
+    function obj(n, body){ offs[n] = out.length; out += n + ' 0 obj\\n' + body + '\\nendobj\\n'; }
+    var kids = [];
+    pages.forEach(function(p, i){ kids.push((3 + i * 3) + ' 0 R'); });
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + pages.length + ' >>');
+    pages.forEach(function(p, i){
+      var pn = 3 + i * 3, cn = pn + 1, xn = pn + 2;
+      obj(pn, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] /Resources << /XObject << /Im' + i + ' ' + xn + ' 0 R >> >> /Contents ' + cn + ' 0 R >>');
+      var cs = 'q ' + PW + ' 0 0 ' + PH + ' 0 0 cm /Im' + i + ' Do Q';
+      obj(cn, '<< /Length ' + cs.length + ' >>\\nstream\\n' + cs + '\\nendstream');
+      obj(xn, '<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.d.length + ' >>\\nstream\\n' + p.d + '\\nendstream');
+    });
+    var n = 3 + pages.length * 3, xref = out.length;
+    out += 'xref\\n0 ' + n + '\\n0000000000 65535 f \\n';
+    for (var k = 1; k < n; k++) out += ('0000000000' + offs[k]).slice(-10) + ' 00000 n \\n';
+    out += 'trailer\\n<< /Size ' + n + ' /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF';
+    return btoa(out);
+  }
+  async function runExport(){
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      var pages = [], single = null;
+      for (var i = 0; i < JOB.notes.length; i++) {
+        var n = JOB.notes[i], R = await renderNote(n);
+        var W = R.W, S = R.S;
+        if (JOB.kind === 'img') {
+          var cv = document.createElement('canvas');
+          cv.width = R.big.width; cv.height = R.big.height;
+          var g = cv.getContext('2d');
+          await paintBg(g, cv.width, cv.height, n.bg);
+          g.drawImage(R.big, 0, 0);
+          single = cv.toDataURL('image/jpeg', 0.9).split(',')[1];
+          break;
+        }
+        var pageH = Math.round(W * 841.89 / 595.28);
+        var cuts = pageCuts(R.H, pageH, R.cuts);
+        for (var k = 0; k < cuts.length - 1; k++) {
+          var top = k ? 24 : 0, y0 = cuts[k], y1 = cuts[k + 1];
+          var pc = document.createElement('canvas');
+          pc.width = Math.round(W * S); pc.height = Math.round(pageH * S);
+          var pg = pc.getContext('2d');
+          await paintBg(pg, pc.width, pc.height, n.bg);
+          pg.drawImage(R.big, 0, y0 * S, W * S, (y1 - y0) * S, 0, top * S, W * S, (y1 - y0) * S);
+          pages.push({ w: pc.width, h: pc.height, d: jpegBin(pc) });
+          await wait(0);
+        }
+      }
+      if (JOB.kind === 'img') send({ type: 'exported', kind: 'img', name: JOB.name + '.jpg', mime: 'image/jpeg', b64: single });
+      else send({ type: 'exported', kind: 'pdf', name: JOB.name + '.pdf', mime: 'application/pdf', b64: buildPdf(pages) });
+    } catch (e) {
+      send({ type: 'exported', error: String(e && e.message || e) });
+    }
+  }
+  if (JOB) setTimeout(runExport, 150);
   notifyUndo();
 </script></body></html>`;
 }

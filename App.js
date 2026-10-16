@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share,
-  KeyboardAvoidingView, Platform, useWindowDimensions, AppState,
+  KeyboardAvoidingView, Platform, useWindowDimensions, AppState, ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml } from './editor';
 import { buildCalcHtml } from './calc';
+import { shareFile } from './compartir';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -709,6 +710,10 @@ export default function App() {
   const [spellOn, setSpellOn] = useState(false);   // revisando ortografía
   const [clearAsk, setClearAsk] = useState(false);  // aviso antes de borrar todo
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
+  const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
+  const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
+  const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
+  const exportFrame = useRef(null);
   const calcState = useRef({});                     // lo que la calculadora recuerda
   const calcWeb = useRef(null), calcFrame = useRef(null);
   const fxCache = useRef(null);                     // tasas de cambio guardadas
@@ -1029,19 +1034,108 @@ export default function App() {
     const all = {}; visible.forEach(n => { all[n.id] = true; });
     setSelected(selIds.length === visible.length ? {} : all);
   }
-  async function shareSelected() {
-    const list = notes.filter(n => selected[n.id]);
+  /* ---------- Compartir ---------- */
+  async function shareText(list) {
     const text = list.map(n => {
       const t = (n.title || '').trim() || tr('untitled');
-      return n.locked ? `${t}\n(${tr('lockedNote')})` : `${t}\n${toPlain(n)}`.trim();
+      return n.locked && !unlocked[n.id] ? `${t}\n(${tr('lockedNote')})` : `${t}\n${toPlain(n)}`.trim();
     }).join('\n\n────────\n\n');
     try {
       await Share.share({ message: text, title: list.length === 1 ? (list[0].title || tr('note')) : tr('myNotes') });
-      clearSelection();
     } catch (e) {
       showToast(tr('shareFail'));
     }
   }
+  function shareSelected() { setShareFor(selIds); }
+  /* Crea el PDF o la imagen "tal como se ve" (lo hace un editor invisible) */
+  function exportNotes(kind, ids) {
+    setShareFor(null);
+    const go = async () => {
+      const list = notesRef.current.filter(n => ids.includes(n.id));
+      if (!list.length) return;
+      if (selMode) clearSelection();
+      if (kind === 'text') { shareText(list); return; }
+      const items = [];
+      for (const n of list) {
+        const locked = !!n.locked && !unlocked[n.id];
+        let wall = null;
+        if (n.hasWall && !locked) { try { wall = await loadWallpaper(n.id); } catch (e) {} }
+        const blur = n.wallBlur ?? 8;
+        items.push({
+          t: toTitleHtml(n), h: toHtml(n), k: n.ink || [], u: n.updated, locked, lockedTxt: tr('lockedNote'),
+          bg: wall ? { color: c.grad[0], img: wall, blur: blur > 0 ? blur : 0, dim: blur >= 0 ? c.wallDim : null }
+                   : { color: c.grad[0], img: c.bgImage, blur: 0, dim: c.frost },
+        });
+      }
+      const base = list.length === 1 ? ((list[0].title || '').trim() || tr('note')) : tr('myNotes');
+      const name = base.replace(/[\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'nota';
+      const html = buildEditorHtml({ id: 'export', content: '', titleHtml: '', updated: Date.now(), editable: false, c,
+        kind: 'text', ink: [], tr, locale: LOCALE, exportJob: { kind, name, notes: items } });
+      setExportJob({ html, key: Date.now() });
+    };
+    if (currentId) flushEditor(go); else go();
+  }
+  function b64ToBytes(b64) {
+    const T = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const map = new Uint8Array(128); for (let i = 0; i < 64; i++) map[T.charCodeAt(i)] = i;
+    const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
+    const out = new Uint8Array(Math.floor(clean.length * 3 / 4));
+    let o = 0;
+    for (let i = 0; i < clean.length; i += 4) {
+      const a = map[clean.charCodeAt(i)], b2 = map[clean.charCodeAt(i + 1)];
+      const c2 = map[clean.charCodeAt(i + 2)] || 0, d = map[clean.charCodeAt(i + 3)] || 0;
+      out[o++] = (a << 2) | (b2 >> 4);
+      if (i + 2 < clean.length) out[o++] = ((b2 & 15) << 4) | (c2 >> 2);
+      if (i + 3 < clean.length) out[o++] = ((c2 & 3) << 6) | d;
+    }
+    return out.slice(0, o);
+  }
+  async function onExported(data) {
+    let m; try { m = JSON.parse(data); } catch (e) { return; }
+    if (m.type !== 'exported') return;
+    setExportJob(null);
+    if (m.error || !m.b64) { showToast(tr('exportFail')); return; }
+    if (Platform.OS === 'web') {
+      try {
+        const bytes = b64ToBytes(m.b64);
+        const file = new File([bytes], m.name, { type: m.mime });
+        setWebFile({ file, url: URL.createObjectURL(file), name: m.name });
+      } catch (e) { showToast(tr('exportFail')); }
+      return;
+    }
+    try {
+      const f = new FS.File(FS.Paths.cache, m.name);
+      try { if (f.exists) f.delete(); } catch (e) {}
+      try { f.create(); } catch (e) {}
+      f.write(b64ToBytes(m.b64));
+      const ok = await shareFile(f.uri, m.mime, m.name);
+      if (!ok) showToast(tr('shareFail'));
+    } catch (e) {
+      showToast(tr('exportFail'));
+    }
+  }
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !exportJob) return;
+    const h = e => { if (exportFrame.current && e.source === exportFrame.current.contentWindow) onExported(e.data); };
+    window.addEventListener('message', h);
+    return () => window.removeEventListener('message', h);
+  }, [exportJob]);
+  async function webShare() {
+    if (!webFile) return;
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [webFile.file] })) {
+        await navigator.share({ files: [webFile.file], title: webFile.name });
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    webDownload();
+  }
+  function webDownload() {
+    if (!webFile) return;
+    const a = document.createElement('a'); a.href = webFile.url; a.download = webFile.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
   function trashSelected() {
     const ids = selIds;
     const wasPinned = {};
@@ -1423,6 +1517,57 @@ export default function App() {
         ))}
       </View>
     </Modal>
+  );
+
+  const shareLayer = (
+    <>
+      <Sheet visible={!!shareFor} onClose={() => setShareFor(null)} title={tr('shareAs')} s={s} t={c}>
+        <Row icon="file-text" label={tr('sharePdf')} s={s} t={c} onPress={() => exportNotes('pdf', shareFor)} />
+        {shareFor && shareFor.length === 1 && (
+          <Row icon="image" label={tr('shareImg')} s={s} t={c} onPress={() => exportNotes('img', shareFor)} />
+        )}
+        <Row icon="align-left" label={tr('shareText')} s={s} t={c} onPress={() => exportNotes('text', shareFor)} />
+      </Sheet>
+      {exportJob && (Platform.OS === 'web' ? (
+        <iframe key={exportJob.key} ref={exportFrame} srcDoc={exportJob.html} title="export"
+          style={{ position: 'absolute', left: 0, top: 0, width: width, height: 800, opacity: 0, pointerEvents: 'none', border: 'none' }} />
+      ) : (
+        <View key={exportJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: width, height: 800, opacity: 0.01 }}>
+          <WebView originWhitelist={['*']} source={{ html: exportJob.html }} onMessage={e => onExported(e.nativeEvent.data)}
+            style={{ flex: 1, backgroundColor: 'transparent' }} />
+        </View>
+      ))}
+      <Modal visible={!!exportJob} transparent animationType="fade" onRequestClose={() => setExportJob(null)}>
+        <View style={[s.wallScrim, { backgroundColor: c.scrim }]}>
+          <Glass t={c} strong radius={24} inner={{ paddingVertical: 22, paddingHorizontal: 28, alignItems: 'center', gap: 12 }}>
+            <ActivityIndicator size="large" color={c.text} />
+            <Text style={{ color: c.text, fontSize: 16 }}>{tr('exporting')}</Text>
+          </Glass>
+        </View>
+      </Modal>
+      <Modal visible={!!webFile} transparent animationType="fade" onRequestClose={() => setWebFile(null)}>
+        <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setWebFile(null)}>
+          <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 360 }}>
+            <Glass t={c} strong radius={28} inner={{ padding: 22, alignItems: 'center' }}>
+              <Feather name={webFile && webFile.name.endsWith('.pdf') ? 'file-text' : 'image'} size={40} color={c.text} />
+              <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{tr('fileReady')}</Text>
+              <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }} numberOfLines={2}>{webFile ? webFile.name : ''}</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, alignSelf: 'stretch' }}>
+                <TouchableOpacity onPress={webDownload} activeOpacity={0.8}
+                  style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: c.border }]}>
+                  <Feather name="download" size={16} color={c.text} />
+                  <Text style={[s.wallBtnText, { color: c.text }]}>{tr('download')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={webShare} activeOpacity={0.8} style={[s.wallBtn, { flex: 1, backgroundColor: c.text }]}>
+                  <Feather name="share-2" size={16} color={c.inv} />
+                  <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('share')}</Text>
+                </TouchableOpacity>
+              </View>
+            </Glass>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 
   /* ---------- Mensajes que llegan desde el editor ---------- */
@@ -1825,6 +1970,7 @@ export default function App() {
         {wallModal}
         {colorSheet}
         {calcModal}
+        {shareLayer}
         <WarnSheet visible={clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
           onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); patch(current.id, { keep: true }, false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
 
@@ -1849,6 +1995,8 @@ export default function App() {
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
+          <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
+          <Row icon="file-text" label={tr('makePdf')} s={s} t={c} onPress={() => { setOptsOpen(false); exportNotes('pdf', [current.id]); }} />
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
         </Sheet>
@@ -2195,6 +2343,10 @@ export default function App() {
                   <Feather name="share-2" size={24} color={c.text} />
                   <Text style={s.selActionText}>{tr('share')}</Text>
                 </TouchableOpacity>
+                <TouchableOpacity onPress={() => exportNotes('pdf', selIds)} style={s.selAction} activeOpacity={0.6}>
+                  <Feather name="file-text" size={24} color={c.text} />
+                  <Text style={s.selActionText}>PDF</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => setColorFor('sel')} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="droplet" size={24} color={c.text} />
                   <Text style={s.selActionText}>{tr('color')}</Text>
@@ -2335,6 +2487,7 @@ export default function App() {
       {wallModal}
       {colorSheet}
       {calcModal}
+      {shareLayer}
       {sortSheet}
       {langSheet}
       {folderModal}
@@ -2410,7 +2563,7 @@ function makeStyles(c) {
     cardSel: { transform: [{ scale: 0.95 }], opacity: 0.85 },
     selBarWrap: { position: 'absolute', left: 12, right: 12, bottom: 24 },
     selBar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 },
-    selAction: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 4, gap: 6 },
+    selAction: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, gap: 6, minWidth: 64 },
     selActionText: { fontSize: 14, color: c.text, fontWeight: '500' },
     trashBtns: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     trashBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
