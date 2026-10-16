@@ -1819,10 +1819,6 @@ export default function App() {
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => setCalcOpen('note'), 250); }} activeOpacity={0.6} style={s.row}>
-            <MaterialCommunityIcons name="calculator-variant-outline" size={20} color={c.text} style={{ marginRight: 14 }} />
-            <Text style={s.rowText}>{tr('calcTitle')}</Text>
-          </TouchableOpacity>
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
         </Sheet>
