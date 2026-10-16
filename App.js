@@ -682,7 +682,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
   const input = (val, set, ph) => (
     <View style={[s.folderInputWrap, { borderColor: t.border, marginTop: 10 }]}>
       <Feather name="lock" size={16} color={t.muted} />
-      <TextInput style={[s.folderInput, { flex: 1 }]} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
+      <TextInput style={s.folderInput} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
         placeholderTextColor={t.muted} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} />
       <TouchableOpacity onPress={() => setShow(!show)} hitSlop={10}><Feather name={show ? 'eye-off' : 'eye'} size={18} color={t.muted} /></TouchableOpacity>
     </View>
@@ -2716,7 +2716,8 @@ function makeStyles(c) {
     heroTitle: { fontSize: 32, fontWeight: '700', color: c.text, letterSpacing: -0.5,
                  textShadowColor: 'rgba(0,0,0,0.18)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
     heroCount: { fontSize: 14, color: c.muted, marginTop: 4 },
-    search: { color: c.text, paddingHorizontal: 18, paddingVertical: 12, fontSize: 16 },
+    search: { color: c.text, paddingHorizontal: 18, paddingVertical: 12, fontSize: 16,
+              ...(Platform.OS === 'web' ? { outlineStyle: 'none', outlineWidth: 0 } : null) },
 
     cardInner: { padding: 14 },
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
@@ -2788,7 +2789,8 @@ function makeStyles(c) {
     sideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 },
     sideHeaderText: { fontSize: 12, color: c.muted, letterSpacing: 1.2, fontWeight: '600' },
     folderInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, marginTop: 6 },
-    folderInput: { flex: 1, color: c.text, fontSize: 16, paddingVertical: 12 },
+    folderInput: { flex: 1, minWidth: 0, width: 0, color: c.text, fontSize: 16, paddingVertical: 12,
+                   ...(Platform.OS === 'web' ? { outlineStyle: 'none', outlineWidth: 0, borderWidth: 0, backgroundColor: 'transparent' } : null) },
     folderDot: { width: 8, height: 8, borderRadius: 4 },
     colorDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, marginRight: 14 },
     colorBig: { width: 44, height: 44, borderRadius: 22, borderWidth: 3 },
