@@ -313,6 +313,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* Barra de dibujo y de fotos: también anchas */
   #drawdock,#imgbar{left:10px !important;right:10px;transform:none !important;max-width:none !important;justify-content:space-around}
   #drawdock.hide,#imgbar.hide{transform:translateY(24px) !important}
+  #drawdock{flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
+  #drawdock .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
+  #drawdock .db{flex:1 1 0;min-width:0;height:40px;padding:0 2px}
+  #drawdock .db.ddone{flex:1.6 1 0;font-size:15px;font-weight:700;background:${c.text};color:${c.inv};margin-left:4px;text-shadow:none;filter:none}
+  #drawdock .db.dim{opacity:.35}
   .db{min-width:40px;padding:0 8px}
   .panel{bottom:calc(var(--dockH, 56px) + 24px + var(--kb)) !important}
   .fxNone{display:block;margin:14px auto 0;border:none;background:none;color:${c.muted};font-size:15px;padding:6px 12px}
@@ -401,6 +406,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <!-- Barra de dibujo -->
 <div class="dock" id="drawdock">
+ <div class="drow">
   <button class="db" data-d="text"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></button>
   <span class="dsep"></span>
   <button class="db on" data-tool="pen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
@@ -409,8 +415,16 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   <span class="dsep"></span>
   <button class="db" data-d="color"><span id="penDot" style="background:${c.text}"></span></button>
   <button class="db" data-d="size"><span id="penSizeDot" style="width:10px;height:10px"></span></button>
+ </div>
+ <div class="drow">
+  <button class="db" data-d="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+  <span class="dsep"></span>
   <button class="db" data-d="undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+  <button class="db" data-d="redo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
   <button class="db" data-d="clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+  <span class="dsep"></span>
+  <button class="db ddone" data-d="done">${H('done')}</button>
+ </div>
 </div>
 
 <!-- Panel de tamaño -->
@@ -1864,7 +1878,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       ed.setAttribute('inputmode', 'none'); ttl.setAttribute('inputmode', 'none');
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       window.getSelection().removeAllRanges();
-      sizeInk();
+      sizeInk(); inkBtns();
       showTip(${J('drawMode')});
     } else {
       showTip(${J('textMode')});
@@ -1880,13 +1894,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
 
   var clearArmed = false, clearTimer = null;
+  var inkRedo = [], inkCleared = null;                       // rehacer trazos / recuperar "borrar todo"
+  function inkBtns(){
+    var u = drawdock.querySelector('[data-d=undo]'), r = drawdock.querySelector('[data-d=redo]');
+    if (u) u.classList.toggle('dim', !strokes.length && !inkCleared);
+    if (r) r.classList.toggle('dim', !inkRedo.length);
+  }
   drawdock.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
   drawdock.addEventListener('click', function(e){
     var b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.tool) { setTool(b.dataset.tool); closePanels(); return; }
     var d = b.dataset.d;
-    if (d === 'text') { setDrawMode(false); return; }
+    if (d === 'text' || d === 'back' || d === 'done') { setDrawMode(false); return; }
     if (d === 'color') { togglePanel(colorPanel, b); return; }
     if (d === 'size') {
       penSize = (penSize + 1) % 3; showPenSize();
@@ -1894,8 +1914,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       return;
     }
     if (d === 'undo') {
+      if (!strokes.length && inkCleared) {                 // deshacer "borrar todo"
+        strokes = inkCleared; inkCleared = null; inkRedo = [];
+        redraw(); changedNow(); inkBtns(); return;
+      }
       if (!strokes.length) return;
-      strokes.pop(); redraw(); changedNow(); showTip(${J('strokeErased')});
+      inkRedo.push(strokes.pop()); redraw(); changedNow(); inkBtns(); showTip(${J('strokeErased')});
+      return;
+    }
+    if (d === 'redo') {
+      if (!inkRedo.length) return;
+      strokes.push(inkRedo.pop()); redraw(); changedNow(); inkBtns();
       return;
     }
     if (d === 'clear') {
@@ -1905,7 +1934,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         clearTimeout(clearTimer); clearTimer = setTimeout(function(){ clearArmed = false; }, 2500);
         return;
       }
-      clearArmed = false; strokes = []; redraw(); changedNow(); showTip(${J('drawingCleared')});
+      clearArmed = false; inkCleared = strokes; inkRedo = []; strokes = []; redraw(); changedNow(); inkBtns(); showTip(${J('drawingCleared')});
     }
   });
 
@@ -1966,7 +1995,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var W = inkW();
     lctx.clearRect(0, 0, live.width, live.height);
     if (stroke.t !== 'eraser') drawStroke(ictx, stroke, W);
-    strokes.push(stroke);
+    strokes.push(stroke); inkRedo = []; inkCleared = null; inkBtns();
     // Si dibujas cerca del final, la hoja crece para que sigas dibujando
     var maxY = Math.max.apply(null, stroke.p.map(function(q){ return q[1]; })) * W;
     stroke = null;
