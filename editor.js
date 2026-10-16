@@ -254,9 +254,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .dock,.panel{
     border:none !important;
     /* vidrio oscuro: los botones blancos se ven aunque detrás haya una foto blanca */
-    background:rgba(14,14,16,.16) !important;
-    -webkit-backdrop-filter:blur(20px) brightness(.8) saturate(1.2) !important;
-    backdrop-filter:blur(20px) brightness(.8) saturate(1.2) !important;
+    background:rgba(14,14,16,.08) !important;
+    -webkit-backdrop-filter:blur(20px) brightness(.88) saturate(1.2) !important;
+    backdrop-filter:blur(20px) brightness(.88) saturate(1.2) !important;
     box-shadow:inset 0 0 0 2.5px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 0 14px ${c.rim || 'rgba(255,255,255,.2)'},inset 0 2px 2px ${c.hi},0 14px 36px rgba(0,0,0,.12) !important;
   }
   /* borde de colores solo en la orilla (rosa arriba, azul abajo) */
