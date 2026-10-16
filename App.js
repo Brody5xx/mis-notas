@@ -786,62 +786,46 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
 }
 
 /* ============================================================
-   RAYOS ELÉCTRICOS (cuando el menú se apaga en una línea de luz)
-   Varios rayos en zigzag salen de la línea y parpadean.
+   ESTRELLITAS ✨ (cuando el menú se apaga en una línea de luz)
+   Estrellitas blancas diminutas salen de la línea, flotan
+   suavecito hacia afuera y se desvanecen.
    ============================================================ */
-function makeBolts(H, seed) {
+function makeStars(H, seed) {
   let x = seed * 9301 + 49297;
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
-  const bolts = [];
-  for (let g = 0; g < 3; g++) {
-    for (let b = 0; b < 4; b++) {
-      let px = 0, py = 20 + rnd() * (H - 40);
-      const dir = rnd() < 0.8 ? 1 : -1;                  // casi todos hacia la derecha
-      const segs = [];
-      const n = 4 + Math.floor(rnd() * 5);
-      for (let i = 0; i < n; i++) {
-        const nx = px + dir * (10 + rnd() * 20), ny = py + (i % 2 ? 1 : -1) * (8 + rnd() * 22);   // zigzag bien marcado
-        segs.push([px, py, nx, ny]);
-        if (i === 2 && rnd() < 0.6) {                    // una ramita
-          segs.push([nx, ny, nx + dir * (10 + rnd() * 16), ny + (rnd() - 0.5) * 40]);
-        }
-        px = nx; py = ny;
-      }
-      bolts.push({ g, segs });
-    }
+  const stars = [];
+  for (let i = 0; i < 22; i++) {
+    stars.push({
+      y: 10 + rnd() * (H - 20),
+      dx: 14 + rnd() * 70,                 // hacia la derecha
+      dy: -(8 + rnd() * 46),               // flotando un poquito hacia arriba
+      size: 5 + rnd() * 7,                 // diminutas
+      start: 0.78 + rnd() * 0.62,          // salen en momentos distintos
+      life: 0.42 + rnd() * 0.18,
+      spin: (rnd() < 0.5 ? -1 : 1) * (40 + rnd() * 120),
+    });
   }
-  return bolts;
+  return stars;
 }
-const FLICK_IN = [0, 0.66, 0.7, 0.74, 0.79, 0.84, 0.9, 0.96, 1.02, 1.07, 1.12, 1.17, 1.22, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2];
-const FLICK = [
-  [0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0],
-  [0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0],
-  [0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
-];
-function Lightning({ anim, sy, top, height }) {
-  const bolts = useMemo(() => makeBolts(height, Math.floor(height)), [height]);
-  const ops = useMemo(() => FLICK.map(o => anim.interpolate({ inputRange: FLICK_IN, outputRange: o })), [anim]);
-  const seg = (k, [x1, y1, x2, y2], glow) => {
-    const len = Math.hypot(x2 - x1, y2 - y1), ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-    const h = glow ? 7 : 2.2;
-    return (
-      <View key={k} style={{ position: 'absolute', left: (x1 + x2) / 2 - len / 2, top: (y1 + y2) / 2 - h / 2, width: len + 1, height: h,
-        borderRadius: h, backgroundColor: glow ? 'rgba(120,200,255,0.35)' : '#eaf7ff', transform: [{ rotate: ang + 'deg' }] }} />
-    );
-  };
+function Sparkles({ anim, top, height }) {
+  const stars = useMemo(() => makeStars(height, Math.floor(height)), [height]);
   return (
-    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 12, top, height, width: 240, transform: [{ scaleY: sy }] }}>
-      {[0, 1, 2].map(g => (
-        <Animated.View key={g} style={[StyleSheet.absoluteFill, { opacity: ops[g] }]}>
-          {bolts.filter(b => b.g === g).map((b, i) => (
-            <View key={i} style={StyleSheet.absoluteFill}>
-              {b.segs.map((sg, j) => seg('g' + j, sg, true))}
-              {b.segs.map((sg, j) => seg('c' + j, sg, false))}
-            </View>
-          ))}
-        </Animated.View>
-      ))}
-    </Animated.View>
+    <View pointerEvents="none" style={{ position: 'absolute', left: 10, top, height, width: 160 }}>
+      {stars.map((st, i) => {
+        const a = st.start, m = a + st.life * 0.35, z = Math.min(1.97, a + st.life);
+        const range = { inputRange: [0, a, m, z, 2], extrapolate: 'clamp' };
+        const opacity = anim.interpolate({ ...range, outputRange: [0, 0, 1, 0, 0] });
+        const tx = anim.interpolate({ ...range, outputRange: [0, 0, st.dx * 0.45, st.dx, st.dx] });
+        const ty = anim.interpolate({ ...range, outputRange: [0, 0, st.dy * 0.45, st.dy, st.dy] });
+        const sc = anim.interpolate({ ...range, outputRange: [0.2, 0.2, 1, 0.35, 0.35] });
+        const rot = anim.interpolate({ ...range, outputRange: ['0deg', '0deg', st.spin * 0.4 + 'deg', st.spin + 'deg', st.spin + 'deg'] });
+        return (
+          <Animated.Text key={i} style={{ position: 'absolute', left: 0, top: st.y, color: '#ffffff', fontSize: st.size,
+            textShadowColor: 'rgba(170,220,255,0.95)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 },
+            opacity, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }, { rotate: rot }] }}>✦</Animated.Text>
+        );
+      })}
+    </View>
   );
 }
 
@@ -900,7 +884,7 @@ export default function App() {
     const nd = Platform.OS !== 'web';
     Animated.sequence([
       Animated.timing(menuOff, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: nd }),  // se aplasta en línea de luz
-      Animated.timing(menuOff, { toValue: 1.2, duration: 380, easing: Easing.linear, useNativeDriver: nd }),              // la línea zumba con rayos
+      Animated.timing(menuOff, { toValue: 1.2, duration: 260, easing: Easing.linear, useNativeDriver: nd }),              // la línea suelta estrellitas
       Animated.timing(menuOff, { toValue: 2, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: nd }),    // la línea se encoge y se apaga
     ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
   }
@@ -2823,7 +2807,7 @@ export default function App() {
               shadowColor: '#9fd8ff', shadowOpacity: 1, shadowRadius: 18, elevation: 12 }]} />
           </Animated.View>
           <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
-          <Lightning anim={menuOff} sy={menuSY}
+          <Sparkles anim={menuOff}
             top={(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10}
             height={winH - (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) - 70} />
         </View>
