@@ -1094,6 +1094,7 @@ function NotesApp() {
   const revBusy = useRef(false);
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
+  const revStarsDone = useRef(false);
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1124,13 +1125,14 @@ function NotesApp() {
         if (started) return; started = true;
         requestAnimationFrame(() => {
           const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
-          startStars(o, true, 640);
+          if (!revStarsDone.current) startStars(o, true, 640);
+          revStarsDone.current = false;
           an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
       const fr2 = iframeRef.current;
       if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
-      setTimeout(go, 150);                 // no espera más que esto: se siente al instante
+      setTimeout(go, 70);                  // casi sin esperar: el círculo arranca enseguida
     } else {
       revP.setValue(0);
       setTimeout(() => {
@@ -1978,6 +1980,14 @@ function NotesApp() {
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
     revP.setValue(0);
     revPending.current = 'open';
+    if (Platform.OS === 'web') {
+      // Respuesta AL INSTANTE: las estrellitas salen del dedo ya mismo y la nota se arma
+      // en el siguiente cuadro (así el toque se siente inmediato)
+      startStars(DROP.openPt, true, 640);
+      revStarsDone.current = true;
+      requestAnimationFrame(() => setTimeout(() => { setRevealing(true); setCurrentId(id); }, 0));
+      return;
+    }
     setRevealing(true);
     setCurrentId(id);
   }
