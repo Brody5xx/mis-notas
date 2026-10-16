@@ -920,6 +920,52 @@ function liquidFrames(x, y, W, H, opening) {
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
 }
+/* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
+function ringStars(o, W, H, opening, Rmax) {
+  let sd = (Date.now() % 997) * 9301 + 49297;
+  const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+  const G = 18, groups = [];
+  for (let g = 0; g < G; g++) {
+    const t = 0.03 + (g / G) * 0.92;                         // cuándo pasa el borde por ahí
+    const R = easeIO(opening ? t : 1 - t) * Rmax;
+    if (R < 10) continue;
+    const stars = [];
+    for (let k = 0; k < 16 && stars.length < 4; k++) {
+      const a = rnd() * Math.PI * 2, r = R + (rnd() - 0.5) * 22;
+      const x = o.x + r * Math.cos(a), y = o.y + r * Math.sin(a);
+      if (x < 6 || y < 6 || x > W - 6 || y > H - 6) continue;   // solo las que se ven en la pantalla
+      const sz = 5 + rnd() * 7, dr = (opening ? 1 : -1) * (6 + rnd() * 12);
+      stars.push({ x, y, size: sz, rot: Math.floor(rnd() * 45), dx: Math.cos(a) * dr, dy: Math.sin(a) * dr });
+    }
+    if (stars.length) groups.push({ start: t, life: 0.6 + rnd() * 0.35, alt: g % 2, stars });
+  }
+  return groups;
+}
+/* Web: cada estrellita titila y se apaga con la tarjeta gráfica (solo opacidad y movimiento) */
+function playRingStars(groups, M) {
+  if (typeof document === 'undefined') return;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:2147483000;overflow:hidden';
+  document.body.appendChild(box);
+  let end = 0;
+  groups.forEach(gr => {
+    const op = gr.alt ? [0, 0.9, 1, 0.3, 0.8, 0] : [0, 1, 0.25, 1, 0.55, 0];
+    const offs = [0, 0.12, 0.28, 0.44, 0.62, 1];
+    gr.stars.forEach(st => {
+      const sp = document.createElement('span');
+      sp.textContent = '✦';
+      sp.style.cssText = 'position:absolute;left:' + (st.x - st.size / 2) + 'px;top:' + (st.y - st.size / 2) + 'px;font-size:' + st.size +
+        'px;line-height:1;color:#fff;opacity:0;will-change:transform,opacity;text-shadow:0 0 5px rgba(180,230,255,.95)';
+      box.appendChild(sp);
+      const kf = offs.map((f, i) => ({ offset: f, opacity: op[i],
+        transform: 'translate(' + (st.dx * f).toFixed(1) + 'px,' + (st.dy * f).toFixed(1) + 'px) rotate(' + st.rot + 'deg)' }));
+      const delay = gr.start * M, dur = gr.life * M;
+      sp.animate(kf, { delay, duration: dur, easing: 'linear', fill: 'both' });
+      end = Math.max(end, delay + dur);
+    });
+  });
+  setTimeout(() => { if (box.parentNode) box.parentNode.removeChild(box); }, end + 80);
+}
 /* Para Android/iPhone: el círculo crece con un temblor de agua (escala X/Y) */
 const LIQ = (() => {
   const inR = [], sx = [], sy = [], ix = [], iy = [], N = 40;
@@ -1044,7 +1090,18 @@ function NotesApp() {
   const [revealing, setRevealing] = useState(false);
   const revBusy = useRef(false);
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
-  const revEl = useRef(null);               // la capa del editor (en la web se recorta con el círculo)
+  const revEl = useRef(null);
+  const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
+  const [portalStars, setPortalStars] = useState(null);
+  function startStars(o, opening, M) {
+    const Rmax = Math.hypot(Math.max(o.x, width - o.x), Math.max(o.y, winH - o.y)) + 12;
+    const groups = ringStars(o, width, winH, opening, Rmax);
+    if (Platform.OS === 'web') { playRingStars(groups, M); return; }
+    starAnim.setValue(0);
+    setPortalStars(groups);
+    Animated.timing(starAnim, { toValue: 2, duration: M * 2, easing: Easing.linear, useNativeDriver: true })
+      .start(() => setPortalStars(null));
+  }               // la capa del editor (en la web se recorta con el círculo)
   useEffect(() => {
     if (!currentId && revBusy.current) { revP.setValue(1); setRevealing(false); revBusy.current = false; }
   }, [currentId]);
@@ -1064,6 +1121,7 @@ function NotesApp() {
         if (started) return; started = true;
         requestAnimationFrame(() => {
           const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          startStars(o, true, 640);
           an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
@@ -1074,6 +1132,7 @@ function NotesApp() {
       revP.setValue(0);
       setTimeout(() => {
         Animated.timing(revP, { toValue: 1, duration: 620, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
+        startStars(o, true, 620);
       }, 60);
     }
   }, [currentId]);
@@ -1245,12 +1304,14 @@ function NotesApp() {
       if (!el || !el.animate) { closeEditorNow(); return; }
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
+        startStars(o, false, 600);
         an.onfinish = () => closeEditorNow();
       }));
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
           .start(() => closeEditorNow());
+        startStars(o, false, 600);
       }, 60);
     }
   }
@@ -3131,6 +3192,23 @@ function NotesApp() {
               </View>
             </Animated.View>
           </Animated.View>
+        </View>
+      )}
+      {portalStars && Platform.OS !== 'web' && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {portalStars.map((gr, gi) => {
+            const r = starRange(gr);
+            return (
+              <Animated.View key={gi} renderToHardwareTextureAndroid style={[StyleSheet.absoluteFill,
+                { opacity: starAnim.interpolate({ inputRange: r.inR, outputRange: r.op, extrapolate: 'clamp' }) }]}>
+                {gr.stars.map((st, i) => (
+                  <Text key={i} style={{ position: 'absolute', left: st.x - st.size / 2, top: st.y - st.size / 2, color: '#ffffff',
+                    fontSize: st.size, textShadowColor: 'rgba(180,230,255,0.95)', textShadowRadius: 5,
+                    transform: [{ rotate: st.rot + 'deg' }] }}>✦</Text>
+                ))}
+              </Animated.View>
+            );
+          })}
         </View>
       )}
     </View>
