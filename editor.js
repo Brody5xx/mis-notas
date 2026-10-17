@@ -374,6 +374,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #rw .rwGrid.many{grid-template-columns:repeat(4,1fr);gap:6px}
   #rw .rwGrid.many .rwOpt{padding:7px 2px;font-size:11.5px;line-height:1.2;border-radius:14px;gap:2px}
   #rw .rwGrid.many .rwOpt b{font-size:18px}
+  #rw .rwTabs{display:flex;gap:6px;margin:0 0 10px}
+  #rw .rwTabs button{flex:1;border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:16px;padding:8px 4px;font-size:13px;font-weight:700;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #rw .rwTabs button.on{background:${c.text};color:${c.inv};border-color:transparent}
   #rw .rwSec{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${c.muted};margin:12px 2px 6px}
   #rw .rwOpt:active{transform:scale(.96);background:rgba(255,255,255,.15)}
   #rw .rwOrig{font-size:13px;color:${c.muted};margin-bottom:10px;max-height:3.6em;overflow:hidden;font-style:italic}
@@ -3398,14 +3401,56 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     rwEl.classList.add('show');
     send({ type: 'rwOpen', open: true });
   }
+  /* 🇪🇸🇺🇸 Cada resultado sale en dos idiomas: el de la app y el inglés (si la app está en inglés: inglés y español) */
+  var DUAL = (function(){ var b = String(LOC || 'es').slice(0, 2).toLowerCase(); return b === 'en' ? ['es', 'en'] : [b, 'en']; })();
+  var NO_DUAL = { syn: 1, english: 1, translate: 1 };
+  function langName(cd){
+    if (cd === 'es') return '🇪🇸 Español';
+    if (cd === 'en') return '🇺🇸 English';
+    try { var n = new Intl.DisplayNames([cd], { type: 'language' }).of(cd); return n.charAt(0).toUpperCase() + n.slice(1); } catch (e) { return cd.toUpperCase(); }
+  }
+  try { RW.tab = +(localStorage.getItem('rwTab') || 0) || 0; } catch (e) { RW.tab = 0; }
   function rwAsk(style){
     RW.style = style; RW.req++; RW.out = '';
+    RW.dual = !NO_DUAL[style]; RW.outs = [null, null]; RW.errs = [false, false];
     var lbl = rwLabel(style);
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
-    send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
+    if (RW.dual) {
+      RW.first = RW.tab === 1 ? 1 : 0;                       // primero el idioma que estás mirando; luego el otro
+      send({ type: 'rewrite', req: RW.req, style: style, text: RW.text, lang: DUAL[RW.first], slot: RW.first });
+    } else send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
+  }
+  function rwButtons(){
+    if (RW.work) return '<div class="rwRow"><button class="main" data-rw="wrep">🔄 ' + rwEsc(${J('wReplace')}) + '</button><button data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
+      '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>';
+    return '<div class="rwRow"><button class="main" data-rw="replace">' + rwEsc(${J('rwReplace')}) + '</button>' +
+      '<button data-rw="insert">' + rwEsc(${J('rwInsert')}) + '</button></div>' +
+      '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>';
+  }
+  function rwRenderDual(){
+    var lbl = rwLabel(RW.style), o = RW.outs, t = RW.tab;
+    var tabs = '<div class="rwTabs">' + [langName(DUAL[0]), langName(DUAL[1]), '🔀 ' + ${J('wBoth')}].map(function(n, i){
+      return '<button data-tab="' + i + '"' + (i === t ? ' class="on"' : '') + '>' + rwEsc(n) + '</button>'; }).join('') + '</div>';
+    var txt = t === 2 ? (o[0] && o[1] ? langName(DUAL[0]) + ':\\n' + o[0] + '\\n\\n' + langName(DUAL[1]) + ':\\n' + o[1] : null) : o[t];
+    var err = t === 2 ? (RW.errs[0] || RW.errs[1]) : RW.errs[t];
+    RW.out = txt || '';
+    var body = txt ? '<div class="rwOut">' + rwEsc(txt) + '</div>' + rwButtons()
+      : err ? '<div class="rwErr">' + rwEsc(${J('rwFail')}) + '</div>'
+      : '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
+    rwEl.innerHTML = rwHead(lbl) + tabs + body +
+      '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
   }
   window.rewriteResult = function(res){
     if (!res || res.req !== RW.req || !rwEl.classList.contains('show')) return;
+    if (RW.dual) {
+      var sl = res.slot === 1 ? 1 : 0;
+      if (res.ok && res.text) RW.outs[sl] = res.text; else RW.errs[sl] = true;
+      var other = 1 - RW.first;
+      if (sl === RW.first && RW.outs[other] == null && !RW.errs[other])
+        send({ type: 'rewrite', req: RW.req, style: RW.style, text: RW.text, lang: DUAL[other], slot: other });
+      rwRenderDual();
+      return;
+    }
     var lbl = rwLabel(RW.style);
     if (!res.ok || !res.text) {
       rwEl.innerHTML = rwHead(lbl) + '<div class="rwErr">' + rwEsc(${J('rwFail')}) + '</div>' +
@@ -3467,6 +3512,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var b = e.target.closest('button'); if (!b) return;
     if (b.dataset.style) return rwAsk(b.dataset.style);
     if (b.dataset.tpl) return tplInsert(b.dataset.tpl);
+    if (b.dataset.tab) { RW.tab = +b.dataset.tab; try { localStorage.setItem('rwTab', RW.tab); } catch (er) {} rwRenderDual(); return; }
     if (b.dataset.syn) { RW.out = RW.syn[+b.dataset.syn] || ''; return rwPut('replace'); }
     var a = b.dataset.rw;
     if (a === 'tip') { tipI++; var tp = rwEl.querySelector('.rwTip'); if (tp) tp.outerHTML = tipHtml(); return; }

@@ -3860,6 +3860,50 @@ const WRP = {
 };
 for (const code in WRP) S[code].wReplace = WRP[code];
 
+/* Resultado en dos idiomas: pestaña 'Ambos' */
+const WBO = {
+  es: 'Ambos',
+  en: 'Both',
+  pt: 'Ambos',
+  fr: 'Les deux',
+  de: 'Beide',
+  it: 'Entrambi',
+  ca: 'Tots dos',
+  nl: 'Beide',
+  sv: 'Båda',
+  nb: 'Begge',
+  da: 'Begge',
+  fi: 'Molemmat',
+  pl: 'Oba',
+  cs: 'Obojí',
+  sk: 'Oboje',
+  hu: 'Mindkettő',
+  ro: 'Ambele',
+  hr: 'Oboje',
+  el: 'Και τα δύο',
+  bg: 'И двата',
+  ru: 'Оба',
+  uk: 'Обидва',
+  tr: 'İkisi',
+  ar: 'كلاهما',
+  he: 'שניהם',
+  fa: 'هر دو',
+  ur: 'دونوں',
+  hi: 'दोनों',
+  bn: 'দুটোই',
+  id: 'Keduanya',
+  ms: 'Kedua-dua',
+  fil: 'Pareho',
+  vi: 'Cả hai',
+  th: 'ทั้งสอง',
+  ja: '両方',
+  ko: '둘 다',
+  sw: 'Zote mbili',
+  'zh-Hans': '两者',
+  'zh-Hant': '兩者',
+};
+for (const code in WBO) S[code].wBoth = WBO[code];
+
 
 /* ============================================================
    VARIANTES POR PAÍS

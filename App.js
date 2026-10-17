@@ -2076,7 +2076,9 @@ function NotesApp() {
       : RW_HOW[m.style] || RW_HOW.pro;
     const own = ['report', 'pronote', 'email', 'chat', 'english', 'todo', 'summary', 'steps', 'syn'].indexOf(m.style) >= 0;
     const system = 'You are a writing assistant inside a notes app. ' + how +
-      (m.style === 'translate' || m.style === 'english' ? '' : ' Always answer in the SAME language as the original text.') +
+      (m.style === 'translate' || m.style === 'english' ? ''
+        : m.lang ? ` Always write the answer in ${m.lang === 'es' ? 'Spanish' : m.lang === 'en' ? 'English' : (langLabel(m.lang) || m.lang).replace(/^\S+\s/, '')}, translating naturally if the original is in another language (keep technical terms, names and numbers exactly).`
+        : ' Always answer in the SAME language as the original text.') +
       (own ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.');
     const text = String(m.text || '').slice(0, 6000);
     const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
@@ -2095,7 +2097,7 @@ function NotesApp() {
       const j = await r.json();
       const out = clean(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
       if (!out) throw new Error('empty');
-      rwReply({ req: m.req, ok: true, text: out });
+      rwReply({ req: m.req, slot: m.slot, ok: true, text: out });
     } catch (e1) {
       clearTimeout(timer);
       try {
@@ -2107,10 +2109,10 @@ function NotesApp() {
         if (!r2.ok) throw new Error('http ' + r2.status);
         const out2 = clean(await r2.text());
         if (!out2) throw new Error('empty');
-        rwReply({ req: m.req, ok: true, text: out2 });
+        rwReply({ req: m.req, slot: m.slot, ok: true, text: out2 });
       } catch (e2) {
         clearTimeout(timer);
-        rwReply({ req: m.req, ok: false });
+        rwReply({ req: m.req, slot: m.slot, ok: false });
       }
     }
   }
