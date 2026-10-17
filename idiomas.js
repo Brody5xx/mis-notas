@@ -3640,6 +3640,54 @@ for (const code in AUT) {
   AUK.forEach((k, i) => { S[code][k] = AUT[code][i]; });
 }
 
+/* Textos nuevos: subir una nota de audio para transcribirla */
+const AUK2 = ['recUpload', 'recBadFile'];
+const AUT2 = {
+  es: ['Subir nota de audio', 'No se pudo abrir ese audio.'],
+  en: ['Upload voice note', 'Could not open that audio.'],
+  pt: ['Enviar nota de áudio', 'Não foi possível abrir esse áudio.'],
+  fr: ['Importer un audio', 'Impossible d’ouvrir cet audio.'],
+  de: ['Sprachnachricht hochladen', 'Diese Audiodatei konnte nicht geöffnet werden.'],
+  it: ['Carica nota vocale', 'Impossibile aprire questo audio.'],
+  ca: ['Puja una nota d’àudio', 'No s’ha pogut obrir aquest àudio.'],
+  nl: ['Spraakbericht uploaden', 'Kon deze audio niet openen.'],
+  sv: ['Ladda upp röstmeddelande', 'Det gick inte att öppna ljudet.'],
+  nb: ['Last opp talemelding', 'Kunne ikke åpne lyden.'],
+  da: ['Upload talebesked', 'Kunne ikke åbne lyden.'],
+  fi: ['Lataa ääniviesti', 'Ääntä ei voitu avata.'],
+  pl: ['Prześlij notatkę głosową', 'Nie udało się otworzyć tego nagrania.'],
+  cs: ['Nahrát hlasovou zprávu', 'Zvuk se nepodařilo otevřít.'],
+  sk: ['Nahrať hlasovú správu', 'Zvuk sa nepodarilo otvoriť.'],
+  hu: ['Hangüzenet feltöltése', 'Nem sikerült megnyitni a hangot.'],
+  ro: ['Încarcă o notă audio', 'Nu s-a putut deschide acest audio.'],
+  hr: ['Učitaj glasovnu poruku', 'Nije moguće otvoriti zvuk.'],
+  el: ['Μεταφόρτωση ηχητικού', 'Δεν ήταν δυνατό το άνοιγμα του ήχου.'],
+  bg: ['Качи гласово съобщение', 'Аудиото не можа да се отвори.'],
+  ru: ['Загрузить голосовое', 'Не удалось открыть это аудио.'],
+  uk: ['Завантажити голосове', 'Не вдалося відкрити це аудіо.'],
+  tr: ['Sesli not yükle', 'Bu ses açılamadı.'],
+  ar: ['رفع رسالة صوتية', 'تعذّر فتح هذا الصوت.'],
+  he: ['העלאת הודעה קולית', 'לא ניתן לפתוח את השמע.'],
+  fa: ['بارگذاری پیام صوتی', 'باز کردن این صدا ممکن نشد.'],
+  ur: ['وائس نوٹ اپ لوڈ کریں', 'یہ آڈیو نہیں کھل سکا۔'],
+  hi: ['वॉइस नोट अपलोड करें', 'यह ऑडियो नहीं खुल सका।'],
+  bn: ['ভয়েস নোট আপলোড', 'অডিওটি খোলা যায়নি।'],
+  id: ['Unggah pesan suara', 'Tidak dapat membuka audio itu.'],
+  ms: ['Muat naik nota suara', 'Tidak dapat membuka audio itu.'],
+  fil: ['Mag-upload ng voice note', 'Hindi mabuksan ang audio.'],
+  vi: ['Tải lên ghi âm', 'Không thể mở âm thanh này.'],
+  th: ['อัปโหลดข้อความเสียง', 'ไม่สามารถเปิดเสียงนี้ได้'],
+  ja: ['音声メモをアップロード', 'この音声を開けませんでした。'],
+  ko: ['음성 메모 업로드', '이 오디오를 열 수 없습니다.'],
+  sw: ['Pakia ujumbe wa sauti', 'Imeshindwa kufungua sauti hii.'],
+  'zh-Hans': ['上传语音', '无法打开此音频。'],
+  'zh-Hant': ['上傳語音', '無法開啟此音訊。'],
+};
+for (const code in AUT2) {
+  if (AUT2[code].length !== AUK2.length) throw new Error('au2 ' + code);
+  AUK2.forEach((k, i) => { S[code][k] = AUT2[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

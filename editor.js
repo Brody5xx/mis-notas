@@ -352,6 +352,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #recP .recTxt{min-height:70px;max-height:34vh;overflow:auto;font-size:17px;line-height:1.45;color:${c.text};padding:4px 2px 10px}
   #recP .recTxt i{color:${c.muted};font-style:normal}
   #recP .recBtns{display:flex;gap:10px}
+  #recP .recUp{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:44px;margin:0 0 12px;border-radius:22px;border:1.5px dashed ${c.border};background:transparent;color:${c.text};font-size:15px;font-weight:600}
   #recP .recLangs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
   #recP .recLangs::-webkit-scrollbar{display:none}
   #recP .recLangs button{flex:none;height:34px;padding:0 14px;border-radius:17px;border:1px solid ${c.border};background:transparent;color:${c.text};font-size:14px}
@@ -2720,6 +2721,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     REC = { t0: Date.now(), chunks: [], fin: '', mid: '', keep: keep, noSR: false, live: true };
     recEl.innerHTML = '<div class="recTop"><span class="recDot"></span><span class="recLbl">' + recEsc(${J('recListening')}) + '</span><span class="recTime">0:00</span></div>' +
       '<div class="recLangs">' + REC_LANGS.map(function(l){ return '<button type="button" data-lang="' + l[0] + '"' + (l[0] === recLang ? ' class="on"' : '') + '>' + l[1] + '</button>'; }).join('') + '</div>' +
+      '<button type="button" class="recUp" data-rec="up">📂 ' + recEsc(${J('recUpload')}) + '</button>' +
       '<div class="recBtns"><button type="button" data-rec="x">' + recEsc(${J('recCancel')}) + '</button>' +
       '<button type="button" class="recOk" data-rec="ok">' + recEsc(${J('recStop')}) + '</button></div>';
     recEl.classList.add('show'); document.body.classList.add('recording');
@@ -2734,7 +2736,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       me.mr.ondataavailable = function(ev){ if (ev.data && ev.data.size) me.chunks.push(ev.data); };
       me.mr.start(500);                 // solo graba (la transcripción no funciona en Android)
     }).catch(function(){
-      showTip(${J('recNoMic')}); recClose();
+      showTip(${J('recNoMic')});
+      if (REC !== me) return;
+      me.noMic = true; clearInterval(me.tick);
+      var dot = recEl.querySelector('.recDot'); if (dot) dot.style.display = 'none';
+      var lb = recEl.querySelector('.recLbl'); if (lb) lb.textContent = ${J('recNoMic')};
+      var tm = recEl.querySelector('.recTime'); if (tm) tm.textContent = '';
+      var ok = recEl.querySelector('[data-rec="ok"]'); if (ok) ok.style.display = 'none';
     });
   };
   function recSpeech(me){
@@ -2872,6 +2880,37 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     return w.join(' ');
   }
+  /* Subir una nota de audio (WhatsApp, grabadora, etc.): se pone en la nota igual que una grabación y se transcribe */
+  var audIn = document.createElement('input');
+  audIn.type = 'file'; audIn.accept = 'audio/*,.opus,.ogg,.oga,.m4a,.mp3,.wav,.aac,.amr,.webm,.3gp';
+  audIn.style.display = 'none'; document.body.appendChild(audIn);
+  var audUpKeep = null;
+  function audGuessType(f){
+    if (f.type && f.type.indexOf('audio/') === 0) return f.type;
+    var ext = String(f.name || '').split('.').pop().toLowerCase();
+    return { opus: 'audio/ogg', ogg: 'audio/ogg', oga: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', mp3: 'audio/mpeg',
+      wav: 'audio/wav', webm: 'audio/webm', amr: 'audio/amr', '3gp': 'audio/3gpp' }[ext] || f.type || 'audio/mpeg';
+  }
+  audIn.addEventListener('change', function(){
+    var f = audIn.files && audIn.files[0];
+    audIn.value = '';
+    if (!f) return;
+    var me = { keep: audUpKeep }; audUpKeep = null;
+    if (f.size > 40 * 1024 * 1024) { showTip(${J('recBadFile')}); return; }
+    var blob = new Blob([f], { type: audGuessType(f) });
+    showTip(${J('recWorking')});
+    blob.arrayBuffer().then(function(buf){                     // se mide cuánto dura (y se comprueba que se puede abrir)
+      var AC = window.AudioContext || window.webkitAudioContext, ac = new AC();
+      return new Promise(function(ok, no){ ac.decodeAudioData(buf, ok, no); })
+        .then(function(b){ try { ac.close(); } catch (e) {} return b.duration; },
+              function(e){ try { ac.close(); } catch (er) {} throw e; });
+    }).then(function(dur){
+      var fr = new FileReader();
+      fr.onload = function(){ recInsert(me, '', String(fr.result), dur, blob); };
+      fr.readAsDataURL(blob);
+    }).catch(function(){ showTip(${J('recBadFile')}); });
+  });
+  window.audUpload = function(){ if (!editable) return; audUpKeep = null; audIn.click(); };
   function recInsert(me, text, src, dur, blob){
     var wrap = document.createElement('div');
     wrap.innerHTML = audBlock(src, dur);
@@ -2914,6 +2953,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       recEl.querySelectorAll('[data-lang]').forEach(function(x){ x.classList.toggle('on', x === b); });
       return;
     }
+    if (b.dataset.rec === 'up') { audUpKeep = REC ? REC.keep : null; window.recCancel(); audIn.click(); return; }
     if (b.dataset.rec === 'ok') window.recStop(); else window.recCancel();
   });
   window.recOpen = function(){ return !!REC; };
