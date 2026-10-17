@@ -924,13 +924,13 @@ function liquidFrames(x, y, W, H, opening) {
 function ringStars(o, W, H, opening, Rmax) {
   let sd = (Date.now() % 997) * 9301 + 49297;
   const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
-  const G = 18, groups = [];
+  const G = 9, groups = [];                // pocas estrellitas (livianas)
   for (let g = 0; g < G; g++) {
     const t = 0.03 + (g / G) * 0.92;                         // cuándo pasa el borde por ahí
     const R = easeIO(opening ? t : 1 - t) * Rmax;
     if (R < 10) continue;
     const stars = [];
-    for (let k = 0; k < 16 && stars.length < 4; k++) {
+    for (let k = 0; k < 16 && stars.length < 2; k++) {
       const a = rnd() * Math.PI * 2, r = R + (rnd() - 0.5) * 22;
       const x = o.x + r * Math.cos(a), y = o.y + r * Math.sin(a);
       if (x < 6 || y < 6 || x > W - 6 || y > H - 6) continue;   // solo las que se ven en la pantalla
@@ -1124,6 +1124,7 @@ function NotesApp() {
         if (started) return; started = true;
         requestAnimationFrame(() => {
           const an = el.animate(fr, { duration: 470, easing: 'linear', fill: 'forwards' });
+          startStars(o, true, 470);           // ✦ poquitas estrellitas, en la misma vuelta que el círculo
           an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
@@ -1134,6 +1135,7 @@ function NotesApp() {
       revP.setValue(0);
       setTimeout(() => {
         Animated.timing(revP, { toValue: 1, duration: 460, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
+        startStars(o, true, 460);
       }, 60);
     }
   }, [currentId]);
@@ -1322,12 +1324,14 @@ function NotesApp() {
       if (!el || !el.animate) { closeEditorNow(); return; }
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 440, easing: 'linear', fill: 'forwards' });
+        startStars(o, false, 440);
         an.onfinish = () => closeEditorNow();
       }));
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 440, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
           .start(() => closeEditorNow());
+        startStars(o, false, 440);
       }, 60);
     }
   }
