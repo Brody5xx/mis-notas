@@ -331,6 +331,28 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #rwChip.show{display:block}
   @keyframes rwPop{from{opacity:0;transform:translateX(-50%) scale(.85)}to{opacity:1;transform:translateX(-50%) scale(1)}}
   body.rw #dock{display:none !important}
+  /* ===== Audio grabado dentro de la nota ===== */
+  .audwrap{display:flex;align-items:center;gap:12px;margin:12px 0;padding:12px 14px;border-radius:16px;
+           background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.08);user-select:none;-webkit-user-select:none}
+  .audwrap button{flex:none;border:none;background:none;color:${c.text};padding:0;display:flex;align-items:center;justify-content:center}
+  .audwrap .audp{width:40px;height:40px}
+  .audwrap .audbar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.22);position:relative;overflow:hidden;cursor:pointer}
+  .audwrap .audfill{position:absolute;left:0;top:0;bottom:0;width:0;background:#9fb4ff;border-radius:3px}
+  .audwrap .audt{flex:none;font-size:15px;color:${c.muted};font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+  .audwrap .audx{width:34px;height:34px;opacity:.85}
+  .audwrap audio{display:none}
+  #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
+  body.recording #dock,body.recording #rwChip{display:none !important}
+  #recP .recTop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  #recP .recDot{width:14px;height:14px;border-radius:7px;background:#ff4d4d;box-shadow:0 0 0 0 rgba(255,77,77,.6);animation:recPulse 1.2s infinite}
+  @keyframes recPulse{0%{box-shadow:0 0 0 0 rgba(255,77,77,.55)}70%{box-shadow:0 0 0 12px rgba(255,77,77,0)}100%{box-shadow:0 0 0 0 rgba(255,77,77,0)}}
+  #recP .recLbl{flex:1;color:${c.muted};font-size:13px;letter-spacing:.05em;text-transform:uppercase}
+  #recP .recTime{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:${c.text}}
+  #recP .recTxt{min-height:70px;max-height:34vh;overflow:auto;font-size:17px;line-height:1.45;color:${c.text};padding:4px 2px 10px}
+  #recP .recTxt i{color:${c.muted};font-style:normal}
+  #recP .recBtns{display:flex;gap:10px}
+  #recP .recBtns button{flex:1;height:46px;border-radius:23px;font-size:16px;font-weight:700;border:1px solid ${c.border};background:transparent;color:${c.text}}
+  #recP .recBtns .recOk{background:${c.text};color:${c.inv};border-color:transparent}
   #rw{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:14px 14px 12px;max-height:72vh;overflow:auto}
   #rw .rwHead{display:flex;align-items:center;justify-content:space-between;color:${c.muted};font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
   #rw .rwX{border:none;background:none;color:${c.text};font-size:20px;padding:2px 6px;line-height:1}
@@ -516,6 +538,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div class="panel" id="spell"></div>
 <button id="rwChip">${H('rwBtn')}</button>
 <div class="panel" id="rw"></div>
+<div class="panel" id="recP"></div>
 <div id="imged">
   <div id="ieTop">
   <div id="ieHead"><button id="ieCancel">${H('cancel')}</button><button class="ok" id="ieOk">${H('done')}</button></div>
@@ -2615,6 +2638,164 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
      Seleccionas un texto → sale "✨ Reescribir" → eliges el estilo
      → la app le pide a la IA otra versión → Reemplazar o Insertar.
      ========================================================= */
+  /* =========================================================
+     🎙️ GRABAR AUDIO con transcripción en vivo
+     ========================================================= */
+  var PLAY_SVG = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>';
+  var PAUSE_SVG = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><rect x="9" y="8" width="2" height="8" fill="currentColor" stroke="none"/><rect x="13" y="8" width="2" height="8" fill="currentColor" stroke="none"/></svg>';
+  var DEL_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  function audFmt(sec){ sec = Math.max(0, Math.round(sec || 0)); var m = Math.floor(sec / 60), x = sec % 60; return m + ':' + (x < 10 ? '0' : '') + x; }
+  function audBlock(src, dur){
+    return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '">' +
+      '<button class="audp" type="button">' + PLAY_SVG + '</button>' +
+      '<div class="audbar"><div class="audfill"></div></div>' +
+      '<span class="audt">' + audFmt(dur) + '</span>' +
+      '<button class="audx" type="button">' + DEL_SVG + '</button>' +
+      '<audio preload="none" src="' + src + '"></audio></div>';
+  }
+  var audNow = null;   // el audio que está sonando
+  function audStopAll(){ if (audNow) { try { audNow.pause(); } catch (e) {} } }
+  ed.addEventListener('mousedown', function(e){ if (e.target.closest && e.target.closest('.audwrap')) e.preventDefault(); });
+  ed.addEventListener('click', function(e){
+    var w = e.target.closest && e.target.closest('.audwrap'); if (!w) return;
+    e.preventDefault(); e.stopPropagation();
+    var au = w.querySelector('audio'), btn = w.querySelector('.audp'), fill = w.querySelector('.audfill'), tt = w.querySelector('.audt');
+    var dur = +w.dataset.dur || 0;
+    if (!au._wired) {
+      au._wired = true;
+      au.addEventListener('timeupdate', function(){
+        var d = isFinite(au.duration) && au.duration > 0 ? au.duration : dur;
+        fill.style.width = (d ? Math.min(100, au.currentTime / d * 100) : 0) + '%';
+        tt.textContent = audFmt(au.currentTime > 0 ? au.currentTime : d);
+      });
+      au.addEventListener('ended', function(){ btn.innerHTML = PLAY_SVG; fill.style.width = '100%'; tt.textContent = audFmt(dur); });
+      au.addEventListener('pause', function(){ btn.innerHTML = PLAY_SVG; });
+      au.addEventListener('play', function(){ btn.innerHTML = PAUSE_SVG; });
+    }
+    if (e.target.closest('.audx')) {                       // borrar el audio
+      audStopAll(); w.parentNode.removeChild(w); changedNow(); return;
+    }
+    if (e.target.closest('.audbar')) {                     // saltar a una parte
+      var r = w.querySelector('.audbar').getBoundingClientRect(), d2 = isFinite(au.duration) && au.duration > 0 ? au.duration : dur;
+      if (d2) { try { au.currentTime = Math.max(0, Math.min(d2, (e.clientX - r.left) / r.width * d2)); } catch (er) {} }
+      if (au.paused) { audStopAll(); audNow = au; au.play().catch(function(){}); }
+      return;
+    }
+    if (e.target.closest('.audp')) {
+      if (au.paused) { audStopAll(); audNow = au; if (au.ended) au.currentTime = 0; au.play().catch(function(){}); }
+      else au.pause();
+    }
+  }, true);
+
+  var REC = null, recEl = $('recP');
+  function recEsc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function recPaint(){
+    if (!REC) return;
+    var sec = (Date.now() - REC.t0) / 1000;
+    var tm = recEl.querySelector('.recTime'); if (tm) tm.textContent = audFmt(sec);
+    var tx = recEl.querySelector('.recTxt');
+    if (tx) tx.innerHTML = REC.noSR ? '<i>' + recEsc(${J('recNoText')}) + '</i>'
+      : (REC.fin || REC.mid) ? recEsc(REC.fin) + ' <i>' + recEsc(REC.mid) + '</i>' : '<i>' + recEsc(${J('recSpeak')}) + '</i>';
+  }
+  window.recStart = function(){
+    if (REC || !editable) return;
+    closePanels();
+    var sel = window.getSelection();
+    var keep = sel.rangeCount && owner(sel.getRangeAt(0).startContainer) === ed ? sel.getRangeAt(0).cloneRange() : null;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { showTip(${J('recNoMic')}); return; }
+    REC = { t0: Date.now(), chunks: [], fin: '', mid: '', keep: keep, noSR: false, live: true };
+    recEl.innerHTML = '<div class="recTop"><span class="recDot"></span><span class="recLbl">' + recEsc(${J('recListening')}) + '</span><span class="recTime">0:00</span></div>' +
+      '<div class="recTxt"></div><div class="recBtns"><button type="button" data-rec="x">' + recEsc(${J('recCancel')}) + '</button>' +
+      '<button type="button" class="recOk" data-rec="ok">' + recEsc(${J('recStop')}) + '</button></div>';
+    recEl.classList.add('show'); document.body.classList.add('recording');
+    recPaint();
+    REC.tick = setInterval(function(){ recPaint(); if (REC && Date.now() - REC.t0 > 10 * 60 * 1000) window.recStop(); }, 250);   // máx. 10 min
+    var me = REC;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      if (REC !== me) { stream.getTracks().forEach(function(t){ t.stop(); }); return; }
+      me.stream = stream;
+      var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0];
+      me.mr = mime ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32000 }) : new MediaRecorder(stream);
+      me.mr.ondataavailable = function(ev){ if (ev.data && ev.data.size) me.chunks.push(ev.data); };
+      me.mr.start(500);
+      recSpeech(me);
+    }).catch(function(){
+      showTip(${J('recNoMic')}); recClose();
+    });
+  };
+  function recSpeech(me){
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { me.noSR = true; recPaint(); return; }
+    var nav = (navigator.language || '').toLowerCase(), want = String(LOC || 'es').toLowerCase();
+    var lang = nav.indexOf(want.slice(0, 2)) === 0 ? navigator.language : LOC;
+    var start = function(){
+      if (!me.live || REC !== me) return;
+      var r = new SR();
+      r.lang = lang; r.continuous = true; r.interimResults = true;
+      r.onresult = function(ev){
+        var mid = '';
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          var t = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) me.fin = (me.fin ? me.fin.replace(/ +$/, '') + ' ' : '') + t.trim();
+          else mid += t;
+        }
+        me.mid = mid; recPaint();
+      };
+      r.onerror = function(ev){ if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'audio-capture') { me.noSR = true; me.live = false; recPaint(); } };
+      r.onend = function(){ if (me.mid) { me.fin = (me.fin ? me.fin + ' ' : '') + me.mid.trim(); me.mid = ''; } if (me.live && REC === me) setTimeout(start, 120); };   // Android la corta en las pausas
+      me.sr = r;
+      try { r.start(); } catch (e) { me.noSR = true; recPaint(); }
+    };
+    start();
+  }
+  function recClose(){
+    if (!REC) return;
+    var me = REC; REC = null;
+    me.live = false;
+    clearInterval(me.tick);
+    try { me.sr && me.sr.abort(); } catch (e) {}
+    try { me.stream && me.stream.getTracks().forEach(function(t){ t.stop(); }); } catch (e) {}
+    recEl.classList.remove('show'); document.body.classList.remove('recording');
+    return me;
+  }
+  window.recCancel = function(){ var me = recClose(); if (me && me.mr && me.mr.state !== 'inactive') { me.mr.onstop = null; try { me.mr.stop(); } catch (e) {} } };
+  window.recStop = function(){
+    if (!REC) return;
+    var me = REC, dur = (Date.now() - me.t0) / 1000;
+    var text = (me.fin + (me.mid ? ' ' + me.mid : '')).trim();
+    var finishIt = function(){
+      if (!me.chunks.length) { showTip(${J('recNoMic')}); return; }
+      var blob = new Blob(me.chunks, { type: (me.mr && me.mr.mimeType) || 'audio/webm' });
+      var fr = new FileReader();
+      fr.onload = function(){ recInsert(me, text, String(fr.result), dur); };
+      fr.readAsDataURL(blob);
+    };
+    if (me.mr && me.mr.state !== 'inactive') { me.mr.onstop = finishIt; try { me.mr.requestData(); } catch (e) {} me.mr.stop(); recClose(); }
+    else { recClose(); finishIt(); }
+  };
+  function recInsert(me, text, src, dur){
+    var wrap = document.createElement('div');
+    wrap.innerHTML = audBlock(src, dur);
+    var block = wrap.firstChild;
+    // se pone después de la línea donde estaba el cursor (o al final de la nota)
+    var at = null;
+    if (me.keep) { var n = me.keep.startContainer; while (n && n.parentNode !== ed) n = n.parentNode; at = n; }
+    var frag = document.createDocumentFragment();
+    if (text) { var p = document.createElement('div'); p.textContent = text; frag.appendChild(p); }
+    frag.appendChild(block);
+    var after = document.createElement('div'); after.appendChild(document.createElement('br')); frag.appendChild(after);
+    if (at && at.parentNode === ed) ed.insertBefore(frag, at.nextSibling); else ed.appendChild(frag);
+    changedNow();
+    showTip(${J('recSaved')});
+    try { block.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+  }
+  recEl.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
+  recEl.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.rec === 'ok') window.recStop(); else window.recCancel();
+  });
+  window.recOpen = function(){ return !!REC; };
   var RW = { range: null, text: '', style: null, req: 0, out: '' };
   var rwChip = $('rwChip'), rwEl = $('rw');
   var RW_STYLES = [

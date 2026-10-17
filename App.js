@@ -2630,6 +2630,7 @@ function NotesApp() {
                 ref={iframeRef}
                 srcDoc={editorHtml}
                 title="editor"
+                allow="microphone; autoplay"
                 allowTransparency
                 style={{ border: 'none', width: '100%', height: '100%', backgroundColor: 'transparent' }}
               />
@@ -2642,6 +2643,9 @@ function NotesApp() {
                 style={{ flex: 1, backgroundColor: 'transparent' }}
                 containerStyle={{ backgroundColor: 'transparent' }}
                 allowFileAccess
+                mediaCapturePermissionGrantType="grant"
+                mediaPlaybackRequiresUserAction={false}
+                allowsInlineMediaPlayback
                 keyboardDisplayRequiresUserAction={false}
                 hideKeyboardAccessoryView
               />
@@ -2677,6 +2681,7 @@ function NotesApp() {
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
           <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
+          <Row icon="mic" label={tr('recAudio')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('recStart'), 250); }} />
           <Row icon="file-text" label={tr('makePdf')} s={s} t={c} onPress={() => { setOptsOpen(false); exportNotes('pdf', [current.id]); }} />
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
           <Row icon="trash-2" label={tr('moveTrash')} danger s={s} t={c} onPress={() => { setOptsOpen(false); moveToTrash(); }} />
