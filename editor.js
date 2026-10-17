@@ -2708,7 +2708,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { showTip(${J('recNoMic')}); return; }
     REC = { t0: Date.now(), chunks: [], fin: '', mid: '', keep: keep, noSR: false, live: true };
     recEl.innerHTML = '<div class="recTop"><span class="recDot"></span><span class="recLbl">' + recEsc(${J('recListening')}) + '</span><span class="recTime">0:00</span></div>' +
-      '<div class="recTxt"></div><div class="recBtns"><button type="button" data-rec="x">' + recEsc(${J('recCancel')}) + '</button>' +
+      '<div class="recBtns"><button type="button" data-rec="x">' + recEsc(${J('recCancel')}) + '</button>' +
       '<button type="button" class="recOk" data-rec="ok">' + recEsc(${J('recStop')}) + '</button></div>';
     recEl.classList.add('show'); document.body.classList.add('recording');
     recPaint();
@@ -2720,8 +2720,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0];
       me.mr = mime ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32000 }) : new MediaRecorder(stream);
       me.mr.ondataavailable = function(ev){ if (ev.data && ev.data.size) me.chunks.push(ev.data); };
-      me.mr.start(500);
-      recSpeech(me);
+      me.mr.start(500);                 // solo graba (la transcripción no funciona en Android)
     }).catch(function(){
       showTip(${J('recNoMic')}); recClose();
     });
@@ -2837,7 +2836,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var frag = document.createDocumentFragment();
     var p = null;
     if (text) { p = document.createElement('div'); p.textContent = text; frag.appendChild(p); }
-    else if (blob) {                                   // no hubo texto en vivo: se transcribe al terminar
+    else if (false) {
       p = document.createElement('div'); p.className = 'audtx'; p.setAttribute('contenteditable', 'false');
       p.textContent = ${J('recWorking')}; frag.appendChild(p);
     }
@@ -2846,7 +2845,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (at && at.parentNode === ed) ed.insertBefore(frag, at.nextSibling); else ed.appendChild(frag);
     changedNow();
     showTip(${J('recSaved')});
-    if (!text && blob && p) {
+    if (false) {
       audTranscribe(blob).then(function(t){
         t = (t || '').trim();
         if (!p.parentNode) return;
