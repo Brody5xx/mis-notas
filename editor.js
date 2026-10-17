@@ -383,6 +383,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #rw .rwDots i{width:9px;height:9px;border-radius:50%;background:${c.text};animation:rwDot 1s ease-in-out infinite}
   #rw .rwDots i:nth-child(2){animation-delay:.15s}#rw .rwDots i:nth-child(3){animation-delay:.3s}
   @keyframes rwDot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-6px)}}
+  #rw .rwTip{margin:0 0 12px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.07);font-size:14px;line-height:1.4;color:${c.text};display:flex;gap:10px;align-items:center}
+  #rw .rwTip div{flex:1}
+  #rw .rwTip small{display:block;color:${c.muted};font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px}
+  #rw .rwTip s{text-decoration:line-through;opacity:.6}
+  #rw .rwTip button{flex:none;border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:14px;padding:6px 10px;font-size:13px;font-family:inherit}
+  #rw .rwHint{font-size:13px;color:${c.muted};margin:-4px 0 10px}
+  #rw .synList{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  #rw .synList button{border:1px solid ${c.border};background:rgba(255,255,255,.07);color:${c.text};border-radius:18px;padding:9px 14px;font-size:15px;font-family:inherit}
+  #rw .synList button:active{background:rgba(255,255,255,.18)}
+  #rw .tplList{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #rw .tplList button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid ${c.border};background:rgba(255,255,255,.06);color:${c.text};border-radius:16px;padding:12px 12px;font-size:14px;font-weight:600;font-family:inherit}
+  #rw .tplList button b{font-size:20px;font-weight:400}
+  .audpro{margin:4px 0 10px;user-select:none;-webkit-user-select:none}
+  .audpro button{border:1px solid ${c.border};background:rgba(255,255,255,.08);color:${c.text};border-radius:16px;padding:7px 14px;font-size:14px;font-weight:700;font-family:inherit}
   #rw .rwErr{color:#ff6b6b;font-size:14px;padding:6px 0}
   /* ===== Revisar ortografía ===== */
   #spLayer{position:absolute;left:0;top:0;width:0;height:0;z-index:2;pointer-events:none}
@@ -570,6 +584,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     <button class="db" data-ie="redo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
    </div>
    <div class="drow">
+    <button class="db" data-ie="arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg></button>
+    <button class="db" data-ie="circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
+    <button class="db" data-ie="box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1.5"/></svg></button>
+    <span class="dsep"></span>
     <button class="db ietxt" data-ie="edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span class="ielbl">${H('imgEditText')}</span></button>
     <button class="db ietxt" data-ie="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
     <span class="dsep"></span>
@@ -594,7 +612,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var range = $('range'), sizeNum = $('sizeNum'), sizeBig = $('sizeBig'), sample = $('sample'), colorDot = $('colorDot');
   var saved = null, dirty = false, sendTimer = null;
   ed.innerHTML = ${safeContent};
-  Array.prototype.forEach.call(ed.querySelectorAll('.audtx'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
+  Array.prototype.forEach.call(ed.querySelectorAll('.audtx,.audpro'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
   // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
     var t = parseFloat(w.style.top) || 0;
@@ -2136,14 +2154,31 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var IE = { target: null, base: null, ops: [], redo: [], mode: 'draw', color: '#ff3b30', ol: null, size: 28, pen: 6,
              b: true, i: false, u: false, cur: null, drag: null, sel: null, edit: null, pend: null };
   function ieOn(){ return imged.classList.contains('show'); }
+  var IE_SHAPES = { arrow: 1, circle: 1, box: 1 };          // ➚ flecha, ◯ círculo, ▭ recuadro
+  function iePen(){ return IE.mode === 'draw' || !!IE_SHAPES[IE.mode]; }
+  function ieShape(ctx, op){
+    var a = op.a, b = op.b;
+    ctx.strokeStyle = op.c; ctx.lineWidth = op.w; ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (op.g === 'box') ctx.rect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+    else if (op.g === 'circle') ctx.ellipse((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.max(1, Math.abs(b[0] - a[0]) / 2), Math.max(1, Math.abs(b[1] - a[1]) / 2), 0, 0, Math.PI * 2);
+    else {
+      var ang = Math.atan2(b[1] - a[1], b[0] - a[0]), len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      var hl = Math.min(len * 0.45, Math.max(op.w * 3.5, 14));
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      ctx.moveTo(b[0] - hl * Math.cos(ang - 0.5), b[1] - hl * Math.sin(ang - 0.5)); ctx.lineTo(b[0], b[1]);
+      ctx.lineTo(b[0] - hl * Math.cos(ang + 0.5), b[1] - hl * Math.sin(ang + 0.5));
+    }
+    ctx.stroke();
+  }
   function ieK(){ var r = ieCv.getBoundingClientRect(); return r.width ? ieCv.width / r.width : 1; }   // px de la foto por px de pantalla
   function ieSyncBar(){
-    iebar.querySelectorAll('[data-ie=draw],[data-ie=text]').forEach(function(b){ b.classList.toggle('on', b.dataset.ie === IE.mode); });
+    iebar.querySelectorAll('[data-ie=draw],[data-ie=text],[data-ie=arrow],[data-ie=circle],[data-ie=box]').forEach(function(b){ b.classList.toggle('on', b.dataset.ie === IE.mode); });
     var t = IE.sel;
     iebar.querySelectorAll('.ietxt').forEach(function(b){ b.classList.toggle('off', !t); });
     var st = t || IE;
     iebar.querySelectorAll('[data-iecmd]').forEach(function(b){ b.classList.toggle('on', IE.mode === 'text' && !!st[b.dataset.iecmd]); });
-    $('ieSizeNum').textContent = IE.mode === 'draw' ? IE.pen : (t ? t.n : IE.size);
+    $('ieSizeNum').textContent = iePen() ? IE.pen : (t ? t.n : IE.size);
     $('ieColorDot').style.background = t ? t.c : IE.color;
     var ub = iebar.querySelector('[data-ie=undo]'), rb = iebar.querySelector('[data-ie=redo]');
     if (ub) ub.style.opacity = IE.ops.length ? '' : '.35';
@@ -2193,7 +2228,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         for (var i = 1; i < op.p.length; i++) ctx.lineTo(op.p[i][0], op.p[i][1]);
         if (op.p.length === 1) ctx.lineTo(op.p[0][0] + 0.1, op.p[0][1]);
         ctx.stroke();
-      } else ieDrawText(op);
+      } else if (op.t === 'g') ieShape(ctx, op);
+      else ieDrawText(op);
     });
     // Texto nuevo mientras lo escribes
     if (IE.pend && ieInput.value.trim() && ieTextBar.classList.contains('show'))
@@ -2240,7 +2276,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* Lo que llega desde los paneles de tamaño y color (los mismos de las notas) */
   function ieApplySize(v){
-    if (IE.mode === 'draw') IE.pen = v;
+    if (iePen()) IE.pen = v;
     else { IE.size = v; if (IE.sel) { IE.sel.n = v; IE.sel.s = v * ieK(); } }
     ieSyncBar(); ieRedraw();
   }
@@ -2287,6 +2323,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (IE.mode === 'view' || ZM.pinch) return;          // modo ver: solo mover y acercar
     var p = iePt(e);
     try { ieCv.setPointerCapture(e.pointerId); } catch (_) {}
+    if (IE_SHAPES[IE.mode]) {
+      IE.cur = { t: 'g', g: IE.mode, c: IE.color, w: IE.pen * ieK(), a: p, b: p };
+      IE.ops.push(IE.cur); IE.redo = []; ieRedraw();
+      return;
+    }
     if (IE.mode === 'draw') {
       IE.cur = { t: 's', c: IE.color, w: IE.pen * ieK(), p: [p] };
       IE.ops.push(IE.cur); IE.redo = []; ieRedraw();
@@ -2311,6 +2352,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   ieCv.addEventListener('pointermove', function(e){
     if (ZM.pinch) return;
     var p = iePt(e);
+    if (IE.cur && IE.cur.t === 'g') { IE.cur.b = p; ieRedraw(); return; }
     if (IE.cur) {
       var last = IE.cur.p[IE.cur.p.length - 1];
       if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 1.5) return;
@@ -2321,7 +2363,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       IE.drag.op.x = IE.drag.ox + p[0] - IE.drag.sx; IE.drag.op.y = IE.drag.oy + p[1] - IE.drag.sy; ieRedraw();
     }
   });
-  function ieUp(){ if (IE.cur) { IE.cur = null; ieRedraw(); ieSyncBar(); } IE.drag = null; }
+  function ieUp(){
+    if (IE.cur) {
+      var g = IE.cur;
+      if (g.t === 'g' && Math.hypot(g.b[0] - g.a[0], g.b[1] - g.a[1]) < 6 * ieK()) IE.ops.splice(IE.ops.indexOf(g), 1);   // solo un toque: no se dibuja
+      IE.cur = null; ieRedraw(); ieSyncBar();
+    }
+    IE.drag = null;
+  }
   ieCv.addEventListener('pointerup', ieUp);
   ieCv.addEventListener('pointercancel', ieUp);
 
@@ -2415,7 +2464,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (IE.sel) IE.sel[cmd] = IE[cmd];
       ieSyncBar(); ieRedraw(); return;
     }
-    if (a === 'draw' || a === 'text') { ieSetMode(IE.mode === a ? 'view' : a); return; }
+    if (a === 'draw' || a === 'text' || IE_SHAPES[a]) { ieSetMode(IE.mode === a ? 'view' : a); return; }
     if (a === 'undo') { ieCloseText(false); var gone = IE.ops.pop(); if (gone) IE.redo.push(gone); if (gone === IE.sel) IE.sel = null; ieSyncBar(); ieRedraw(); return; }
     if (a === 'redo') { ieCloseText(false); var back = IE.redo.pop(); if (back) IE.ops.push(back); ieSyncBar(); ieRedraw(); return; }
     if (a === 'edit') { if (IE.sel) ieOpenText(IE.sel); return; }
@@ -2794,6 +2843,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     audUpgrade(w);
     var r0 = +w.dataset.rate || 1, sp = w.querySelector('.audsp'); if (sp) sp.textContent = audRateTxt(r0);
   });
+  ed.addEventListener('click', function(e){                 // 👔 Hacer profesional (debajo de la transcripción)
+    var ch = e.target.closest && e.target.closest('.audpro'); if (!ch) return;
+    e.preventDefault(); e.stopPropagation();
+    var dv = ch.previousElementSibling;
+    ch.parentNode.removeChild(ch);
+    if (!dv || !dv.textContent.trim()) return;
+    var r = document.createRange(); r.selectNodeContents(dv);
+    RW.work = false; RW.tpl = false; RW.range = r; RW.text = dv.textContent;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    closePanels(); document.body.classList.add('rw');
+    rwShowStyles();
+  }, true);
+  ed.addEventListener('mousedown', function(e){ if (e.target.closest && e.target.closest('.audpro')) e.preventDefault(); });
   var REC = null, recEl = $('recP');
   /* Idioma en que vas a hablar (Whisper se enfoca en ese idioma y transcribe mejor) */
   var REC_LANGS = [['auto', '🌐 Auto'], ['spanish', 'Español'], ['english', 'English'], ['portuguese', 'Português'],
@@ -3034,7 +3096,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       }, recLang).then(function(t){
         t = audClean(t).trim();
         if (!p.parentNode) return;
-        if (t) { var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p); }
+        if (t) {
+          var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p);
+          var ch = document.createElement('div'); ch.className = 'audpro'; ch.setAttribute('contenteditable', 'false');
+          ch.innerHTML = '<button type="button">👔 ' + rwEsc(${J('audPro')}) + '</button>';
+          d.parentNode.insertBefore(ch, d.nextSibling);
+        }
         else { p.parentNode.removeChild(p); showTip(${J('recFail')}); }
         changedNow();
       }).catch(function(){ if (p.parentNode) p.parentNode.removeChild(p); changedNow(); showTip(${J('recFail')}); });
@@ -3060,8 +3127,216 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ['formal', '🎩', ${J('rwFormal')}], ['pro', '💼', ${J('rwPro')}], ['biz', '📈', ${J('rwBiz')}],
     ['friendly', '😊', ${J('rwFriendly')}], ['funny', '😂', ${J('rwFunny')}], ['persuasive', '🎯', ${J('rwPersuasive')}],
     ['short', '✂️', ${J('rwShort')}], ['long', '📝', ${J('rwLong')}], ['clear', '💡', ${J('rwClear')}],
-    ['fix', '✅', ${J('rwFix')}], ['emoji', '🤩', ${J('rwEmoji')}], ['translate', '🌍', ${J('rwTranslate')}]
+    ['fix', '✅', ${J('rwFix')}], ['emoji', '🤩', ${J('rwEmoji')}], ['translate', '🌍', ${J('rwTranslate')}],
+    ['syn', '📖', ${J('rwSyn')}], ['report', '📋', ${J('wReport')}], ['email', '✉️', ${J('wEmail')}],
+    ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}], ['steps', '🔧', ${J('wSteps')}]
   ];
+  /* 👔 Asistente de trabajo: trabaja con TODA la nota */
+  var WORK_STYLES = [
+    ['report', '📋', ${J('wReport')}], ['pronote', '👔', ${J('wPro')}], ['email', '✉️', ${J('wEmail')}],
+    ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}], ['todo', '✅', ${J('wTodo')}],
+    ['summary', '📌', ${J('wSummary')}], ['steps', '🔧', ${J('wSteps')}], ['fix', '✏️', ${J('rwFix')}]
+  ];
+  function rwLabel(st){
+    var a = (RW.work ? WORK_STYLES : RW_STYLES).concat(RW_STYLES, WORK_STYLES).filter(function(s){ return s[0] === st; })[0];
+    return a ? a[2] : '';
+  }
+  function rwIco(st){ var a = RW_STYLES.concat(WORK_STYLES).filter(function(s){ return s[0] === st; })[0]; return a ? a[1] : '✨'; }
+  /* Frases del día a día → cómo decirlas profesionalmente (para ir aprendiendo) */
+  var PRO_TIPS = {
+    es: [['arreglé', 'reparé / corregí'], ['no sirve', 'no funciona correctamente'], ['lo cambié', 'realicé el reemplazo de'], ['falta…', 'queda pendiente…'],
+      ['ya quedó', 'quedó operativo y funcionando correctamente'], ['le avisé al jefe', 'informé al supervisor'], ['se dañó', 'sufrió una avería'],
+      ['vamos a ver', 'daremos seguimiento'], ['chequeé', 'verifiqué / inspeccioné'], ['puse', 'instalé'], ['quité', 'retiré'],
+      ['no pude porque…', 'no fue posible debido a…'], ['necesito…', 'se requiere…'], ['mañana lo termino', 'se completará mañana'],
+      ['el cable está malo', 'el cableado presenta daños'], ['lo probé', 'realicé pruebas de funcionamiento'], ['el cliente quiere…', 'el cliente solicita…'],
+      ['hubo un problema', 'se presentó un inconveniente'], ['lo dejé listo', 'quedó instalado y configurado'], ['me di cuenta de…', 'identifiqué…'],
+      ['como dijimos', 'según lo acordado'], ['lo antes posible', 'a la mayor brevedad'], ['te mando…', 'le adjunto…'],
+      ['gracias por todo', 'agradezco su apoyo'], ['dime si…', 'quedo atento a sus comentarios'], ['está trabado', 'presenta una obstrucción'],
+      ['no prende', 'no enciende / no recibe energía'], ['lo moví', 'lo reubiqué'], ['está bien', 'se encuentra en buen estado'], ['ojo con…', 'se recomienda precaución con…']],
+    en: [['fixed it', 'resolved the issue'], ['it’s broken', 'it is not functioning properly'], ['swapped out', 'replaced'], ['still need…', 'pending…'],
+      ['all good now', 'fully operational'], ['told the boss', 'notified the supervisor'], ['checked', 'inspected / verified'], ['put in', 'installed'],
+      ['took out', 'removed'], ['couldn’t because…', 'was unable to due to…'], ['need…', 'require…'], ['will finish tomorrow', 'will be completed tomorrow'],
+      ['tested it', 'performed functional testing'], ['customer wants…', 'the client requested…'], ['there was a problem', 'an issue occurred'],
+      ['ASAP', 'at your earliest convenience'], ['let me know', 'please advise'], ['as we said', 'as agreed'], ['found out', 'identified'],
+      ['here’s…', 'please find attached…'], ['won’t turn on', 'does not power on'], ['moved it', 'relocated it'], ['heads up', 'please note']]
+  };
+  var tipList = PRO_TIPS[String(LOC).slice(0, 2)] || null, tipI = Math.floor(Math.random() * 1000);
+  function tipHtml(){
+    if (!tipList) return '';
+    var t = tipList[tipI % tipList.length];
+    return '<div class="rwTip"><div><small>💡 ' + rwEsc(${J('wTip')}) + '</small><s>' + rwEsc(t[0]) + '</s> → <b>' + rwEsc(t[1]) + '</b></div><button data-rw="tip">' + rwEsc(${J('wAnother')}) + '</button></div>';
+  }
+  /* El texto de la nota, renglón por renglón (sin audios ni fotos) */
+  function noteText(){
+    var out = [];
+    Array.prototype.forEach.call(ed.childNodes, function(n){
+      if (n.nodeType === 3) { if (n.data.trim()) out.push(n.data.trim()); return; }
+      if (n.nodeType !== 1 || (n.matches && n.matches('.audwrap,.imgwrap,.audtx,.audpro'))) return;
+      var t = (n.innerText || n.textContent || '');
+      if (n.tagName === 'UL' || n.tagName === 'OL') {
+        t = Array.prototype.map.call(n.children, function(li){ return '- ' + (li.innerText || li.textContent || '').trim() + (li.classList.contains('done') ? ' (✓)' : ''); }).join('\\n');
+      }
+      t = t.replace(/​/g, '').trim();
+      if (t) out.push(t);
+    });
+    var title = (ttl.innerText || '').trim();
+    return (title ? title + '\\n\\n' : '') + out.join('\\n');
+  }
+  window.workOpen = function(){
+    if (!editable) return;
+    if (dirty) changedNow();
+    var t = noteText();
+    if (t.replace(/\\s+/g, '').length < 3) { showTip(${J('wEmpty')}); return; }
+    RW.work = true; RW.tpl = false; RW.text = t; RW.range = null;
+    rwChip.classList.remove('show');
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    closePanels(); document.body.classList.add('rw');
+    workShow();
+  };
+  function workShow(){
+    rwEl.innerHTML = rwHead(${J('workTitle')}) + '<div class="rwHint">' + rwEsc(${J('wHint')}) + '</div>' + tipHtml() +
+      '<div class="rwGrid">' + WORK_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
+    rwEl.classList.add('show');
+    send({ type: 'rwOpen', open: true });
+  }
+  /* Convertir el texto de la IA en renglones de la nota (títulos en negrita, viñetas, listas) */
+  function wkClean(l){ return l.replace(/\\*\\*/g, '').replace(/^#+\\s*/, '').replace(/^__|__$/g, ''); }
+  function wkFrag(text, style){
+    var f = document.createDocumentFragment(), lines = String(text).split('\\n'), list = null, blank = false;
+    if (style === 'todo') {
+      var ul = document.createElement('ul'); ul.className = 'checklist';
+      lines.forEach(function(l){
+        l = wkClean(l).replace(/^\\s*([-•*–]|\\d+[.)]|\\[ ?x? ?\\]|☐|□)\\s*/i, '').trim();
+        if (!l) return;
+        var li = document.createElement('li'); li.textContent = l; ul.appendChild(li);
+      });
+      f.appendChild(ul); return f;
+    }
+    lines.forEach(function(raw){
+      var l = raw.replace(/\\s+$/, '');
+      if (!l.trim()) { list = null; if (!blank && f.lastChild) { var e = document.createElement('div'); e.appendChild(document.createElement('br')); f.appendChild(e); } blank = true; return; }
+      blank = false;
+      var bul = l.match(/^\\s*[-•*–]\\s+(.*)$/), num = l.match(/^\\s*\\d+[.)]\\s+(.*)$/);
+      if (bul || num) {
+        var tag = bul ? 'UL' : 'OL';
+        if (!list || list.tagName !== tag) { list = document.createElement(tag); f.appendChild(list); }
+        var li = document.createElement('li'); li.textContent = wkClean((bul || num)[1]); list.appendChild(li); return;
+      }
+      list = null;
+      var d = document.createElement('div'), clean = wkClean(l).trim();
+      var isHead = /^\\s*(#+\\s|\\*\\*.+\\*\\*:?\\s*$)/.test(l) || (clean.length < 48 && /:$/.test(clean));
+      if (isHead) { var b = document.createElement('b'); b.textContent = clean; d.appendChild(b); }
+      else {
+        var m = clean.match(/^([^:]{2,30}):\\s+(.+)$/);                // "Ubicación: Hospital…" → la etiqueta en negrita
+        if (m && /\\*\\*/.test(l)) { var b2 = document.createElement('b'); b2.textContent = m[1] + ':'; d.appendChild(b2); d.appendChild(document.createTextNode(' ' + m[2])); }
+        else d.textContent = clean;
+      }
+      f.appendChild(d);
+    });
+    while (f.lastChild && f.lastChild.nodeName === 'DIV' && !f.lastChild.textContent) f.removeChild(f.lastChild);
+    return f;
+  }
+  function wkAppend(){
+    if (!RW.out) return;
+    var sp = document.createElement('div'); sp.appendChild(document.createElement('br'));
+    var hd = document.createElement('div'), hb = document.createElement('b');
+    hb.textContent = rwIco(RW.style) + ' ' + rwLabel(RW.style); hd.appendChild(hb);
+    var frag = document.createDocumentFragment();
+    if (ed.textContent.trim() || ed.querySelector('.audwrap,.imgwrap')) frag.appendChild(sp);
+    frag.appendChild(hd);
+    frag.appendChild(wkFrag(RW.out, RW.style));
+    var first = frag.firstChild;
+    ed.appendChild(frag);
+    rwClose();
+    changedNow();
+    showTip(${J('rwDone')});
+    try { (first.nodeType === 1 ? first : hd).scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+  }
+  function copyText(t){
+    var ok = false;
+    try {
+      var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+      ok = document.execCommand('copy'); document.body.removeChild(ta);
+    } catch (e) {}
+    if (!ok && navigator.clipboard) { try { navigator.clipboard.writeText(t).catch(function(){}); } catch (e) {} }
+    send({ type: 'copyText', text: t });
+    showTip(${J('wCopied')});
+  }
+  /* 📋 Plantillas para el trabajo */
+  function tplNow(){ try { return new Date().toLocaleString(LOC, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return new Date().toLocaleString(); } }
+  var TPL_TXT = {
+    es: { date: 'Fecha', site: 'Sitio / Cliente', tech: 'Técnico', done: 'Trabajo realizado', mat: 'Materiales usados', prob: 'Problemas encontrados',
+      pend: 'Pendientes', hours: 'Horas trabajadas', tnum: 'Ticket #', loc: 'Ubicación exacta (edificio / piso / cuarto)', req: 'Solicitado por',
+      issue: 'Descripción del problema', diag: 'Diagnóstico', fix: 'Solución aplicada', status: 'Estado', st1: 'Resuelto', st2: 'Pendiente', st3: 'Requiere seguimiento',
+      photos: 'Fotos (antes / después)', contact: 'Contacto en sitio', area: 'Área inspeccionada', exist: 'Equipos existentes', obs: 'Observaciones',
+      rec: 'Recomendaciones', need: 'Materiales necesarios', proj: 'Proyecto', qty: 'Cant. — Material', who: 'Asistentes', topics: 'Temas', agree: 'Acuerdos',
+      tasks: 'Tareas (responsable — fecha)', from: 'Entrega', to: 'Recibe', fin: 'Trabajos terminados', prog: 'En progreso', urgent: 'Pendientes urgentes',
+      notes: 'Notas', when: 'Fecha y hora del incidente', where: 'Lugar', ppl: 'Personas involucradas', what: 'Qué pasó', act: 'Acciones tomadas',
+      dmg: 'Daños', rep: 'Reportado a' },
+    en: { date: 'Date', site: 'Site / Client', tech: 'Technician', done: 'Work performed', mat: 'Materials used', prob: 'Issues found',
+      pend: 'Pending', hours: 'Hours worked', tnum: 'Ticket #', loc: 'Exact location (building / floor / room)', req: 'Requested by',
+      issue: 'Problem description', diag: 'Diagnosis', fix: 'Solution applied', status: 'Status', st1: 'Resolved', st2: 'Pending', st3: 'Needs follow-up',
+      photos: 'Photos (before / after)', contact: 'On-site contact', area: 'Area inspected', exist: 'Existing equipment', obs: 'Observations',
+      rec: 'Recommendations', need: 'Materials needed', proj: 'Project', qty: 'Qty — Material', who: 'Attendees', topics: 'Topics', agree: 'Agreements',
+      tasks: 'Tasks (owner — date)', from: 'Handed off by', to: 'Received by', fin: 'Completed work', prog: 'In progress', urgent: 'Urgent items',
+      notes: 'Notes', when: 'Incident date and time', where: 'Location', ppl: 'People involved', what: 'What happened', act: 'Actions taken',
+      dmg: 'Damage', rep: 'Reported to' }
+  };
+  function tplHtml(k){
+    var T = TPL_TXT[String(LOC).slice(0, 2)] || TPL_TXT.en, E = function(x){ return rwEsc(x); };
+    var F = function(e, l, v){ return '<div><b>' + e + ' ' + E(l) + ':</b>&nbsp;' + (v ? E(v) : '') + '</div>'; };
+    var Hd = function(e, l){ return '<div><br></div><div><b>' + e + ' ' + E(l) + '</b></div>'; };
+    var UL = '<ul><li><br></li></ul>', CK = '<ul class="checklist"><li><br></li></ul>';
+    var d = tplNow();
+    if (k === 'stamp') return '<div><b>🕒 ' + E(d) + '</b> — </div>';
+    if (k === 'daily') return F('📅', T.date, d) + F('📍', T.site) + F('👷', T.tech) + Hd('🔧', T.done) + UL + Hd('📦', T.mat) + UL + Hd('⚠️', T.prob) + UL + Hd('✅', T.pend) + CK + '<div><br></div>' + F('⏱️', T.hours);
+    if (k === 'ticket') return F('🎫', T.tnum) + F('📅', T.date, d) + F('📍', T.site) + F('🚪', T.loc) + F('🙋', T.req) + Hd('❗', T.issue) + '<div><br></div>' + Hd('🔍', T.diag) + '<div><br></div>' + Hd('🔧', T.fix) + '<div><br></div>' + Hd('📦', T.mat) + UL + Hd('📊', T.status) + '<ul class="checklist"><li>' + E(T.st1) + '</li><li>' + E(T.st2) + '</li><li>' + E(T.st3) + '</li></ul>' + Hd('📸', T.photos) + '<div><br></div>';
+    if (k === 'survey') return F('📍', T.site) + F('📅', T.date, d) + F('🙋', T.contact) + F('🏢', T.area) + Hd('🧰', T.exist) + UL + Hd('👀', T.obs) + UL + Hd('💡', T.rec) + UL + Hd('📦', T.need) + CK;
+    if (k === 'mat') return F('🏗️', T.proj) + F('📅', T.date, d) + Hd('📦', T.qty) + CK;
+    if (k === 'meet') return F('📅', T.date, d) + F('👥', T.who) + Hd('🗒️', T.topics) + UL + Hd('🤝', T.agree) + UL + Hd('✅', T.tasks) + CK;
+    if (k === 'shift') return F('📅', T.date, d) + F('👤', T.from) + F('👤', T.to) + Hd('✅', T.fin) + UL + Hd('⏳', T.prog) + UL + Hd('🚨', T.urgent) + CK + Hd('🗒️', T.notes) + '<div><br></div>';
+    if (k === 'incident') return F('🕒', T.when, d) + F('📍', T.where) + F('👥', T.ppl) + Hd('❗', T.what) + '<div><br></div>' + Hd('🛠️', T.act) + UL + Hd('💥', T.dmg) + '<div><br></div>' + F('📣', T.rep);
+    return '';
+  }
+  var TPLS = [['stamp', '🕒', ${J('tplStamp')}], ['daily', '📋', ${J('tplDaily')}], ['ticket', '🎫', ${J('tplTicket')}], ['survey', '🔍', ${J('tplSurvey')}],
+    ['mat', '📦', ${J('tplMat')}], ['meet', '👥', ${J('tplMeet')}], ['shift', '🔄', ${J('tplShift')}], ['incident', '⚠️', ${J('tplIncident')}]];
+  window.tplOpen = function(){
+    if (!editable) return;
+    if (dirty) changedNow();
+    RW.work = false; RW.tpl = true; RW.range = null;
+    rwChip.classList.remove('show');
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    closePanels(); document.body.classList.add('rw');
+    rwEl.innerHTML = rwHead(${J('tplTitle')}) + '<div class="tplList">' + TPLS.map(function(t){ return '<button data-tpl="' + t[0] + '"><b>' + t[1] + '</b>' + rwEsc(t[2]) + '</button>'; }).join('') + '</div>';
+    rwEl.classList.add('show');
+    send({ type: 'rwOpen', open: true });
+  };
+  function tplInsert(k){
+    var html = tplHtml(k); if (!html) return;
+    var empty = !ed.textContent.replace(/​/g, '').trim() && !ed.querySelector('.audwrap,.imgwrap');
+    var box = document.createElement('div'); box.innerHTML = html;
+    var firstNew = box.firstChild;
+    if (empty) ed.innerHTML = '';
+    else if (k !== 'stamp') { var sp = document.createElement('div'); sp.appendChild(document.createElement('br')); ed.appendChild(sp); }
+    while (box.firstChild) ed.appendChild(box.firstChild);
+    if (!(ttl.innerText || '').trim() && k !== 'stamp') {
+      var lbl = (TPLS.filter(function(t){ return t[0] === k; })[0] || [])[2] || '';
+      ttl.textContent = lbl;
+    }
+    rwClose();
+    changedNow();
+    showTip(${J('tplAdded')});
+    // el cursor queda en el primer espacio para escribir
+    try {
+      var target = firstNew && firstNew.nodeType === 1 ? firstNew : ed.lastChild;
+      ed.focus();
+      var r = document.createRange(); r.selectNodeContents(target); r.collapse(false);
+      var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r);
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } catch (e) {}
+  }
   function rwEsc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function rwSelRange(){
     var sel = window.getSelection();
@@ -3099,6 +3374,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   });
   function rwHead(title){ return '<div class="rwHead"><div class="pleft"><button class="pback" data-rw="x" aria-label="back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><span>✨ ' + rwEsc(title) + '</span></div><button class="pclose" data-rw="x">' + rwEsc(${J('done')}) + '</button></div>'; }
   function rwShowStyles(){
+    if (RW.work) { workShow(); return; }
+    if (RW.tpl) { window.tplOpen(); return; }
     rwEl.innerHTML = rwHead(${J('rwTitle')}) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 220)) + (RW.text.length > 220 ? '…' : '') + '”</div>' +
       '<div class="rwGrid">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
     rwEl.classList.add('show');
@@ -3106,19 +3383,34 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function rwAsk(style){
     RW.style = style; RW.req++; RW.out = '';
-    var lbl = (RW_STYLES.filter(function(s){ return s[0] === style; })[0] || ['', '✨', ''])[2];
+    var lbl = rwLabel(style);
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
     send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
   }
   window.rewriteResult = function(res){
     if (!res || res.req !== RW.req || !rwEl.classList.contains('show')) return;
-    var lbl = (RW_STYLES.filter(function(s){ return s[0] === RW.style; })[0] || ['', '✨', ''])[2];
+    var lbl = rwLabel(RW.style);
     if (!res.ok || !res.text) {
       rwEl.innerHTML = rwHead(lbl) + '<div class="rwErr">' + rwEsc(${J('rwFail')}) + '</div>' +
         '<div class="rwRow"><button data-rw="back">←</button><button class="main" data-rw="again">' + rwEsc(${J('rwAgain')}) + '</button></div>';
       return;
     }
     RW.out = res.text;
+    if (RW.style === 'syn' && !RW.work) {                    // 📖 palabras formales: se elige una
+      RW.syn = res.text.split('\\n').map(function(l){ return wkClean(l).replace(/^\\s*([-•*–]|\\d+[.)])\\s*/, '').replace(/^["“”']+|["“”'.]+$/g, '').trim(); })
+        .filter(function(l){ return l && l.length < 80; }).slice(0, 10);
+      rwEl.innerHTML = rwHead(lbl) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 120)) + '”</div><div class="rwHint">' + rwEsc(${J('rwSynPick')}) + '</div>' +
+        '<div class="synList">' + RW.syn.map(function(w, i){ return '<button data-syn="' + i + '">' + rwEsc(w) + '</button>'; }).join('') + '</div>' +
+        '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
+      return;
+    }
+    if (RW.work) {
+      rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(res.text) + '</div>' +
+        '<div class="rwRow"><button class="main" data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
+        '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>' +
+        '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
+      return;
+    }
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(res.text) + '</div>' +
       '<div class="rwRow"><button class="main" data-rw="replace">' + rwEsc(${J('rwReplace')}) + '</button>' +
       '<button data-rw="insert">' + rwEsc(${J('rwInsert')}) + '</button></div>' +
@@ -3126,7 +3418,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   function rwClose(){
     rwEl.classList.remove('show'); document.body.classList.remove('rw');
-    RW.req++; RW.range = null;
+    RW.req++; RW.range = null; RW.work = false; RW.tpl = false;
     send({ type: 'rwOpen', open: false });
   }
   window.rewriteClose = function(){ if (rwEl.classList.contains('show')) { rwClose(); return true; } return false; };
@@ -3157,7 +3449,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   rwEl.addEventListener('click', function(e){
     var b = e.target.closest('button'); if (!b) return;
     if (b.dataset.style) return rwAsk(b.dataset.style);
+    if (b.dataset.tpl) return tplInsert(b.dataset.tpl);
+    if (b.dataset.syn) { RW.out = RW.syn[+b.dataset.syn] || ''; return rwPut('replace'); }
     var a = b.dataset.rw;
+    if (a === 'tip') { tipI++; var tp = rwEl.querySelector('.rwTip'); if (tp) tp.outerHTML = tipHtml(); return; }
+    if (a === 'append') return wkAppend();
+    if (a === 'copy') return copyText(RW.out);
+    if (a === 'share') { send({ type: 'shareOut', text: RW.out }); return; }
     if (a === 'x') rwClose();
     else if (a === 'back') rwShowStyles();
     else if (a === 'again') rwAsk(RW.style);

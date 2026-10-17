@@ -2048,6 +2048,18 @@ function NotesApp() {
     clear: 'Rewrite it in simple, clear words that are very easy to understand.',
     fix: 'Correct spelling, grammar and punctuation only. Keep the wording and style as close as possible to the original.',
     emoji: 'Rewrite it in a lively tone and add fitting emojis.',
+    /* 👔 Asistente de trabajo (la persona trabaja en campo y necesita que sus compañeros y jefes entiendan todo) */
+    report: 'Turn these rough field notes into a clear, professional WORK REPORT that a supervisor can understand. Use short section titles on their own line ending with a colon, ' +
+      'only for the sections that have information: Location, Work performed, Materials used, Issues found, Pending / next steps. Use "- " bullets inside sections. ' +
+      'Write in past tense, formal and precise. Keep every technical detail exactly (device names, cable types, room/door numbers, quantities, times). Do not invent facts. No markdown symbols like ** or #.',
+    pronote: 'Rewrite the whole note in a clear, polished, professional tone for work, fixing grammar and choosing formal vocabulary. Keep the same structure, all details and technical terms. Do not invent facts. No markdown symbols like ** or #.',
+    email: 'Write a professional email to my supervisor based on these notes. Start with a line "Subject: ..." then a blank line, a polite greeting, a concise body (use "- " bullets for lists of work or pending items), and a courteous closing without a name. Keep all technical details. Do not invent facts. No markdown symbols like ** or #.',
+    chat: 'Write a short, friendly but professional message for coworkers (for WhatsApp or a team chat) explaining this clearly so they understand exactly what was done and what they need to do. Keep key technical details. Use a few "- " bullets if helpful. No markdown symbols like ** or #.',
+    english: 'Translate this into clear, professional workplace English (if it is already English, polish it into professional English). Keep all technical details and numbers exactly. No markdown symbols like ** or #.',
+    todo: 'Extract every pending task, follow-up or thing still to do from these notes. Reply with ONE task per line, each starting with a verb, short and specific (include location or device when mentioned). No numbering, no bullets, no extra text. If there are none, reply with the single most logical next step.',
+    summary: 'Summarize this in 2 to 4 short professional sentences with the most important information for a supervisor. No markdown.',
+    steps: 'Explain this as clear, numbered step-by-step instructions (lines "1. ", "2. "...) that a coworker could follow without asking questions. Keep all technical details exactly. Add a short "Note:" line at the end only if there is a safety or important warning in the text. No markdown symbols like ** or #.',
+    syn: 'The text is a word or short phrase. Give 6 to 8 more formal and professional alternatives that mean the same in this context, one per line, most common first. Only the alternatives, no numbering, no explanations.',
   };
   function rwReply(data) {
     if (Platform.OS === 'web') {
@@ -2062,9 +2074,10 @@ function NotesApp() {
     const how = m.style === 'translate'
       ? `If the text is written in ${appLang}, translate it into English; otherwise translate it into ${appLang}. Keep the meaning and tone.`
       : RW_HOW[m.style] || RW_HOW.pro;
+    const own = ['report', 'pronote', 'email', 'chat', 'english', 'todo', 'summary', 'steps', 'syn'].indexOf(m.style) >= 0;
     const system = 'You are a writing assistant inside a notes app. ' + how +
-      (m.style === 'translate' ? '' : ' Always answer in the SAME language as the original text.') +
-      ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.';
+      (m.style === 'translate' || m.style === 'english' ? '' : ' Always answer in the SAME language as the original text.') +
+      (own ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.');
     const text = String(m.text || '').slice(0, 6000);
     const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
     let timer;
@@ -2267,6 +2280,7 @@ function NotesApp() {
       if (m.type === 'spellOpen') setSpellOn(!!m.open);
       if (m.type === 'spell') runSpell(m);
       if (m.type === 'rwOpen') setRwOn(!!m.open);
+      if (m.type === 'shareOut' && m.text) Share.share({ message: String(m.text) }).catch(() => showToast(tr('shareFail')));
       if (m.type === 'rewrite') runRewrite(m);
       if (m.type === 'colorPrefs' && m.prefs) { colorPrefs.current = m.prefs; AsyncStorage.setItem('colorPrefs', JSON.stringify(m.prefs)).catch(() => {}); }
       if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
@@ -2700,6 +2714,8 @@ function NotesApp() {
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
           <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
+          <Row icon="briefcase" label={tr('workTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} />
+          <Row icon="clipboard" label={tr('tplTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('tplOpen'), 250); }} />
           <Row icon="mic" label={tr('recAudio')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('recStart'), 250); }} />
           <Row icon="file-text" label={tr('makePdf')} s={s} t={c} onPress={() => { setOptsOpen(false); exportNotes('pdf', [current.id]); }} />
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
