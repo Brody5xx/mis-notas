@@ -2292,11 +2292,22 @@ function NotesApp() {
       <Sheet visible={!!shareFor} onClose={() => setShareFor(null)} title={tr('shareAs')} s={s} t={c}>
         {!!shareFor && (() => {
           const sz = shareFor.reduce((a, id) => a + sendBytes(notes.find(n => n.id === id)), 0);
-          const hint = sz <= 20 * 1048576 ? tr('sizeOk') : sz <= 100 * 1048576 ? tr('sizeBig') : tr('sizeHuge');
+          // Por dónde se puede enviar (✅) y por dónde no (❌), según lo que pesa
+          const MB = 1048576;
+          const ways = [['📧', tr('chEmail'), 20 * MB], ['💬', tr('chWa'), 2048 * MB], ['📱', tr('chRcs'), 100 * MB], ['✉️', tr('chMms'), 1 * MB]];
           return (
             <View style={{ paddingHorizontal: 6, paddingBottom: 10 }}>
-              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>📦 {tr('sizeSend', { s: fmtBytes(sz) })}</Text>
-              <Text style={{ color: c.muted, fontSize: 13, marginTop: 3 }}>{hint}</Text>
+              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>📦 {tr('sizeSend', { s: fmtBytes(sz) })}</Text>
+              {ways.map(([ic, label, max]) => {
+                const ok = sz <= max;
+                return (
+                  <View key={label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 15, width: 26 }}>{ic}</Text>
+                    <Text style={{ flex: 1, color: ok ? c.text : c.muted, fontSize: 13.5, textDecorationLine: ok ? 'none' : 'line-through' }}>{label}</Text>
+                    <Text style={{ fontSize: 16, marginLeft: 8 }}>{ok ? '✅' : '❌'}</Text>
+                  </View>
+                );
+              })}
             </View>
           );
         })()}

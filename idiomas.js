@@ -3952,6 +3952,54 @@ for (const code in VDT) {
   VDK.forEach((k, i) => { S[code][k] = VDT[code][i]; });
 }
 
+/* Por dónde se puede enviar según el tamaño */
+const CHK = ['chEmail', 'chWa', 'chRcs', 'chMms'];
+const CHT = {
+  es: ['Correo (Outlook / Gmail) · hasta 20 MB', 'WhatsApp (como documento) · hasta 2 GB', 'Mensajes con chat (RCS / iMessage) · hasta 100 MB', 'Mensaje de texto MMS · hasta 1 MB'],
+  en: ['Email (Outlook / Gmail) · up to 20 MB', 'WhatsApp (as a document) · up to 2 GB', 'Chat messages (RCS / iMessage) · up to 100 MB', 'MMS text message · up to 1 MB'],
+  pt: ['E-mail (Outlook / Gmail) · até 20 MB', 'WhatsApp (como documento) · até 2 GB', 'Mensagens com chat (RCS / iMessage) · até 100 MB', 'Mensagem MMS · até 1 MB'],
+  fr: ['E-mail (Outlook / Gmail) · jusqu’à 20 Mo', 'WhatsApp (en document) · jusqu’à 2 Go', 'Messages chat (RCS / iMessage) · jusqu’à 100 Mo', 'MMS · jusqu’à 1 Mo'],
+  de: ['E-Mail (Outlook / Gmail) · bis 20 MB', 'WhatsApp (als Dokument) · bis 2 GB', 'Chat-Nachrichten (RCS / iMessage) · bis 100 MB', 'MMS · bis 1 MB'],
+  it: ['Email (Outlook / Gmail) · fino a 20 MB', 'WhatsApp (come documento) · fino a 2 GB', 'Messaggi chat (RCS / iMessage) · fino a 100 MB', 'MMS · fino a 1 MB'],
+  ca: ['Correu (Outlook / Gmail) · fins a 20 MB', 'WhatsApp (com a document) · fins a 2 GB', 'Missatges xat (RCS / iMessage) · fins a 100 MB', 'MMS · fins a 1 MB'],
+  nl: ['E-mail (Outlook / Gmail) · tot 20 MB', 'WhatsApp (als document) · tot 2 GB', 'Chatberichten (RCS / iMessage) · tot 100 MB', 'MMS · tot 1 MB'],
+  sv: ['Mejl (Outlook / Gmail) · upp till 20 MB', 'WhatsApp (som dokument) · upp till 2 GB', 'Chattmeddelanden (RCS / iMessage) · upp till 100 MB', 'MMS · upp till 1 MB'],
+  nb: ['E-post (Outlook / Gmail) · opptil 20 MB', 'WhatsApp (som dokument) · opptil 2 GB', 'Chatmeldinger (RCS / iMessage) · opptil 100 MB', 'MMS · opptil 1 MB'],
+  da: ['Mail (Outlook / Gmail) · op til 20 MB', 'WhatsApp (som dokument) · op til 2 GB', 'Chatbeskeder (RCS / iMessage) · op til 100 MB', 'MMS · op til 1 MB'],
+  fi: ['Sähköposti (Outlook / Gmail) · enint. 20 Mt', 'WhatsApp (asiakirjana) · enint. 2 Gt', 'Chat-viestit (RCS / iMessage) · enint. 100 Mt', 'MMS · enint. 1 Mt'],
+  pl: ['E-mail (Outlook / Gmail) · do 20 MB', 'WhatsApp (jako dokument) · do 2 GB', 'Wiadomości czatu (RCS / iMessage) · do 100 MB', 'MMS · do 1 MB'],
+  cs: ['E-mail (Outlook / Gmail) · do 20 MB', 'WhatsApp (jako dokument) · do 2 GB', 'Chatové zprávy (RCS / iMessage) · do 100 MB', 'MMS · do 1 MB'],
+  sk: ['E-mail (Outlook / Gmail) · do 20 MB', 'WhatsApp (ako dokument) · do 2 GB', 'Chatové správy (RCS / iMessage) · do 100 MB', 'MMS · do 1 MB'],
+  hu: ['E-mail (Outlook / Gmail) · max. 20 MB', 'WhatsApp (dokumentumként) · max. 2 GB', 'Csetüzenetek (RCS / iMessage) · max. 100 MB', 'MMS · max. 1 MB'],
+  ro: ['E-mail (Outlook / Gmail) · până la 20 MB', 'WhatsApp (ca document) · până la 2 GB', 'Mesaje chat (RCS / iMessage) · până la 100 MB', 'MMS · până la 1 MB'],
+  hr: ['E-pošta (Outlook / Gmail) · do 20 MB', 'WhatsApp (kao dokument) · do 2 GB', 'Chat poruke (RCS / iMessage) · do 100 MB', 'MMS · do 1 MB'],
+  el: ['Email (Outlook / Gmail) · έως 20 MB', 'WhatsApp (ως έγγραφο) · έως 2 GB', 'Μηνύματα συνομιλίας (RCS / iMessage) · έως 100 MB', 'MMS · έως 1 MB'],
+  bg: ['Имейл (Outlook / Gmail) · до 20 MB', 'WhatsApp (като документ) · до 2 GB', 'Чат съобщения (RCS / iMessage) · до 100 MB', 'MMS · до 1 MB'],
+  ru: ['Почта (Outlook / Gmail) · до 20 МБ', 'WhatsApp (как документ) · до 2 ГБ', 'Чат-сообщения (RCS / iMessage) · до 100 МБ', 'MMS · до 1 МБ'],
+  uk: ['Пошта (Outlook / Gmail) · до 20 МБ', 'WhatsApp (як документ) · до 2 ГБ', 'Чат-повідомлення (RCS / iMessage) · до 100 МБ', 'MMS · до 1 МБ'],
+  tr: ['E-posta (Outlook / Gmail) · 20 MB’a kadar', 'WhatsApp (belge olarak) · 2 GB’a kadar', 'Sohbet mesajları (RCS / iMessage) · 100 MB’a kadar', 'MMS · 1 MB’a kadar'],
+  ar: ['البريد (Outlook / Gmail) · حتى 20 ميغابايت', 'واتساب (كمستند) · حتى 2 غيغابايت', 'رسائل الدردشة (RCS / iMessage) · حتى 100 ميغابايت', 'رسالة MMS · حتى 1 ميغابايت'],
+  he: ['מייל (Outlook / Gmail) · עד 20MB', 'וואטסאפ (כמסמך) · עד 2GB', 'הודעות צ׳אט (RCS / iMessage) · עד 100MB', 'MMS · עד 1MB'],
+  fa: ['ایمیل (Outlook / Gmail) · تا ۲۰ مگابایت', 'واتساپ (به‌صورت سند) · تا ۲ گیگابایت', 'پیام‌های چت (RCS / iMessage) · تا ۱۰۰ مگابایت', 'MMS · تا ۱ مگابایت'],
+  ur: ['ای میل (Outlook / Gmail) · 20 MB تک', 'واٹس ایپ (دستاویز) · 2 GB تک', 'چیٹ پیغامات (RCS / iMessage) · 100 MB تک', 'MMS · 1 MB تک'],
+  hi: ['ईमेल (Outlook / Gmail) · 20 MB तक', 'WhatsApp (डॉक्यूमेंट) · 2 GB तक', 'चैट मैसेज (RCS / iMessage) · 100 MB तक', 'MMS · 1 MB तक'],
+  bn: ['ইমেইল (Outlook / Gmail) · 20 MB পর্যন্ত', 'WhatsApp (ডকুমেন্ট) · 2 GB পর্যন্ত', 'চ্যাট মেসেজ (RCS / iMessage) · 100 MB পর্যন্ত', 'MMS · 1 MB পর্যন্ত'],
+  id: ['Email (Outlook / Gmail) · hingga 20 MB', 'WhatsApp (sebagai dokumen) · hingga 2 GB', 'Pesan chat (RCS / iMessage) · hingga 100 MB', 'MMS · hingga 1 MB'],
+  ms: ['E-mel (Outlook / Gmail) · hingga 20 MB', 'WhatsApp (sebagai dokumen) · hingga 2 GB', 'Mesej sembang (RCS / iMessage) · hingga 100 MB', 'MMS · hingga 1 MB'],
+  fil: ['Email (Outlook / Gmail) · hanggang 20 MB', 'WhatsApp (bilang dokumento) · hanggang 2 GB', 'Chat messages (RCS / iMessage) · hanggang 100 MB', 'MMS · hanggang 1 MB'],
+  vi: ['Email (Outlook / Gmail) · tối đa 20 MB', 'WhatsApp (dạng tài liệu) · tối đa 2 GB', 'Tin nhắn chat (RCS / iMessage) · tối đa 100 MB', 'MMS · tối đa 1 MB'],
+  th: ['อีเมล (Outlook / Gmail) · ไม่เกิน 20 MB', 'WhatsApp (แบบเอกสาร) · ไม่เกิน 2 GB', 'ข้อความแชท (RCS / iMessage) · ไม่เกิน 100 MB', 'MMS · ไม่เกิน 1 MB'],
+  ja: ['メール(Outlook / Gmail)· 最大20MB', 'WhatsApp(ドキュメント)· 最大2GB', 'チャットメッセージ(RCS / iMessage)· 最大100MB', 'MMS · 最大1MB'],
+  ko: ['이메일(Outlook / Gmail) · 최대 20MB', 'WhatsApp(문서로) · 최대 2GB', '채팅 메시지(RCS / iMessage) · 최대 100MB', 'MMS · 최대 1MB'],
+  sw: ['Barua pepe (Outlook / Gmail) · hadi 20 MB', 'WhatsApp (kama hati) · hadi 2 GB', 'Jumbe za gumzo (RCS / iMessage) · hadi 100 MB', 'MMS · hadi 1 MB'],
+  'zh-Hans': ['邮件(Outlook / Gmail)· 最多 20 MB', 'WhatsApp(以文件发送)· 最多 2 GB', '聊天消息(RCS / iMessage)· 最多 100 MB', '彩信 MMS · 最多 1 MB'],
+  'zh-Hant': ['郵件(Outlook / Gmail)· 最多 20 MB', 'WhatsApp(以文件傳送)· 最多 2 GB', '聊天訊息(RCS / iMessage)· 最多 100 MB', 'MMS · 最多 1 MB'],
+};
+for (const code in CHT) {
+  if (CHT[code].length !== CHK.length) throw new Error('ch ' + code);
+  CHK.forEach((k, i) => { S[code][k] = CHT[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS
