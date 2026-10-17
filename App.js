@@ -1123,7 +1123,7 @@ function NotesApp() {
       const go = () => {
         if (started) return; started = true;
         requestAnimationFrame(() => {
-          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          const an = el.animate(fr, { duration: 470, easing: 'linear', fill: 'forwards' });
           an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
         });
       };
@@ -1133,7 +1133,7 @@ function NotesApp() {
     } else {
       revP.setValue(0);
       setTimeout(() => {
-        Animated.timing(revP, { toValue: 1, duration: 620, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
+        Animated.timing(revP, { toValue: 1, duration: 460, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
       }, 60);
     }
   }, [currentId]);
@@ -1321,12 +1321,12 @@ function NotesApp() {
       const el = revEl.current;
       if (!el || !el.animate) { closeEditorNow(); return; }
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
+        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 440, easing: 'linear', fill: 'forwards' });
         an.onfinish = () => closeEditorNow();
       }));
     } else {
       setTimeout(() => {
-        Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
+        Animated.timing(revP, { toValue: 0, duration: 440, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
           .start(() => closeEditorNow());
       }, 60);
     }
