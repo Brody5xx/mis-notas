@@ -182,8 +182,12 @@ async function saveHistory(id, list) {
       return;
     } catch (e) {}
   }
-  if (list.length) await AsyncStorage.setItem(`${HIST_KEY}_${id}`, str);
-  else await AsyncStorage.removeItem(`${HIST_KEY}_${id}`);
+  if (!list.length) { await AsyncStorage.removeItem(`${HIST_KEY}_${id}`); return; }
+  let l = list;
+  for (;;) {                                   // si no cabe (navegador lleno), se guardan menos versiones
+    try { await AsyncStorage.setItem(`${HIST_KEY}_${id}`, JSON.stringify(l)); return; }
+    catch (e) { if (l.length <= 1) throw e; l = l.slice(0, Math.ceil(l.length / 2)); }
+  }
 }
 /* Lo que se guarda de una nota en cada versión */
 function versionOf(n, at) {
@@ -1232,6 +1236,21 @@ function NotesApp() {
 
   /* ---------- Cargar notas guardadas ---------- */
   useEffect(() => {
+    /* En el navegador: los audios viejos llenaban el espacio (estaban copiados en cada versión del historial).
+       Se quitan del historial para que las notas se puedan guardar otra vez. */
+    if (Platform.OS === 'web') {
+      try {
+        const ls = window.localStorage, keys = [];
+        for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && k.indexOf(HIST_KEY + '_') === 0) keys.push(k); }
+        keys.forEach(k => {
+          const v = ls.getItem(k);
+          if (!v || v.indexOf('data:audio') === -1) return;
+          const list = JSON.parse(v).map(x => ({ ...x, content: String(x.content || '').replace(/ src="data:audio[^"]*"/g, '') }));
+          ls.removeItem(k);
+          try { ls.setItem(k, JSON.stringify(list)); } catch (e) {}
+        });
+      } catch (e) {}
+    }
     loadWallpaper().then(w => { if (w) setWallpaper(w); }).catch(() => {});
     loadData()
       .then(data => {

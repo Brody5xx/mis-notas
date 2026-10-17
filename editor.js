@@ -658,7 +658,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
     else window.parent.postMessage(s, '*');
   }
-  function cleanHtml(){ return ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap'); }
+  function cleanHtml(){ return ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, ''); }
   function payload(){
     return { html: cleanHtml(), title: plainTitle(), titleHtml: plainTitle() ? ttl.innerHTML : '', ink: isDraw ? strokes : undefined };
   }
@@ -2672,13 +2672,51 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     box.innerHTML = audCtl();
     w.insertBefore(box.firstChild, au);
   }
-  function audBlock(src, dur){
+  /* Los audios se guardan aparte (en el almacén del teléfono / navegador), no dentro del texto de la nota.
+     Así la nota no se hace gigante y se puede guardar siempre. */
+  var AUDB = null;
+  function audDb(){
+    if (AUDB) return AUDB;
+    AUDB = new Promise(function(ok, no){
+      try {
+        var rq = indexedDB.open('misnotas_audios', 1);
+        rq.onupgradeneeded = function(){ rq.result.createObjectStore('a'); };
+        rq.onsuccess = function(){ ok(rq.result); };
+        rq.onerror = function(){ no(rq.error); };
+      } catch (e) { no(e); }
+    });
+    AUDB.catch(function(){ AUDB = null; });
+    return AUDB;
+  }
+  function audPut(blob){
+    var aid = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return audDb().then(function(db){ return new Promise(function(ok, no){
+      var tx = db.transaction('a', 'readwrite'); tx.objectStore('a').put(blob, aid);
+      tx.oncomplete = function(){ ok(aid); }; tx.onerror = tx.onabort = function(){ no(tx.error); };
+    }); });
+  }
+  function audGet(aid){
+    return audDb().then(function(db){ return new Promise(function(ok, no){
+      var rq = db.transaction('a').objectStore('a').get(aid);
+      rq.onsuccess = function(){ rq.result ? ok(rq.result) : no(new Error('none')); }; rq.onerror = function(){ no(rq.error); };
+    }); });
+  }
+  function audKeep(blob, cb){                              // guardar aparte; si no se puede, dentro de la nota como antes
+    audPut(blob).then(function(aid){ cb('', aid); }, function(){
+      var fr = new FileReader(); fr.onload = function(){ cb(String(fr.result), null); }; fr.readAsDataURL(blob);
+    });
+  }
+  function audSrc(au, cb){                                 // pone el sonido en el reproductor antes de usarlo
+    if (au.getAttribute('src') || !au.dataset.aid) { cb(); return; }
+    audGet(au.dataset.aid).then(function(b){ if (!au.getAttribute('src')) au.src = URL.createObjectURL(b); cb(); }, function(){ cb(); });
+  }
+  function audBlock(src, dur, aid){
     return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '">' +
       '<button class="audp" type="button">' + PLAY_SVG + '</button>' +
       '<div class="audbar"><div class="audfill"></div></div>' +
       '<span class="audt">' + audFmt(dur) + '</span>' +
       '<button class="audx" type="button">' + DEL_SVG + '</button>' + audCtl() +
-      '<audio preload="none" src="' + src + '"></audio></div>';
+      (aid ? '<audio preload="none" data-aid="' + aid + '"></audio></div>' : '<audio preload="none" src="' + src + '"></audio></div>');
   }
   var audNow = null;   // el audio que está sonando
   function audStopAll(){ if (audNow) { try { audNow.pause(); } catch (e) {} } }
@@ -2702,13 +2740,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (e.target.closest('.audx')) {                       // borrar el audio
       audStopAll(); w.parentNode.removeChild(w); changedNow(); return;
     }
-    if (e.target.closest('.audbar')) {                     // saltar a una parte
+    var tgt = e.target, cx = e.clientX;
+    if (!au.getAttribute('src') && au.dataset.aid) { audSrc(au, function(){ audAct(w, au, btn, fill, tt, dur, tgt, cx); }); return; }
+    audAct(w, au, btn, fill, tt, dur, tgt, cx);
+  }, true);
+  function audAct(w, au, btn, fill, tt, dur, tgt, cx){
+    if (tgt.closest('.audbar')) {                     // saltar a una parte
       var r = w.querySelector('.audbar').getBoundingClientRect(), d2 = isFinite(au.duration) && au.duration > 0 ? au.duration : dur;
-      if (d2) { try { au.currentTime = Math.max(0, Math.min(d2, (e.clientX - r.left) / r.width * d2)); } catch (er) {} }
+      if (d2) { try { au.currentTime = Math.max(0, Math.min(d2, (cx - r.left) / r.width * d2)); } catch (er) {} }
       if (au.paused) { audStopAll(); audNow = au; au.play().catch(function(){}); }
       return;
     }
-    var rwb = e.target.closest('.audrw'), ffb = e.target.closest('.audff');
+    var rwb = tgt.closest('.audrw'), ffb = tgt.closest('.audff');
     if (rwb || ffb) {                                      // devolver / adelantar 10 segundos
       var delta = rwb ? -10 : 10;
       var go = function(){
@@ -2721,20 +2764,32 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       else go();
       return;
     }
-    var spb = e.target.closest('.audsp');
+    var spb = tgt.closest('.audsp');
     if (spb) {                                             // velocidad: 1× → 1,5× → 2× → 1×
       var cur = +w.dataset.rate || 1, nx = AUD_RATES[(AUD_RATES.indexOf(cur) + 1) % AUD_RATES.length];
       w.dataset.rate = nx; au.defaultPlaybackRate = nx; au.playbackRate = nx;
       spb.textContent = audRateTxt(nx);
       return;
     }
-    if (e.target.closest('.audp')) {
+    if (tgt.closest('.audp')) {
       au.playbackRate = +w.dataset.rate || 1;
       if (au.paused) { audStopAll(); audNow = au; if (au.ended) au.currentTime = 0; au.play().catch(function(){}); }
       else au.pause();
     }
-  }, true);
+  }
 
+  (function(){                                            // audios viejos guardados dentro de la nota → pasarlos aparte
+    var olds = Array.prototype.filter.call(ed.querySelectorAll('.audwrap audio'), function(a){ return /^data:/.test(a.getAttribute('src') || ''); });
+    if (!olds.length || !editable) return;
+    var left = olds.length, moved = 0;
+    olds.forEach(function(a){
+      fetch(a.getAttribute('src')).then(function(r){ return r.blob(); }).then(audPut).then(function(aid){
+        var keep = a.getAttribute('src');
+        a.setAttribute('data-aid', aid); a.removeAttribute('src'); moved++;
+        audGet(aid).then(function(b){ if (!a.getAttribute('src')) a.src = URL.createObjectURL(b); }, function(){ a.src = keep; });
+      }).catch(function(){}).then(function(){ if (--left === 0 && moved) changedNow(); });
+    });
+  })();
   Array.prototype.forEach.call(ed.querySelectorAll('.audwrap'), function(w){
     audUpgrade(w);
     var r0 = +w.dataset.rate || 1, sp = w.querySelector('.audsp'); if (sp) sp.textContent = audRateTxt(r0);
@@ -2834,8 +2889,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (!me.chunks.length) { showTip(${J('recNoMic')}); return; }
       var blob = new Blob(me.chunks, { type: (me.mr && me.mr.mimeType) || 'audio/webm' });
       var fr = new FileReader();
-      fr.onload = function(){ recInsert(me, text, String(fr.result), dur, blob); };
-      fr.readAsDataURL(blob);
+      audKeep(blob, function(src, aid){ recInsert(me, text, src, dur, blob, aid); });
     };
     if (me.mr && me.mr.state !== 'inactive') { me.mr.onstop = finishIt; try { me.mr.requestData(); } catch (e) {} me.mr.stop(); recClose(); }
     else { recClose(); finishIt(); }
@@ -2950,15 +3004,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         .then(function(b){ try { ac.close(); } catch (e) {} return b.duration; },
               function(e){ try { ac.close(); } catch (er) {} throw e; });
     }).then(function(dur){
-      var fr = new FileReader();
-      fr.onload = function(){ recInsert(me, '', String(fr.result), dur, blob); };
-      fr.readAsDataURL(blob);
+      audKeep(blob, function(src, aid){ recInsert(me, '', src, dur, blob, aid); });
     }).catch(function(){ showTip(${J('recBadFile')}); });
   });
   window.audUpload = function(){ if (!editable) return; audUpKeep = null; audIn.click(); };
-  function recInsert(me, text, src, dur, blob){
+  function recInsert(me, text, src, dur, blob, aid){
     var wrap = document.createElement('div');
-    wrap.innerHTML = audBlock(src, dur);
+    wrap.innerHTML = audBlock(src, dur, aid);
     var block = wrap.firstChild;
     // se pone después de la línea donde estaba el cursor (o al final de la nota)
     var at = null;
