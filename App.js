@@ -2085,7 +2085,10 @@ function NotesApp() {
         : m.style === 'translate' || m.style === 'english' ? ''
         : m.lang ? ` Always write the answer in ${LN(m.lang)}, translating naturally if the original is in another language (keep technical terms, names and numbers exactly).`
         : ' Always answer in the SAME language as the original text.') +
-      (own || dual ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.');
+      (own || dual ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.') +
+      (m.pieces ? ' IMPORTANT: the text is a note split into numbered pieces like "[1] ...", "[2] ...". Consecutive pieces can be parts of the same sentence with different formatting. ' +
+        'Return EVERY piece, each on its own line starting with the same number ("[n] new text"), in the same order, with the new text for that same part. ' +
+        'Never merge, split, add or drop pieces; never add text outside the pieces. Keep emojis, names, numbers and technical terms.' : '');
     const text = String(m.text || '').slice(0, 6000);
     const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
     const sleep = ms => new Promise(r => setTimeout(r, ms));

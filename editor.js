@@ -3410,18 +3410,85 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     try { var n = new Intl.DisplayNames([cd], { type: 'language' }).of(cd); return n.charAt(0).toUpperCase() + n.slice(1); } catch (e) { return cd.toUpperCase(); }
   }
   try { RW.tab = +(localStorage.getItem('rwTab') || 0) || 0; } catch (e) { RW.tab = 0; }
+  /* ✍️ Cambiar el texto EN SU LUGAR: cada pedacito de texto se reescribe donde está,
+     así las fotos, audios, colores y el orden de la nota no se mueven */
+  var INPLACE = { pronote: 1, fix: 1, formal: 1, biz: 1, clear: 1, friendly: 1, persuasive: 1, funny: 1, emoji: 1, translate: 1, english: 1 };
+  function wkSegs(){
+    var segs = [], b = -1;
+    Array.prototype.forEach.call(ed.children, function(top){
+      if (top.matches('.audwrap,.imgwrap,.audtx,.audpro')) return;
+      var blocks = (top.tagName === 'UL' || top.tagName === 'OL') ? Array.prototype.slice.call(top.children) : [top];
+      blocks.forEach(function(blk){
+        b++;
+        var tw = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT, null), n;
+        while ((n = tw.nextNode())) {
+          if (n.parentNode.closest && n.parentNode.closest('.audwrap,.imgwrap,.audpro,.audtx')) continue;
+          var d = n.data.replace(/\\u200B/g, '');
+          if (!/[0-9A-Za-z\\u00C0-\\u1FFF\\u3000-\\uD7FF\\uF900-\\uFFEF]/.test(d)) continue;   // solo signos o emojis: se deja igual
+          var m = d.match(/^(\\s*)([\\s\\S]*?)(\\s*)$/);
+          segs.push({ n: n, b: b, lead: m[1], core: m[2], trail: m[3] });
+        }
+      });
+    });
+    return segs;
+  }
+  function pcParse(raw){
+    if (!raw || !RW.segs) return null;
+    var arr = new Array(RW.segs.length), got = 0, cur = -1;
+    String(raw).split('\\n').forEach(function(l){
+      var m = l.match(/^\\s*\\[(\\d+)\\]\\s?(.*)$/);
+      if (m) { cur = +m[1] - 1; if (cur >= 0 && cur < arr.length) { if (arr[cur] == null) got++; arr[cur] = m[2].trim(); } else cur = -1; }
+      else if (cur >= 0 && l.trim()) arr[cur] = (arr[cur] ? arr[cur] + ' ' : '') + l.trim();
+    });
+    return got >= Math.max(1, Math.ceil(arr.length * 0.6)) ? arr : null;
+  }
+  function pcText(arr){
+    var out = [], lastB = null;
+    RW.segs.forEach(function(sg, i){
+      var v = arr[i] != null ? arr[i] : sg.core;
+      if (sg.b !== lastB) { out.push(v); lastB = sg.b; }
+      else out[out.length - 1] += ' ' + v;
+    });
+    return out.join('\\n');
+  }
+  function pcShow(raw){                                     // lo que se ve en el panel (texto normal, no numerado)
+    if (!RW.inplace) return raw;
+    var a = pcParse(raw);
+    return a ? pcText(a) : raw;
+  }
+  function wkInPlace(){
+    var arr = pcParse(RW.tab === 1 && RW.dual ? RW.outs[1] : RW.dual ? RW.outs[0] : RW.raw);
+    if (!arr) return;
+    RW.segs.forEach(function(sg, i){
+      if (!sg.n.parentNode || arr[i] == null) return;
+      sg.n.data = sg.lead + arr[i] + sg.trail;
+    });
+    rwClose();
+    changedNow();                                           // Deshacer lo regresa como estaba
+    showTip(${J('rwDone')});
+  }
   function rwAsk(style){
     RW.style = style; RW.req++; RW.out = '';
+    RW.inplace = false; RW.sendText = RW.text;
+    if (RW.work && INPLACE[style]) {
+      RW.segs = wkSegs();
+      if (RW.segs.length) {
+        RW.inplace = true;
+        RW.sendText = RW.segs.map(function(sg, i){ return '[' + (i + 1) + '] ' + sg.core.replace(/\\s+/g, ' '); }).join('\\n');
+      }
+    }
     RW.dual = !NO_DUAL[style]; RW.outs = [null, null]; RW.errs = [false, false];
     var lbl = rwLabel(style);
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
     if (RW.dual) {
       RW.asked = [true, true];                               // un solo pedido trae las dos versiones juntas
-      send({ type: 'rewrite', req: RW.req, style: style, text: RW.text, dual: DUAL });
-    } else send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
+      send({ type: 'rewrite', req: RW.req, style: style, text: RW.sendText, dual: DUAL, pieces: RW.inplace });
+    } else send({ type: 'rewrite', req: RW.req, style: style, text: RW.sendText, pieces: RW.inplace });
   }
   function rwButtons(){
-    if (RW.work) return '<div class="rwRow"><button class="main" data-rw="wrep">🔄 ' + rwEsc(${J('wReplace')}) + '</button><button data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
+    if (RW.work) return '<div class="rwRow">' +
+        (RW.canRep ? '<button class="main" data-rw="wrep">🔄 ' + rwEsc(${J('wReplace')}) + '</button>' : '') +
+        '<button' + (RW.canRep ? '' : ' class="main"') + ' data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
       '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>';
     return '<div class="rwRow"><button class="main" data-rw="replace">' + rwEsc(${J('rwReplace')}) + '</button>' +
       '<button data-rw="insert">' + rwEsc(${J('rwInsert')}) + '</button></div>' +
@@ -3431,7 +3498,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var lbl = rwLabel(RW.style), o = RW.outs, t = RW.tab;
     var tabs = '<div class="rwTabs">' + [langName(DUAL[0]), langName(DUAL[1]), '🔀 ' + ${J('wBoth')}].map(function(n, i){
       return '<button data-tab="' + i + '"' + (i === t ? ' class="on"' : '') + '>' + rwEsc(n) + '</button>'; }).join('') + '</div>';
-    var txt = t === 2 ? (o[0] && o[1] ? langName(DUAL[0]) + ':\\n' + o[0] + '\\n\\n' + langName(DUAL[1]) + ':\\n' + o[1] : null) : o[t];
+    var txt = t === 2 ? (o[0] && o[1] ? langName(DUAL[0]) + ':\\n' + pcShow(o[0]) + '\\n\\n' + langName(DUAL[1]) + ':\\n' + pcShow(o[1]) : null) : (o[t] ? pcShow(o[t]) : null);
+    RW.canRep = RW.inplace && t !== 2 && !!pcParse(o[t]);
     var err = t === 2 ? (RW.errs[0] || RW.errs[1]) : RW.errs[t];
     RW.out = txt || '';
     var body = txt ? '<div class="rwOut">' + rwEsc(txt) + '</div>' + rwButtons()
@@ -3449,7 +3517,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           if (res.outs && res.outs[i]) RW.outs[i] = res.outs[i];
           else {                                              // si una versión no llegó, se pide sola
             RW.outs[i] = null;
-            send({ type: 'rewrite', req: RW.req, style: RW.style, text: RW.text, lang: DUAL[i], slot: i });
+            send({ type: 'rewrite', req: RW.req, style: RW.style, text: RW.sendText, lang: DUAL[i], slot: i, pieces: RW.inplace });
           }
         });
       } else {
@@ -3475,9 +3543,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       return;
     }
     if (RW.work) {
-      rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(res.text) + '</div>' +
-        '<div class="rwRow"><button class="main" data-rw="wrep">🔄 ' + rwEsc(${J('wReplace')}) + '</button><button data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
-        '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>' +
+      RW.raw = res.text; RW.out = pcShow(res.text); RW.canRep = RW.inplace && !!pcParse(res.text);
+      rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(RW.out) + '</div>' + rwButtons() +
         '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
       return;
     }
@@ -3525,7 +3592,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var a = b.dataset.rw;
     if (a === 'tip') { tipI++; var tp = rwEl.querySelector('.rwTip'); if (tp) tp.outerHTML = tipHtml(); return; }
     if (a === 'append') return wkAppend();
-    if (a === 'wrep') return wkReplace();
+    if (a === 'wrep') return RW.inplace ? wkInPlace() : null;
     if (a === 'copy') return copyText(RW.out);
     if (a === 'share') { send({ type: 'shareOut', text: RW.out }); return; }
     if (a === 'x') rwClose();
