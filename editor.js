@@ -341,6 +341,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audwrap .audt{flex:none;font-size:15px;color:${c.muted};font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
   .audwrap .audx{width:34px;height:34px;opacity:.85}
   .audwrap audio{display:none}
+  .audtx{color:${c.muted};font-style:italic}
   #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
   body.recording #dock,body.recording #rwChip{display:none !important}
   #recP .recTop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
@@ -583,6 +584,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var range = $('range'), sizeNum = $('sizeNum'), sizeBig = $('sizeBig'), sample = $('sample'), colorDot = $('colorDot');
   var saved = null, dirty = false, sendTimer = null;
   ed.innerHTML = ${safeContent};
+  Array.prototype.forEach.call(ed.querySelectorAll('.audtx'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
   // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
     var t = parseFloat(w.style.top) || 0;
@@ -2768,13 +2770,64 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (!me.chunks.length) { showTip(${J('recNoMic')}); return; }
       var blob = new Blob(me.chunks, { type: (me.mr && me.mr.mimeType) || 'audio/webm' });
       var fr = new FileReader();
-      fr.onload = function(){ recInsert(me, text, String(fr.result), dur); };
+      fr.onload = function(){ recInsert(me, text, String(fr.result), dur, blob); };
       fr.readAsDataURL(blob);
     };
     if (me.mr && me.mr.state !== 'inactive') { me.mr.onstop = finishIt; try { me.mr.requestData(); } catch (e) {} me.mr.stop(); recClose(); }
     else { recClose(); finishIt(); }
   };
-  function recInsert(me, text, src, dur){
+  /* Transcribir DESPUÉS de grabar (para Android, donde no se puede grabar y transcribir a la vez):
+     el audio se convierte a WAV liviano (16 kHz, mono) en pedazos de 40 s y se manda a la IA gratis */
+  function audToWav16(blob){
+    return blob.arrayBuffer().then(function(ab){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ac = new AC();
+      return new Promise(function(res, rej){ ac.decodeAudioData(ab, res, rej); }).then(function(buf){
+        try { ac.close(); } catch (e) {}
+        var len = Math.max(1, Math.ceil(buf.duration * 16000));
+        var off = new OfflineAudioContext(1, len, 16000), src = off.createBufferSource();
+        src.buffer = buf; src.connect(off.destination); src.start(0);
+        return off.startRendering();
+      });
+    }).then(function(r){
+      var data = r.getChannelData(0), CH = 16000 * 40, out = [];
+      for (var o = 0; o < data.length; o += CH) out.push(wavB64(data.subarray(o, Math.min(data.length, o + CH))));
+      return out;
+    });
+  }
+  function wavB64(f){
+    var n = f.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    var w = function(o, t){ for (var i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) { var x = Math.max(-1, Math.min(1, f[i])); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+    var bytes = new Uint8Array(buf), bin = '', CH = 0x8000;
+    for (var j = 0; j < bytes.length; j += CH) bin += String.fromCharCode.apply(null, bytes.subarray(j, j + CH));
+    return btoa(bin);
+  }
+  function audTranscribe(blob){
+    return audToWav16(blob).then(function(parts){
+      var all = [], i = 0;
+      var next = function(){
+        if (i >= parts.length) return Promise.resolve(all.join(' '));
+        var b64 = parts[i++];
+        return fetch('https://text.pollinations.ai/openai', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'openai-audio', messages: [{ role: 'user', content: [
+            { type: 'text', text: 'Transcribe this audio exactly as spoken, in its original language. Reply ONLY with the transcription, nothing else.' },
+            { type: 'input_audio', input_audio: { data: b64, format: 'wav' } }] }] })
+        }).then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+          .then(function(j){
+            var t = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+            if (t) all.push(String(t).trim());
+            return next();
+          });
+      };
+      return next();
+    });
+  }
+  function recInsert(me, text, src, dur, blob){
     var wrap = document.createElement('div');
     wrap.innerHTML = audBlock(src, dur);
     var block = wrap.firstChild;
@@ -2782,12 +2835,26 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var at = null;
     if (me.keep) { var n = me.keep.startContainer; while (n && n.parentNode !== ed) n = n.parentNode; at = n; }
     var frag = document.createDocumentFragment();
-    if (text) { var p = document.createElement('div'); p.textContent = text; frag.appendChild(p); }
+    var p = null;
+    if (text) { p = document.createElement('div'); p.textContent = text; frag.appendChild(p); }
+    else if (blob) {                                   // no hubo texto en vivo: se transcribe al terminar
+      p = document.createElement('div'); p.className = 'audtx'; p.setAttribute('contenteditable', 'false');
+      p.textContent = ${J('recWorking')}; frag.appendChild(p);
+    }
     frag.appendChild(block);
     var after = document.createElement('div'); after.appendChild(document.createElement('br')); frag.appendChild(after);
     if (at && at.parentNode === ed) ed.insertBefore(frag, at.nextSibling); else ed.appendChild(frag);
     changedNow();
     showTip(${J('recSaved')});
+    if (!text && blob && p) {
+      audTranscribe(blob).then(function(t){
+        t = (t || '').trim();
+        if (!p.parentNode) return;
+        if (t) { var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p); }
+        else { p.parentNode.removeChild(p); showTip(${J('recFail')}); }
+        changedNow();
+      }).catch(function(){ if (p.parentNode) p.parentNode.removeChild(p); changedNow(); showTip(${J('recFail')}); });
+    }
     try { block.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
   }
   recEl.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
