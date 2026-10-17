@@ -1192,6 +1192,7 @@ function NotesApp() {
   const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
+  const aiChain = useRef(Promise.resolve()), aiLast = useRef(0);   // pedidos a la IA de uno en uno
   const calcState = useRef({});                     // lo que la calculadora recuerda
   const colorPrefs = useRef({});                    // colores recientes y favoritos
   const calcWeb = useRef(null), calcFrame = useRef(null);
@@ -2059,6 +2060,7 @@ function NotesApp() {
     todo: 'Extract every pending task, follow-up or thing still to do from these notes. Reply with ONE task per line, each starting with a verb, short and specific (include location or device when mentioned). No numbering, no bullets, no extra text. If there are none, reply with the single most logical next step.',
     summary: 'Summarize this in 2 to 4 short professional sentences with the most important information for a supervisor. No markdown.',
     steps: 'Explain this as clear, numbered step-by-step instructions (lines "1. ", "2. "...) that a coworker could follow without asking questions. Keep all technical details exactly. Add a short "Note:" line at the end only if there is a safety or important warning in the text. No markdown symbols like ** or #.',
+    xlate: 'Translate this text faithfully, keeping exactly the same meaning, format, line breaks, bullets, numbering and technical terms. Do not add or remove anything.',
     syn: 'The text is a word or short phrase. Give 6 to 8 more formal and professional alternatives that mean the same in this context, one per line, most common first. Only the alternatives, no numbering, no explanations.',
   };
   function rwReply(data) {
@@ -2075,7 +2077,7 @@ function NotesApp() {
     const how = m.style === 'translate'
       ? `If the text is written in ${appLang}, translate it into English; otherwise translate it into ${appLang}. Keep the meaning and tone.`
       : RW_HOW[m.style] || RW_HOW.pro;
-    const own = ['report', 'pronote', 'email', 'chat', 'english', 'todo', 'summary', 'steps', 'syn'].indexOf(m.style) >= 0;
+    const own = ['report', 'pronote', 'email', 'chat', 'english', 'todo', 'summary', 'steps', 'syn', 'xlate'].indexOf(m.style) >= 0;
     const dual = Array.isArray(m.dual) && m.dual.length === 2 ? m.dual : null;
     const MK = ['<<<VERSION 1>>>', '<<<VERSION 2>>>'];
     const system = 'You are a writing assistant inside a notes app. ' + how +
@@ -2083,7 +2085,7 @@ function NotesApp() {
         ? ` Produce the result TWICE: first written in ${LN(dual[0])}, then the same result written in ${LN(dual[1])} (translate naturally; keep technical terms, names and numbers exactly). ` +
           `Use EXACTLY this format: a line "${MK[0]}", then the ${LN(dual[0])} version, then a line "${MK[1]}", then the ${LN(dual[1])} version. Nothing else.`
         : m.style === 'translate' || m.style === 'english' ? ''
-        : m.lang ? ` Always write the answer in ${LN(m.lang)}, translating naturally if the original is in another language (keep technical terms, names and numbers exactly).`
+        : m.lang ? ` The ENTIRE answer must be written in ${LN(m.lang)} — every sentence, title and list item — translating naturally if the original is in another language (only technical terms, brand names, names and numbers stay as they are).`
         : ' Always answer in the SAME language as the original text.') +
       (own || dual ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.') +
       (m.pieces ? ' IMPORTANT: the text is a note split into numbered pieces like "[1] ...", "[2] ...". Consecutive pieces can be parts of the same sentence with different formatting. ' +
@@ -2094,9 +2096,13 @@ function NotesApp() {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), ms); })]).finally(() => clearTimeout(t)); };
     async function ask() {
-      // Hasta 3 intentos (el servicio gratis a veces pide esperar un poquito entre pedidos)
-      for (let k = 0; k < 3; k++) {
-        if (k) await sleep(2500 * k);
+      // Hasta 4 intentos, esperando cada vez más (el servicio gratis pide esperar entre pedidos)
+      const WAITS = [0, 5000, 10000, 16000];
+      for (let k = 0; k < WAITS.length; k++) {
+        if (WAITS[k]) await sleep(WAITS[k]);
+        const since = Date.now() - (aiLast.current || 0);
+        if (since < 3000) await sleep(3000 - since);        // un respiro entre un pedido y otro
+        aiLast.current = Date.now();
         const seed = Math.floor(Math.random() * 1e6);
         try {
           const r = await withTimeout(fetch('https://text.pollinations.ai/openai', {
@@ -2121,7 +2127,13 @@ function NotesApp() {
       }
       return '';
     }
-    const out = await ask();
+    // Los pedidos van de uno en uno (si se mandan juntos, el servicio rechaza el segundo)
+    const prev = aiChain.current;
+    let done;
+    aiChain.current = new Promise(r => { done = r; });
+    await prev.catch(() => {});
+    let out = '';
+    try { out = await ask(); } finally { done(); }
     if (!out) { rwReply({ req: m.req, slot: m.slot, dual: !!dual, ok: false }); return; }
     if (!dual) { rwReply({ req: m.req, slot: m.slot, ok: true, text: clean(out) }); return; }
     // Separar las dos versiones

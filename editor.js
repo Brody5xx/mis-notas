@@ -3148,6 +3148,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var a = (RW.work ? WORK_STYLES : RW_STYLES).concat(RW_STYLES, WORK_STYLES).filter(function(s){ return s[0] === st; })[0];
     return a ? a[2] : '';
   }
+  var LBL_EN = { report: 'Work report', pronote: 'Professional version', email: 'Email to my boss', chat: 'Message to coworkers', english: 'Polished English',
+    todo: 'To-do list', summary: 'Short summary', steps: 'Step-by-step instructions', fix: 'Corrected', formal: 'Formal', pro: 'Professional', biz: 'Business',
+    clear: 'Clearer', short: 'Shorter', long: 'Longer', friendly: 'Friendly', persuasive: 'Persuasive', funny: 'Funny', emoji: 'With emojis', translate: 'Translated' };
+  var LBL_ES = { report: 'Reporte de trabajo', pronote: 'Versión profesional', email: 'Correo para mi jefe', chat: 'Mensaje para compañeros', english: 'Inglés profesional',
+    todo: 'Pendientes', summary: 'Resumen corto', steps: 'Instrucciones paso a paso', fix: 'Corregido', formal: 'Formal', pro: 'Profesional', biz: 'Negocios',
+    clear: 'Más claro', short: 'Más corto', long: 'Más largo', friendly: 'Amigable', persuasive: 'Persuasivo', funny: 'Chistoso', emoji: 'Con emojis', translate: 'Traducido' };
+  function labelIn(st, cd){ return (cd === 'en' ? LBL_EN[st] : cd === 'es' ? LBL_ES[st] : null) || rwLabel(st); }
   function rwIco(st){ var a = RW_STYLES.concat(WORK_STYLES).filter(function(s){ return s[0] === st; })[0]; return a ? a[1] : '✨'; }
   /* Frases del día a día → cómo decirlas profesionalmente (para ir aprendiendo) */
   var PRO_TIPS = {
@@ -3248,7 +3255,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!RW.out) return;
     var sp = document.createElement('div'); sp.appendChild(document.createElement('br'));
     var hd = document.createElement('div'), hb = document.createElement('b');
-    hb.textContent = rwIco(RW.style) + ' ' + rwLabel(RW.style); hd.appendChild(hb);
+    var hl = !RW.dual ? rwLabel(RW.style) : RW.tab === 2 ? labelIn(RW.style, DUAL[0]) + ' / ' + labelIn(RW.style, DUAL[1]) : labelIn(RW.style, DUAL[RW.tab]);
+    hb.textContent = rwIco(RW.style) + ' ' + hl; hd.appendChild(hb);
     var frag = document.createDocumentFragment();
     if (ed.textContent.trim() || ed.querySelector('.audwrap,.imgwrap')) frag.appendChild(sp);
     frag.appendChild(hd);
@@ -3481,8 +3489,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var lbl = rwLabel(style);
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
     if (RW.dual) {
-      RW.asked = [true, true];                               // un solo pedido trae las dos versiones juntas
-      send({ type: 'rewrite', req: RW.req, style: style, text: RW.sendText, dual: DUAL, pieces: RW.inplace });
+      RW.first = RW.tab === 1 ? 1 : 0;                       // primero el idioma que estás mirando; el otro se traduce de ese mismo resultado
+      send({ type: 'rewrite', req: RW.req, style: style, text: RW.sendText, lang: DUAL[RW.first], slot: RW.first, pieces: RW.inplace });
     } else send({ type: 'rewrite', req: RW.req, style: style, text: RW.sendText, pieces: RW.inplace });
   }
   function rwButtons(){
@@ -3521,8 +3529,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           }
         });
       } else {
-        var sl = res.slot === 1 ? 1 : 0;
-        if (res.ok && res.text) RW.outs[sl] = res.text; else RW.errs[sl] = true;
+        var sl = res.slot === 1 ? 1 : 0, other = 1 - sl;
+        if (res.ok && res.text) {
+          RW.outs[sl] = res.text;
+          if (sl === RW.first && RW.outs[other] == null && !RW.errs[other])
+            send({ type: 'rewrite', req: RW.req, style: 'xlate', text: res.text, lang: DUAL[other], slot: other, pieces: RW.inplace });
+        } else {
+          RW.errs[sl] = true;
+          if (sl === RW.first) RW.errs[other] = true;          // sin el primero no hay qué traducir
+        }
       }
       rwRenderDual();
       return;
