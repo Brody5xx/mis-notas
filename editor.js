@@ -2818,7 +2818,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       "    if (!asr) asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', { dtype: 'q8',",
       "      progress_callback: (p) => { if (p && p.status === 'progress') self.postMessage({ type: 'dl', file: p.file, progress: p.progress || 0 }); } });",
       "    self.postMessage({ type: 'run' });",
-      "    const opt = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' };",
+      "    const opt = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe', no_repeat_ngram_size: 4, max_new_tokens: 200 };",
       "    if (e.data.lang && e.data.lang !== 'auto') opt.language = e.data.lang;",
       "    const out = await asr(e.data.audio, opt);",
       "    self.postMessage({ type: 'done', id: e.data.id, text: (out && out.text) || '' });",
@@ -2853,6 +2853,25 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       });
     });
   }
+  // Whisper a veces se "atasca" repitiendo la misma palabra (four, four, four…): se quitan esas repeticiones
+  function audClean(t){
+    var w = String(t || '').split(' ').filter(Boolean);
+    var nk = function(x){ return x.toLowerCase().replace(/[.,;:!?¡¿"'()…-]/g, ''); };
+    for (var n = 1; n <= 6; n++) {
+      var out = [], i = 0;
+      while (i < w.length) {
+        var reps = 1;
+        if (i + n <= w.length) {
+          var key = w.slice(i, i + n).map(nk).join(' ');
+          while (i + (reps + 1) * n <= w.length && w.slice(i + reps * n, i + (reps + 1) * n).map(nk).join(' ') === key) reps++;
+        }
+        if (reps >= 3) { out = out.concat(w.slice(i, i + n)); i += reps * n; }
+        else { out.push(w[i]); i++; }
+      }
+      w = out;
+    }
+    return w.join(' ');
+  }
   function recInsert(me, text, src, dur, blob){
     var wrap = document.createElement('div');
     wrap.innerHTML = audBlock(src, dur);
@@ -2877,7 +2896,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         if (!p.parentNode) return;
         p.textContent = pct >= 0 ? ${J('recDl')}.replace('{n}', pct) : ${J('recWorking')};
       }, recLang).then(function(t){
-        t = (t || '').trim();
+        t = audClean(t).trim();
         if (!p.parentNode) return;
         if (t) { var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p); }
         else { p.parentNode.removeChild(p); showTip(${J('recFail')}); }
