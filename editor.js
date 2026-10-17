@@ -352,6 +352,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #recP .recTxt{min-height:70px;max-height:34vh;overflow:auto;font-size:17px;line-height:1.45;color:${c.text};padding:4px 2px 10px}
   #recP .recTxt i{color:${c.muted};font-style:normal}
   #recP .recBtns{display:flex;gap:10px}
+  #recP .recLangs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+  #recP .recLangs::-webkit-scrollbar{display:none}
+  #recP .recLangs button{flex:none;height:34px;padding:0 14px;border-radius:17px;border:1px solid ${c.border};background:transparent;color:${c.text};font-size:14px}
+  #recP .recLangs button.on{background:${c.text};color:${c.inv};border-color:transparent;font-weight:700}
   #recP .recBtns button{flex:1;height:46px;border-radius:23px;font-size:16px;font-weight:700;border:1px solid ${c.border};background:transparent;color:${c.text}}
   #recP .recBtns .recOk{background:${c.text};color:${c.inv};border-color:transparent}
   #rw{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:14px 14px 12px;max-height:72vh;overflow:auto}
@@ -2690,6 +2694,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }, true);
 
   var REC = null, recEl = $('recP');
+  /* Idioma en que vas a hablar (Whisper se enfoca en ese idioma y transcribe mejor) */
+  var REC_LANGS = [['auto', '🌐 Auto'], ['spanish', 'Español'], ['english', 'English'], ['portuguese', 'Português'],
+    ['french', 'Français'], ['italian', 'Italiano'], ['german', 'Deutsch'], ['chinese', '中文'], ['japanese', '日本語'],
+    ['korean', '한국어'], ['russian', 'Русский'], ['arabic', 'العربية'], ['hindi', 'हिन्दी']];
+  var REC_BY_CODE = { es: 'spanish', en: 'english', pt: 'portuguese', fr: 'french', it: 'italian', de: 'german', zh: 'chinese', ja: 'japanese', ko: 'korean', ru: 'russian', ar: 'arabic', hi: 'hindi' };
+  var recLang = 'auto';
+  try { recLang = localStorage.getItem('recLang') || REC_BY_CODE[String(LOC || '').slice(0, 2)] || 'auto'; } catch (e) { recLang = REC_BY_CODE[String(LOC || '').slice(0, 2)] || 'auto'; }
   function recEsc(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function recPaint(){
     if (!REC) return;
@@ -2708,6 +2719,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { showTip(${J('recNoMic')}); return; }
     REC = { t0: Date.now(), chunks: [], fin: '', mid: '', keep: keep, noSR: false, live: true };
     recEl.innerHTML = '<div class="recTop"><span class="recDot"></span><span class="recLbl">' + recEsc(${J('recListening')}) + '</span><span class="recTime">0:00</span></div>' +
+      '<div class="recLangs">' + REC_LANGS.map(function(l){ return '<button type="button" data-lang="' + l[0] + '"' + (l[0] === recLang ? ' class="on"' : '') + '>' + l[1] + '</button>'; }).join('') + '</div>' +
       '<div class="recBtns"><button type="button" data-rec="x">' + recEsc(${J('recCancel')}) + '</button>' +
       '<button type="button" class="recOk" data-rec="ok">' + recEsc(${J('recStop')}) + '</button></div>';
     recEl.classList.add('show'); document.body.classList.add('recording');
@@ -2806,7 +2818,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       "    if (!asr) asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', { dtype: 'q8',",
       "      progress_callback: (p) => { if (p && p.status === 'progress') self.postMessage({ type: 'dl', file: p.file, progress: p.progress || 0 }); } });",
       "    self.postMessage({ type: 'run' });",
-      "    const out = await asr(e.data.audio, { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' });",
+      "    const opt = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' };",
+      "    if (e.data.lang && e.data.lang !== 'auto') opt.language = e.data.lang;",
+      "    const out = await asr(e.data.audio, opt);",
       "    self.postMessage({ type: 'done', id: e.data.id, text: (out && out.text) || '' });",
       "  } catch (err) { self.postMessage({ type: 'err', id: e.data.id, msg: String((err && err.message) || err) }); }",
       "};"
@@ -2830,12 +2844,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     WH.w.onerror = function(){ Object.keys(WH.jobs).forEach(function(k){ WH.jobs[k].no(new Error('worker')); }); WH.jobs = {}; WH = null; };
     return WH;
   }
-  function audTranscribe(blob, prog){
+  function audTranscribe(blob, prog, lang){
     return audTo16k(blob).then(function(audio){
       return new Promise(function(ok, no){
         var W = whisperWorker(), id = ++W.n;
         W.jobs[id] = { ok: ok, no: no, prog: prog };
-        W.w.postMessage({ id: id, audio: audio }, [audio.buffer]);
+        W.w.postMessage({ id: id, audio: audio, lang: lang }, [audio.buffer]);
       });
     });
   }
@@ -2859,10 +2873,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     changedNow();
     showTip(${J('recSaved')});
     if (!text && blob && p) {
-      audTranscribe(blob, function(pct){
+      audTranscribe(blob, function(pct){ /* progreso */
         if (!p.parentNode) return;
         p.textContent = pct >= 0 ? ${J('recDl')}.replace('{n}', pct) : ${J('recWorking')};
-      }).then(function(t){
+      }, recLang).then(function(t){
         t = (t || '').trim();
         if (!p.parentNode) return;
         if (t) { var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p); }
@@ -2875,6 +2889,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   recEl.addEventListener('mousedown', function(e){ if (e.target.closest('button')) e.preventDefault(); });
   recEl.addEventListener('click', function(e){
     var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.lang) {                               // elegir idioma (se recuerda para la próxima)
+      recLang = b.dataset.lang;
+      try { localStorage.setItem('recLang', recLang); } catch (er) {}
+      recEl.querySelectorAll('[data-lang]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      return;
+    }
     if (b.dataset.rec === 'ok') window.recStop(); else window.recCancel();
   });
   window.recOpen = function(){ return !!REC; };
