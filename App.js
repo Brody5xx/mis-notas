@@ -920,71 +920,6 @@ function liquidFrames(x, y, W, H, opening) {
   if (!opening) out.reverse();
   return out.map((cp, i) => ({ clipPath: cp, offset: i / K }));
 }
-/* ============================================================
-   ✨ "TARJETA DE CRISTAL": la tarjeta que tocas se despega, crece hasta llenar
-   la pantalla dejando polvo de estrellas, y la nota aparece desde adentro.
-   Todo con transform/opacity: lo mueve la tarjeta gráfica (no se traba).
-   ============================================================ */
-function findCardRect(pt) {
-  try {
-    let el = document.elementFromPoint(pt.x, pt.y), best = null;
-    for (let i = 0; el && i < 14; i++, el = el.parentElement) {
-      const r = el.getBoundingClientRect();
-      if (r.width >= 110 && r.height >= 90 && r.width < window.innerWidth - 8) { best = r; break; }
-    }
-    if (best) return { x: best.left, y: best.top, w: best.width, h: best.height };
-  } catch (e) {}
-  return { x: pt.x - 80, y: pt.y - 80, w: 160, h: 160 };
-}
-function makeGhost(rect, W, H, color, full) {
-  const d = document.createElement('div');
-  const sx = rect.w / W, sy = rect.h / H, tx = rect.x, ty = rect.y;
-  d.style.cssText = 'position:fixed;left:0;top:0;width:' + W + 'px;height:' + H + 'px;border-radius:26px;background:' + color +
-    ';box-shadow:0 0 0 1.5px rgba(255,255,255,.35),0 0 38px rgba(150,220,255,.35);pointer-events:none;z-index:2147482000;' +
-    'transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;' +
-    (full ? 'transform:none;opacity:0' : 'transform:translate(' + tx + 'px,' + ty + 'px) scale(' + sx + ',' + sy + ')');
-  document.body.appendChild(d);
-  return d;
-}
-function ghostFrames(rect, W, H, opening) {
-  const K = 24, out = [];
-  const sx0 = rect.w / W, sy0 = rect.h / H;
-  for (let k = 0; k <= K; k++) {
-    const t = k / K;
-    // abrir: arranca con un pequeño "despegue" (crece 4%) y luego vuela a pantalla completa
-    const e = opening ? (t < 0.18 ? 0 : easeIO((t - 0.18) / 0.82)) : easeIO(t);
-    const p = opening ? e : 1 - e;
-    const lift = opening ? (t < 0.18 ? Math.sin(t / 0.18 * Math.PI / 2) * 0.04 : 0.04 * (1 - e)) : 0.03 * Math.sin(p * Math.PI);
-    const sx = (sx0 + (1 - sx0) * p) * (1 + lift), sy = (sy0 + (1 - sy0) * p) * (1 + lift);
-    const cx = (rect.x + rect.w / 2) * (1 - p) + (W / 2) * p, cy = (rect.y + rect.h / 2) * (1 - p) + (H / 2) * p;
-    out.push({ offset: t, transform: 'translate(' + (cx - W * sx / 2).toFixed(1) + 'px,' + (cy - H * sy / 2).toFixed(1) + 'px) scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')' });
-  }
-  return out;
-}
-/* Polvo de estrellas por el borde de la tarjeta mientras crece (o se encoge) */
-function cardStars(rect, W, H, opening) {
-  let sd = (Date.now() % 991) * 9301 + 49297;
-  const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
-  const G = 16, groups = [];
-  for (let g = 0; g < G; g++) {
-    const t = 0.05 + (g / G) * 0.85;
-    const e = opening ? (t < 0.18 ? 0 : easeIO((t - 0.18) / 0.82)) : easeIO(t);
-    const p = opening ? e : 1 - e;
-    const x0 = rect.x * (1 - p), y0 = rect.y * (1 - p);
-    const x1 = (rect.x + rect.w) * (1 - p) + W * p, y1 = (rect.y + rect.h) * (1 - p) + H * p;
-    const stars = [];
-    for (let k = 0; k < 4; k++) {
-      const side = Math.floor(rnd() * 4), u = rnd();
-      let x = side < 2 ? x0 + u * (x1 - x0) : (side === 2 ? x0 : x1), y = side < 2 ? (side === 0 ? y0 : y1) : y0 + u * (y1 - y0);
-      x += (rnd() - 0.5) * 14; y += (rnd() - 0.5) * 14;
-      if (x < 4 || y < 4 || x > W - 4 || y > H - 4) continue;
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, a = Math.atan2(y - cy, x - cx), dr = (opening ? 1 : -1) * (8 + rnd() * 14);
-      stars.push({ x, y, size: 5 + rnd() * 7, rot: Math.floor(rnd() * 45), dx: Math.cos(a) * dr, dy: Math.sin(a) * dr });
-    }
-    if (stars.length) groups.push({ start: t, life: 0.55 + rnd() * 0.35, alt: g % 2, stars });
-  }
-  return groups;
-}
 /* ✦ Estela de estrellitas alrededor del círculo (igual que las del menú, pero en redondo) */
 function ringStars(o, W, H, opening, Rmax) {
   let sd = (Date.now() % 997) * 9301 + 49297;
@@ -1159,8 +1094,6 @@ function NotesApp() {
   const revBusy = useRef(false);
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
-  const revStarsDone = useRef(false);
-  const revSeed = useRef(null);             // la tarjeta de cristal mientras se abre la nota
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1182,17 +1115,25 @@ function NotesApp() {
     const o = DROP.openPt;
     const finish = () => { setRevealing(false); revBusy.current = false; };
     if (Platform.OS === 'web') {
-      // ✨ Animación simple: la nota sube un poquito y aparece suavemente, SIN esperar a que cargue
       const el = revEl.current;
       if (!el || !el.animate) { finish(); return; }
-      const a = el.animate([{ opacity: 0, transform: 'translateY(26px) scale(0.985)' }, { opacity: 1, transform: 'none' }],
-        { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
-      a.onfinish = finish;
+      const fr = liquidFrames(o.x, o.y, width, winH, true);
+      el.style.clipPath = fr[0].clipPath;
+      let started = false;
+      const go = () => {
+        if (started) return; started = true;
+        requestAnimationFrame(() => {
+          const an = el.animate(fr, { duration: 640, easing: 'linear', fill: 'forwards' });
+          an.onfinish = () => { el.style.clipPath = ''; an.cancel(); finish(); };
+        });
+      };
+      const fr2 = iframeRef.current;
+      if (fr2) fr2.addEventListener('load', () => setTimeout(go, 30), { once: true });
+      setTimeout(go, 150);                 // no espera más que esto: se siente al instante
     } else {
       revP.setValue(0);
       setTimeout(() => {
         Animated.timing(revP, { toValue: 1, duration: 620, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
-        startStars(o, true, 620);
       }, 60);
     }
   }, [currentId]);
@@ -1254,8 +1195,7 @@ function NotesApp() {
     AsyncStorage.getItem('colorPrefs').then(v => { if (v) colorPrefs.current = JSON.parse(v); }).catch(() => {});
     AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
   }, []);
-  /* Web: al arrancar, se "calienta" el editor una vez en secreto (fuera de la pantalla).
-     Así la PRIMERA nota que abras carga mucho más rápido (en la prueba: de 1.3 s a 0.5 s). */
+  /* Web: al arrancar, se "calienta" el editor una vez en secreto (la primera nota abre más rápido) */
   useEffect(() => {
     if (Platform.OS !== 'web' || !loaded || typeof document === 'undefined') return;
     const tm = setTimeout(() => {
@@ -1378,18 +1318,16 @@ function NotesApp() {
     setRevealing(true);                    // la pantalla de inicio aparece detrás
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
-      // la nota baja un poquito y se desvanece; detrás ya está la pantalla de inicio
       const el = revEl.current;
       if (!el || !el.animate) { closeEditorNow(); return; }
-      requestAnimationFrame(() => {
-        el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px) scale(0.985)' }],
-          { duration: 220, easing: 'cubic-bezier(.4,0,.8,.6)', fill: 'forwards' }).onfinish = () => closeEditorNow();
-      });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const an = el.animate(liquidFrames(o.x, o.y, width, winH, false), { duration: 600, easing: 'linear', fill: 'forwards' });
+        an.onfinish = () => closeEditorNow();
+      }));
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 600, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
           .start(() => closeEditorNow());
-        startStars(o, false, 600);
       }, 60);
     }
   }
@@ -2053,11 +1991,6 @@ function NotesApp() {
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
     revP.setValue(0);
     revPending.current = 'open';
-    if (Platform.OS === 'web') {
-      setRevealing(true);
-      setCurrentId(id);                    // se abre al instante; la animación corre al montarse
-      return;
-    }
     setRevealing(true);
     setCurrentId(id);
   }
