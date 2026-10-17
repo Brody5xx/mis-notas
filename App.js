@@ -2694,6 +2694,15 @@ function NotesApp() {
 
         {/* Opciones de la nota */}
         <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
+          <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
+            <Text style={{ fontSize: 24 }}>👔</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('workTitle')}</Text>
+              <Text style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('wHint')}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={c.inv} />
+          </TouchableOpacity>
           <Row icon="folder" iconColor={(folders.find(f => f.id === current.folderId) || {}).color} s={s} t={c}
             label={tr('folderLabel', { name: (folders.find(f => f.id === current.folderId) || {}).name || tr('none') })}
             onPress={() => { setOptsOpen(false); setMoveOpen(true); }}
@@ -2714,7 +2723,6 @@ function NotesApp() {
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
           <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
-          <Row icon="briefcase" label={tr('workTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} />
           <Row icon="clipboard" label={tr('tplTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('tplOpen'), 250); }} />
           <Row icon="mic" label={tr('recAudio')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('recStart'), 250); }} />
           <Row icon="file-text" label={tr('makePdf')} s={s} t={c} onPress={() => { setOptsOpen(false); exportNotes('pdf', [current.id]); }} />

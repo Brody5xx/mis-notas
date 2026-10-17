@@ -3816,6 +3816,50 @@ for (const code in WKT) {
   WKK.forEach((k, i) => { S[code][k] = WKT[code][i]; });
 }
 
+/* Reemplazar toda la nota con el resultado del asistente */
+const WRP = {
+  es: 'Reemplazar la nota',
+  en: 'Replace the note',
+  pt: 'Substituir a nota',
+  fr: 'Remplacer la note',
+  de: 'Notiz ersetzen',
+  it: 'Sostituisci la nota',
+  ca: 'Substituir la nota',
+  nl: 'Notitie vervangen',
+  sv: 'Ersätt anteckningen',
+  nb: 'Erstatt notatet',
+  da: 'Erstat noten',
+  fi: 'Korvaa muistio',
+  pl: 'Zastąp notatkę',
+  cs: 'Nahradit poznámku',
+  sk: 'Nahradiť poznámku',
+  hu: 'Jegyzet cseréje',
+  ro: 'Înlocuiește nota',
+  hr: 'Zamijeni bilješku',
+  el: 'Αντικατάσταση σημείωσης',
+  bg: 'Замени бележката',
+  ru: 'Заменить заметку',
+  uk: 'Замінити нотатку',
+  tr: 'Notu değiştir',
+  ar: 'استبدال الملاحظة',
+  he: 'החלף את הפתק',
+  fa: 'جایگزینی یادداشت',
+  ur: 'نوٹ بدلیں',
+  hi: 'नोट बदलें',
+  bn: 'নোট বদলান',
+  id: 'Ganti catatan',
+  ms: 'Ganti nota',
+  fil: 'Palitan ang tala',
+  vi: 'Thay ghi chú',
+  th: 'แทนที่โน้ต',
+  ja: 'ノートを置き換え',
+  ko: '노트 바꾸기',
+  sw: 'Badilisha dokezo',
+  'zh-Hans': '替换笔记',
+  'zh-Hant': '取代筆記',
+};
+for (const code in WRP) S[code].wReplace = WRP[code];
+
 
 /* ============================================================
    VARIANTES POR PAÍS

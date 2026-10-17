@@ -371,6 +371,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #rw .rwOpt{border:1px solid ${c.border};background:rgba(255,255,255,.06);color:${c.text};border-radius:16px;padding:10px 4px;font-size:13px;
              font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:inherit}
   #rw .rwOpt b{font-size:20px;font-weight:400}
+  #rw .rwGrid.many{grid-template-columns:repeat(4,1fr);gap:6px}
+  #rw .rwGrid.many .rwOpt{padding:7px 2px;font-size:11.5px;line-height:1.2;border-radius:14px;gap:2px}
+  #rw .rwGrid.many .rwOpt b{font-size:18px}
+  #rw .rwSec{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${c.muted};margin:12px 2px 6px}
   #rw .rwOpt:active{transform:scale(.96);background:rgba(255,255,255,.15)}
   #rw .rwOrig{font-size:13px;color:${c.muted};margin-bottom:10px;max-height:3.6em;overflow:hidden;font-style:italic}
   #rw .rwOut{font-size:16px;line-height:1.45;color:${c.text};white-space:pre-wrap;padding:12px;border-radius:14px;background:rgba(255,255,255,.07);
@@ -3124,12 +3128,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var RW = { range: null, text: '', style: null, req: 0, out: '' };
   var rwChip = $('rwChip'), rwEl = $('rw');
   var RW_STYLES = [
-    ['formal', '🎩', ${J('rwFormal')}], ['pro', '💼', ${J('rwPro')}], ['biz', '📈', ${J('rwBiz')}],
-    ['friendly', '😊', ${J('rwFriendly')}], ['funny', '😂', ${J('rwFunny')}], ['persuasive', '🎯', ${J('rwPersuasive')}],
-    ['short', '✂️', ${J('rwShort')}], ['long', '📝', ${J('rwLong')}], ['clear', '💡', ${J('rwClear')}],
-    ['fix', '✅', ${J('rwFix')}], ['emoji', '🤩', ${J('rwEmoji')}], ['translate', '🌍', ${J('rwTranslate')}],
-    ['syn', '📖', ${J('rwSyn')}], ['report', '📋', ${J('wReport')}], ['email', '✉️', ${J('wEmail')}],
-    ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}], ['steps', '🔧', ${J('wSteps')}]
+    ['syn', '📖', ${J('rwSyn')}], ['pro', '💼', ${J('rwPro')}], ['formal', '🎩', ${J('rwFormal')}], ['fix', '✅', ${J('rwFix')}],
+    ['report', '📋', ${J('wReport')}], ['email', '✉️', ${J('wEmail')}], ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}],
+    ['steps', '🔧', ${J('wSteps')}], ['biz', '📈', ${J('rwBiz')}], ['clear', '💡', ${J('rwClear')}], ['short', '✂️', ${J('rwShort')}],
+    ['long', '📝', ${J('rwLong')}], ['friendly', '😊', ${J('rwFriendly')}], ['persuasive', '🎯', ${J('rwPersuasive')}], ['funny', '😂', ${J('rwFunny')}],
+    ['emoji', '🤩', ${J('rwEmoji')}], ['translate', '🌍', ${J('rwTranslate')}]
   ];
   /* 👔 Asistente de trabajo: trabaja con TODA la nota */
   var WORK_STYLES = [
@@ -3137,6 +3140,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}], ['todo', '✅', ${J('wTodo')}],
     ['summary', '📌', ${J('wSummary')}], ['steps', '🔧', ${J('wSteps')}], ['fix', '✏️', ${J('rwFix')}]
   ];
+  var WK_EXTRA = ['formal', 'biz', 'clear', 'short', 'long', 'friendly', 'persuasive', 'funny', 'emoji', 'translate'];
   function rwLabel(st){
     var a = (RW.work ? WORK_STYLES : RW_STYLES).concat(RW_STYLES, WORK_STYLES).filter(function(s){ return s[0] === st; })[0];
     return a ? a[2] : '';
@@ -3179,8 +3183,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       t = t.replace(/​/g, '').trim();
       if (t) out.push(t);
     });
-    var title = (ttl.innerText || '').trim();
-    return (title ? title + '\\n\\n' : '') + out.join('\\n');
+    return out.join('\\n');
   }
   window.workOpen = function(){
     if (!editable) return;
@@ -3195,7 +3198,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   function workShow(){
     rwEl.innerHTML = rwHead(${J('workTitle')}) + '<div class="rwHint">' + rwEsc(${J('wHint')}) + '</div>' + tipHtml() +
-      '<div class="rwGrid">' + WORK_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
+      '<div class="rwGrid">' + WORK_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>' +
+      '<div class="rwSec">✨ ' + rwEsc(${J('rwTitle')}) + '</div>' +
+      '<div class="rwGrid many">' + RW_STYLES.filter(function(s){ return WK_EXTRA.indexOf(s[0]) >= 0; }).map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
     rwEl.classList.add('show');
     send({ type: 'rwOpen', open: true });
   }
@@ -3251,6 +3256,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     changedNow();
     showTip(${J('rwDone')});
     try { (first.nodeType === 1 ? first : hd).scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+  }
+  function wkReplace(){                                   // el texto de la nota se cambia por el resultado; fotos y audios se quedan
+    if (!RW.out) return;
+    Array.prototype.slice.call(ed.childNodes).forEach(function(n){
+      if (n.nodeType === 1 && n.matches && n.matches('.audwrap,.imgwrap')) return;
+      ed.removeChild(n);
+    });
+    ed.insertBefore(wkFrag(RW.out, RW.style), ed.firstChild);
+    rwClose();
+    changedNow();                                          // Deshacer lo regresa como estaba
+    showTip(${J('rwDone')});
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
   }
   function copyText(t){
     var ok = false;
@@ -3377,7 +3394,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (RW.work) { workShow(); return; }
     if (RW.tpl) { window.tplOpen(); return; }
     rwEl.innerHTML = rwHead(${J('rwTitle')}) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 220)) + (RW.text.length > 220 ? '…' : '') + '”</div>' +
-      '<div class="rwGrid">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
+      '<div class="rwGrid many">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
     rwEl.classList.add('show');
     send({ type: 'rwOpen', open: true });
   }
@@ -3406,7 +3423,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     if (RW.work) {
       rwEl.innerHTML = rwHead(lbl) + '<div class="rwOut">' + rwEsc(res.text) + '</div>' +
-        '<div class="rwRow"><button class="main" data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
+        '<div class="rwRow"><button class="main" data-rw="wrep">🔄 ' + rwEsc(${J('wReplace')}) + '</button><button data-rw="append">⬇️ ' + rwEsc(${J('wAppend')}) + '</button></div>' +
         '<div class="rwRow"><button data-rw="copy">📋 ' + rwEsc(${J('wCopy')}) + '</button><button data-rw="share">📤 ' + rwEsc(${J('wShare')}) + '</button></div>' +
         '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
       return;
@@ -3454,6 +3471,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var a = b.dataset.rw;
     if (a === 'tip') { tipI++; var tp = rwEl.querySelector('.rwTip'); if (tp) tp.outerHTML = tipHtml(); return; }
     if (a === 'append') return wkAppend();
+    if (a === 'wrep') return wkReplace();
     if (a === 'copy') return copyText(RW.out);
     if (a === 'share') { send({ type: 'shareOut', text: RW.out }); return; }
     if (a === 'x') rwClose();
