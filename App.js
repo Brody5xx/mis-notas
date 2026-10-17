@@ -1197,10 +1197,17 @@ function NotesApp() {
     AsyncStorage.getItem('colorPrefs').then(v => { if (v) colorPrefs.current = JSON.parse(v); }).catch(() => {});
     AsyncStorage.getItem('fxRates').then(v => { if (v) fxCache.current = JSON.parse(v); }).catch(() => {});
   }, []);
-  /* Web: al arrancar, se "calienta" el editor una vez en secreto (la primera nota abre más rápido) */
+  /* Web: el editor se "calienta" en secreto (fuera de la pantalla) al arrancar y luego
+     cada ratito mientras estás en la pantalla de inicio. Así, aunque dejes la app quieta un
+     tiempo, la nota abre rápido (el navegador no "se duerme" ni olvida lo que ya preparó). */
+  const warmBusy = useRef(false);
+  const curRef = useRef(null);
+  curRef.current = currentId;
   useEffect(() => {
     if (Platform.OS !== 'web' || !loaded || typeof document === 'undefined') return;
-    const tm = setTimeout(() => {
+    const warm = () => {
+      if (warmBusy.current || curRef.current || document.visibilityState !== 'visible') return;   // solo en la pantalla de inicio
+      warmBusy.current = true;
       try {
         try { new Intl.Segmenter(LOCALE, { granularity: 'word' }).segment('a b'); new Date().toLocaleString(LOCALE, { month: 'short' }); } catch (e) {}
         const f = document.createElement('iframe');
@@ -1209,10 +1216,14 @@ function NotesApp() {
         f.srcdoc = buildEditorHtml({ id: 'warm', content: '<div>Hola</div>', titleHtml: 'T', updated: Date.now(), editable: true, c,
           kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current });
         document.body.appendChild(f);
-        setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 2500);
-      } catch (e) {}
-    }, 1200);
-    return () => clearTimeout(tm);
+        setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); warmBusy.current = false; }, 2500);
+      } catch (e) { warmBusy.current = false; }
+    };
+    const first = setTimeout(warm, 1200);
+    const every = setInterval(warm, 40000);                     // cada 40 segundos
+    const onVis = () => { if (document.visibilityState === 'visible') setTimeout(warm, 400); };   // al volver a la app
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearTimeout(first); clearInterval(every); document.removeEventListener('visibilitychange', onVis); };
   }, [loaded]);
   const webRef = useRef(null);
 
