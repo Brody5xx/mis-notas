@@ -2777,7 +2777,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   /* Transcribir DESPUÉS de grabar (para Android, donde no se puede grabar y transcribir a la vez):
      el audio se convierte a WAV liviano (16 kHz, mono) en pedazos de 40 s y se manda a la IA gratis */
-  function audToWav16(blob){
+  /* 🧠 WHISPER dentro del teléfono: la IA que convierte voz a texto corre en el propio teléfono
+     (en un "trabajador" aparte para no trabar la app). La primera vez descarga el modelo (~40 MB)
+     y luego queda guardado en el teléfono: ya no necesita internet. */
+  function audTo16k(blob){
     return blob.arrayBuffer().then(function(ab){
       var AC = window.AudioContext || window.webkitAudioContext;
       var ac = new AC();
@@ -2788,42 +2791,52 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         src.buffer = buf; src.connect(off.destination); src.start(0);
         return off.startRendering();
       });
-    }).then(function(r){
-      var data = r.getChannelData(0), CH = 16000 * 40, out = [];
-      for (var o = 0; o < data.length; o += CH) out.push(wavB64(data.subarray(o, Math.min(data.length, o + CH))));
-      return out;
-    });
+    }).then(function(r){ return new Float32Array(r.getChannelData(0)); });
   }
-  function wavB64(f){
-    var n = f.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-    var w = function(o, t){ for (var i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
-    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
-    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true);
-    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
-    for (var i = 0; i < n; i++) { var x = Math.max(-1, Math.min(1, f[i])); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
-    var bytes = new Uint8Array(buf), bin = '', CH = 0x8000;
-    for (var j = 0; j < bytes.length; j += CH) bin += String.fromCharCode.apply(null, bytes.subarray(j, j + CH));
-    return btoa(bin);
+  var WH = null;          // el trabajador de Whisper (se queda listo para la próxima grabación)
+  function whisperWorker(){
+    if (WH) return WH;
+    var NL = String.fromCharCode(10);
+    var code = [
+      "import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';",
+      "env.allowLocalModels = false;",
+      "let asr = null;",
+      "self.onmessage = async (e) => {",
+      "  try {",
+      "    if (!asr) asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', { dtype: 'q8',",
+      "      progress_callback: (p) => { if (p && p.status === 'progress') self.postMessage({ type: 'dl', file: p.file, progress: p.progress || 0 }); } });",
+      "    self.postMessage({ type: 'run' });",
+      "    const out = await asr(e.data.audio, { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' });",
+      "    self.postMessage({ type: 'done', id: e.data.id, text: (out && out.text) || '' });",
+      "  } catch (err) { self.postMessage({ type: 'err', id: e.data.id, msg: String((err && err.message) || err) }); }",
+      "};"
+    ].join(NL);
+    var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+    WH = { w: new Worker(url, { type: 'module' }), jobs: {}, n: 0, files: {} };
+    WH.w.onmessage = function(ev){
+      var m = ev.data || {};
+      if (m.type === 'dl') {
+        WH.files[m.file] = m.progress;
+        var ks = Object.keys(WH.files), tot = 0; ks.forEach(function(k){ tot += WH.files[k]; });
+        var pct = Math.round(tot / Math.max(1, ks.length));
+        Object.keys(WH.jobs).forEach(function(k){ WH.jobs[k].prog && WH.jobs[k].prog(pct); });
+      } else if (m.type === 'run') {
+        Object.keys(WH.jobs).forEach(function(k){ WH.jobs[k].prog && WH.jobs[k].prog(-1); });
+      } else if (m.type === 'done' || m.type === 'err') {
+        var j = WH.jobs[m.id]; delete WH.jobs[m.id];
+        if (j) { if (m.type === 'done') j.ok(m.text); else j.no(new Error(m.msg)); }
+      }
+    };
+    WH.w.onerror = function(){ Object.keys(WH.jobs).forEach(function(k){ WH.jobs[k].no(new Error('worker')); }); WH.jobs = {}; WH = null; };
+    return WH;
   }
-  function audTranscribe(blob){
-    return audToWav16(blob).then(function(parts){
-      var all = [], i = 0;
-      var next = function(){
-        if (i >= parts.length) return Promise.resolve(all.join(' '));
-        var b64 = parts[i++];
-        return fetch('https://text.pollinations.ai/openai', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'openai-audio', messages: [{ role: 'user', content: [
-            { type: 'text', text: 'Transcribe this audio exactly as spoken, in its original language. Reply ONLY with the transcription, nothing else.' },
-            { type: 'input_audio', input_audio: { data: b64, format: 'wav' } }] }] })
-        }).then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
-          .then(function(j){
-            var t = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-            if (t) all.push(String(t).trim());
-            return next();
-          });
-      };
-      return next();
+  function audTranscribe(blob, prog){
+    return audTo16k(blob).then(function(audio){
+      return new Promise(function(ok, no){
+        var W = whisperWorker(), id = ++W.n;
+        W.jobs[id] = { ok: ok, no: no, prog: prog };
+        W.w.postMessage({ id: id, audio: audio }, [audio.buffer]);
+      });
     });
   }
   function recInsert(me, text, src, dur, blob){
@@ -2836,7 +2849,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var frag = document.createDocumentFragment();
     var p = null;
     if (text) { p = document.createElement('div'); p.textContent = text; frag.appendChild(p); }
-    else if (false) {
+    else if (blob) {                                   // se transcribe con Whisper al terminar
       p = document.createElement('div'); p.className = 'audtx'; p.setAttribute('contenteditable', 'false');
       p.textContent = ${J('recWorking')}; frag.appendChild(p);
     }
@@ -2845,8 +2858,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (at && at.parentNode === ed) ed.insertBefore(frag, at.nextSibling); else ed.appendChild(frag);
     changedNow();
     showTip(${J('recSaved')});
-    if (false) {
-      audTranscribe(blob).then(function(t){
+    if (!text && blob && p) {
+      audTranscribe(blob, function(pct){
+        if (!p.parentNode) return;
+        p.textContent = pct >= 0 ? ${J('recDl')}.replace('{n}', pct) : ${J('recWorking')};
+      }).then(function(t){
         t = (t || '').trim();
         if (!p.parentNode) return;
         if (t) { var d = document.createElement('div'); d.textContent = t; p.parentNode.replaceChild(d, p); }
