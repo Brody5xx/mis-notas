@@ -2895,7 +2895,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<button type="button" class="recOk" data-rec="ok">' + recEsc(${J('recStop')}) + '</button></div>';
     recEl.classList.add('show'); document.body.classList.add('recording');
     recPaint();
-    REC.tick = setInterval(function(){ recPaint(); if (REC && Date.now() - REC.t0 > 10 * 60 * 1000) window.recStop(); }, 250);   // máx. 10 min
+    REC.tick = setInterval(recPaint, 250);              // sin límite de tiempo: solo el espacio del teléfono
     var me = REC;
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
       if (REC !== me) { stream.getTracks().forEach(function(t){ t.stop(); }); return; }
@@ -3064,7 +3064,6 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     audIn.value = '';
     if (!f) return;
     var me = { keep: audUpKeep }; audUpKeep = null;
-    if (f.size > 40 * 1024 * 1024) { showTip(${J('recBadFile')}); return; }
     var blob = new Blob([f], { type: audGuessType(f) });
     showTip(${J('recWorking')});
     blob.arrayBuffer().then(function(buf){                     // se mide cuánto dura (y se comprueba que se puede abrir)

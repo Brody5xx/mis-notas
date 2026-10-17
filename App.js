@@ -162,7 +162,6 @@ async function saveWallpaper(data, id) {
 
 /* Historial de versiones: un archivo por nota (no hace pesado el archivo de notas) */
 const HIST_KEY = 'misnotas_hist';
-const MAX_VERSIONS = 20;
 function histFile(id) { return new FS.File(FS.Paths.document, `historial_${id}.json`); }
 async function loadHistory(id) {
   try {
@@ -205,7 +204,6 @@ function sameVersion(a, b) {
    ============================================================ */
 const REC_KEY = 'misnotas_registro';
 const REC_IMG = '\u0001';              // marca de foto dentro del registro
-const MAX_REC = 3000;
 function recFile(id) { return new FS.File(FS.Paths.document, `registro_${id}.json`); }
 async function loadRecord(id) {
   try {
@@ -270,7 +268,7 @@ function mergeRecord(entries, tokens) {
     prev = idx;
   }
   if (!changed) return null;
-  return arr.slice(0, MAX_REC);
+  return arr;                                          // sin límite: solo el espacio del teléfono
 }
 
 async function loadData() {
@@ -1421,7 +1419,7 @@ function NotesApp() {
   async function addVersion(id, v) {
     const list = await loadHistory(id);
     if (sameVersion(list[0], v)) return list;            // ya está guardada igual
-    const next = [v, ...list].slice(0, MAX_VERSIONS);
+    const next = [v, ...list];                         // sin límite: solo el espacio del teléfono
     try { await saveHistory(id, next); } catch (e) { showToast(tr('histSaveFail')); }
     return next;
   }
@@ -2091,11 +2089,11 @@ function NotesApp() {
       (m.pieces ? ' IMPORTANT: the text is a note split into numbered pieces like "[1] ...", "[2] ...". Consecutive pieces can be parts of the same sentence with different formatting. ' +
         'Return EVERY piece, each on its own line starting with the same number ("[n] new text"), in the same order, with the new text for that same part. ' +
         'Never merge, split, add or drop pieces; never add text outside the pieces. Keep emojis, names, numbers and technical terms.' : '');
-    const text = String(m.text || '').slice(0, 6000);
+    const fullText = String(m.text || '');
     const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), ms); })]).finally(() => clearTimeout(t)); };
-    async function ask() {
+    async function ask(text) {
       // Hasta 4 intentos, esperando cada vez más (el servicio gratis pide esperar entre pedidos)
       const WAITS = [0, 5000, 10000, 16000];
       for (let k = 0; k < WAITS.length; k++) {
@@ -2115,6 +2113,7 @@ function NotesApp() {
           const out = String((j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
           if (out) return out;
         } catch (e1) {
+          if (text.length > 5000) continue;                   // la forma sencilla solo sirve para textos cortos
           try {
             const url = 'https://text.pollinations.ai/' + encodeURIComponent(text) +
               '?model=openai&private=true&referrer=misnotas&seed=' + seed + '&system=' + encodeURIComponent(system);
@@ -2133,7 +2132,22 @@ function NotesApp() {
     aiChain.current = new Promise(r => { done = r; });
     await prev.catch(() => {});
     let out = '';
-    try { out = await ask(); } finally { done(); }
+    try {
+      if (m.pieces && fullText.length > 4000) {
+        // Nota larga: se trabaja por partes (de pedacito en pedacito) y se juntan; así no hay límite de largo
+        const lines = fullText.split('\n'), parts = [];
+        let cur = '';
+        lines.forEach(l => { if (cur && cur.length + l.length > 4000) { parts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; });
+        if (cur) parts.push(cur);
+        const outs = [];
+        for (const part of parts) {
+          const o = await ask(part);
+          if (!o) { outs.length = 0; break; }
+          outs.push(o);
+        }
+        out = outs.join('\n');
+      } else out = await ask(fullText.slice(0, 120000));
+    } finally { done(); }
     if (!out) { rwReply({ req: m.req, slot: m.slot, dual: !!dual, ok: false }); return; }
     if (!dual) { rwReply({ req: m.req, slot: m.slot, ok: true, text: clean(out) }); return; }
     // Separar las dos versiones
