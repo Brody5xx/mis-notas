@@ -939,18 +939,10 @@ function findCardRect(pt) {
 function makeGhost(rect, W, H, color, full) {
   const d = document.createElement('div');
   const sx = rect.w / W, sy = rect.h / H, tx = rect.x, ty = rect.y;
-  // cristal ahumado: se ve lo de atrás mientras la nota se prepara (nunca una pantalla negra)
-  const m = /^#([0-9a-f]{6})$/i.exec(color || ''), n = m ? parseInt(m[1], 16) : 0x1c1c1c;
-  const glass = 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',0.55)';
-  d.style.cssText = 'position:fixed;left:0;top:0;width:' + W + 'px;height:' + H + 'px;border-radius:26px;overflow:hidden;background:' + glass +
+  d.style.cssText = 'position:fixed;left:0;top:0;width:' + W + 'px;height:' + H + 'px;border-radius:26px;background:' + color +
     ';box-shadow:0 0 0 1.5px rgba(255,255,255,.35),0 0 38px rgba(150,220,255,.35);pointer-events:none;z-index:2147482000;' +
     'transform-origin:0 0;will-change:transform,opacity;backface-visibility:hidden;' +
     (full ? 'transform:none;opacity:0' : 'transform:translate(' + tx + 'px,' + ty + 'px) scale(' + sx + ',' + sy + ')');
-  // capa sólida (empieza invisible): el cristal "se empaña" justo antes de mostrar la nota
-  const solid = document.createElement('div');
-  solid.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;background:' + color + ';opacity:1;will-change:opacity';
-  d.appendChild(solid);
-  d._solid = solid;
   document.body.appendChild(d);
   return d;
 }
@@ -1168,9 +1160,7 @@ function NotesApp() {
   const revPending = useRef(null);          // 'open' mientras espera para empezar a crecer
   const revEl = useRef(null);
   const revStarsDone = useRef(false);
-  const revSeed = useRef(null);
-  const homeWrap = useRef(null);            // la pantalla de inicio (para esconderla al instante en la web)
-  const setHomeVis = v => { try { if (homeWrap.current && homeWrap.current.style) homeWrap.current.style.visibility = v ? '' : 'hidden'; } catch (e) {} };             // la tarjeta de cristal mientras se abre la nota
+  const revSeed = useRef(null);             // la tarjeta de cristal mientras se abre la nota
   const starAnim = useRef(new Animated.Value(0)).current;  // estrellitas del portal (teléfono)
   const [portalStars, setPortalStars] = useState(null);
   function startStars(o, opening, M) {
@@ -1183,7 +1173,6 @@ function NotesApp() {
       .start(() => setPortalStars(null));
   }               // la capa del editor (en la web se recorta con el círculo)
   useEffect(() => {
-    if (!currentId) setHomeVis(true);      // al volver, la pantalla de inicio siempre se ve
     if (!currentId && revBusy.current) { revP.setValue(1); setRevealing(false); revBusy.current = false; }
   }, [currentId]);
   // Empieza a abrir cuando el editor ya está puesto (así no se traba)
@@ -1201,20 +1190,17 @@ function NotesApp() {
       st.check = () => {
         if (done || !st.grown || !ready) return; done = true;
         // la nota aparece desde adentro del cristal (un poquito más grande → a su tamaño)
-        // la nota ya está entera DEBAJO del cristal (opaca, sin transparencias); luego el cristal
-        // se abre y se desvanece hacia ti, dejando ver la nota (no se mezcla con la pantalla de inicio)
-        // 1) el cristal se empaña (se vuelve sólido)  2) detrás ya está la nota entera, sin la pantalla
-        //    de inicio  3) el cristal se abre hacia ti y se desvanece dejando ver la nota
-        const go = () => {
-          el.style.opacity = '';
-          setHomeVis(false);
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            st.ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate(-4%,-4%) scale(1.08)', offset: 1 }],
-              { duration: 260, easing: 'cubic-bezier(.3,.6,.3,1)', fill: 'forwards' })
+        // ÚNICO cambio respecto a la versión "sorpresa": primero la nota aparece COMPLETA debajo del
+        // cristal (que sigue tapando todo), y DESPUÉS el cristal se desvanece. Así nunca se ven las dos
+        // pantallas mezcladas (antes las dos se cruzaban al mismo tiempo).
+        requestAnimationFrame(() => {
+          const a = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'linear', fill: 'forwards' });
+          a.onfinish = () => {
+            a.cancel(); el.style.opacity = '';
+            st.ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' })
               .onfinish = () => { if (st.ghost.parentNode) st.ghost.remove(); finish(); };
-          }));
-        };
-        go();
+          };
+        });
       };
       const isReady = () => { if (ready) return; ready = true; requestAnimationFrame(() => requestAnimationFrame(st.check)); };
       const fr2 = iframeRef.current;
@@ -1389,20 +1375,18 @@ function NotesApp() {
   function closeEditor() {
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
-    if (Platform.OS !== 'web') setRevealing(true);   // la pantalla de inicio aparece detrás
+    setRevealing(true);                    // la pantalla de inicio aparece detrás
     const o = DROP.openPt || { x: width / 2, y: winH * 0.4 };
     if (Platform.OS === 'web') {
       const el = revEl.current;
-      if (!el || !el.animate) { setHomeVis(true); closeEditorNow(); return; }
+      if (!el || !el.animate) { closeEditorNow(); return; }
       const rect = DROP.rect || { x: o.x - 80, y: o.y - 80, w: 160, h: 160 };
       // la nota se vuelve cristal y regresa volando a su tarjeta, dejando estrellitas
       const g = makeGhost(rect, width, winH, c.grad[0], true);
       g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: 'ease-out', fill: 'forwards' }).onfinish = () => {
         el.style.opacity = '0';
-        setHomeVis(true); setRevealing(true);             // ahora sí: la pantalla de inicio detrás del cristal
         const an = g.animate(ghostFrames(rect, width, winH, false), { duration: 520, easing: 'linear', fill: 'forwards' });
         g.animate([{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 520, easing: 'linear', fill: 'forwards' });
-        g._solid.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, easing: 'ease-out', fill: 'forwards' });   // vuelve a ser cristal mientras vuela
         an.onfinish = () => { if (g.parentNode) g.remove(); };
         playRingStars(cardStars(rect, width, winH, false), 520);
         requestAnimationFrame(() => setTimeout(() => closeEditorNow(), 0));   // lo pesado mientras el cristal ya vuela
@@ -3300,7 +3284,7 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View ref={homeWrap} style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
