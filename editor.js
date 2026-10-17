@@ -3416,8 +3416,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var lbl = rwLabel(style);
     rwEl.innerHTML = rwHead(lbl) + '<div class="rwWait"><div class="rwDots"><i></i><i></i><i></i></div>' + rwEsc(${J('rwWorking')}) + '</div>';
     if (RW.dual) {
-      RW.first = RW.tab === 1 ? 1 : 0;                       // primero el idioma que estás mirando; luego el otro
-      send({ type: 'rewrite', req: RW.req, style: style, text: RW.text, lang: DUAL[RW.first], slot: RW.first });
+      RW.asked = [true, true];                               // un solo pedido trae las dos versiones juntas
+      send({ type: 'rewrite', req: RW.req, style: style, text: RW.text, dual: DUAL });
     } else send({ type: 'rewrite', req: RW.req, style: style, text: RW.text });
   }
   function rwButtons(){
@@ -3443,11 +3443,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   window.rewriteResult = function(res){
     if (!res || res.req !== RW.req || !rwEl.classList.contains('show')) return;
     if (RW.dual) {
-      var sl = res.slot === 1 ? 1 : 0;
-      if (res.ok && res.text) RW.outs[sl] = res.text; else RW.errs[sl] = true;
-      var other = 1 - RW.first;
-      if (sl === RW.first && RW.outs[other] == null && !RW.errs[other])
-        send({ type: 'rewrite', req: RW.req, style: RW.style, text: RW.text, lang: DUAL[other], slot: other });
+      if (res.dual) {
+        if (!res.ok) { RW.errs = [true, true]; rwRenderDual(); return; }
+        [0, 1].forEach(function(i){
+          if (res.outs && res.outs[i]) RW.outs[i] = res.outs[i];
+          else {                                              // si una versión no llegó, se pide sola
+            RW.outs[i] = null;
+            send({ type: 'rewrite', req: RW.req, style: RW.style, text: RW.text, lang: DUAL[i], slot: i });
+          }
+        });
+      } else {
+        var sl = res.slot === 1 ? 1 : 0;
+        if (res.ok && res.text) RW.outs[sl] = res.text; else RW.errs[sl] = true;
+      }
       rwRenderDual();
       return;
     }

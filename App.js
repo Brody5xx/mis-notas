@@ -2071,50 +2071,63 @@ function NotesApp() {
   }
   async function runRewrite(m) {
     const appLang = langLabel(langCode).replace(/^\S+\s/, '');
+    const LN = c => c === 'es' ? 'Spanish' : c === 'en' ? 'English' : (langLabel(c) || c).replace(/^\S+\s/, '');
     const how = m.style === 'translate'
       ? `If the text is written in ${appLang}, translate it into English; otherwise translate it into ${appLang}. Keep the meaning and tone.`
       : RW_HOW[m.style] || RW_HOW.pro;
     const own = ['report', 'pronote', 'email', 'chat', 'english', 'todo', 'summary', 'steps', 'syn'].indexOf(m.style) >= 0;
+    const dual = Array.isArray(m.dual) && m.dual.length === 2 ? m.dual : null;
+    const MK = ['<<<VERSION 1>>>', '<<<VERSION 2>>>'];
     const system = 'You are a writing assistant inside a notes app. ' + how +
-      (m.style === 'translate' || m.style === 'english' ? ''
-        : m.lang ? ` Always write the answer in ${m.lang === 'es' ? 'Spanish' : m.lang === 'en' ? 'English' : (langLabel(m.lang) || m.lang).replace(/^\S+\s/, '')}, translating naturally if the original is in another language (keep technical terms, names and numbers exactly).`
+      (dual
+        ? ` Produce the result TWICE: first written in ${LN(dual[0])}, then the same result written in ${LN(dual[1])} (translate naturally; keep technical terms, names and numbers exactly). ` +
+          `Use EXACTLY this format: a line "${MK[0]}", then the ${LN(dual[0])} version, then a line "${MK[1]}", then the ${LN(dual[1])} version. Nothing else.`
+        : m.style === 'translate' || m.style === 'english' ? ''
+        : m.lang ? ` Always write the answer in ${LN(m.lang)}, translating naturally if the original is in another language (keep technical terms, names and numbers exactly).`
         : ' Always answer in the SAME language as the original text.') +
-      (own ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.');
+      (own || dual ? ' Reply with ONLY the result, no introductions or explanations.' : ' Reply with ONLY the rewritten text: no quotes, no titles, no explanations, no options.');
     const text = String(m.text || '').slice(0, 6000);
     const clean = t => String(t || '').replace(/^\s*["“”']+|["“”']+\s*$/g, '').trim();
-    let timer;
-    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timeout')), ms); })]);
-    const seed = Math.floor(Math.random() * 1e6);
-    try {
-      // 1) Forma moderna (igual que OpenAI)
-      const r = await withTimeout(fetch('https://text.pollinations.ai/openai', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'openai', seed, private: true, referrer: 'misnotas',
-          messages: [{ role: 'system', content: system }, { role: 'user', content: text }] }),
-      }), 35000);
-      clearTimeout(timer);
-      if (!r.ok) throw new Error('http ' + r.status);
-      const j = await r.json();
-      const out = clean(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
-      if (!out) throw new Error('empty');
-      rwReply({ req: m.req, slot: m.slot, ok: true, text: out });
-    } catch (e1) {
-      clearTimeout(timer);
-      try {
-        // 2) Forma sencilla (por si la primera falla)
-        const url = 'https://text.pollinations.ai/' + encodeURIComponent(text) +
-          '?model=openai&private=true&referrer=misnotas&seed=' + seed + '&system=' + encodeURIComponent(system);
-        const r2 = await withTimeout(fetch(url), 35000);
-        clearTimeout(timer);
-        if (!r2.ok) throw new Error('http ' + r2.status);
-        const out2 = clean(await r2.text());
-        if (!out2) throw new Error('empty');
-        rwReply({ req: m.req, slot: m.slot, ok: true, text: out2 });
-      } catch (e2) {
-        clearTimeout(timer);
-        rwReply({ req: m.req, slot: m.slot, ok: false });
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), ms); })]).finally(() => clearTimeout(t)); };
+    async function ask() {
+      // Hasta 3 intentos (el servicio gratis a veces pide esperar un poquito entre pedidos)
+      for (let k = 0; k < 3; k++) {
+        if (k) await sleep(2500 * k);
+        const seed = Math.floor(Math.random() * 1e6);
+        try {
+          const r = await withTimeout(fetch('https://text.pollinations.ai/openai', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'openai', seed, private: true, referrer: 'misnotas',
+              messages: [{ role: 'system', content: system }, { role: 'user', content: text }] }),
+          }), 45000);
+          if (!r.ok) throw new Error('http ' + r.status);
+          const j = await r.json();
+          const out = String((j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+          if (out) return out;
+        } catch (e1) {
+          try {
+            const url = 'https://text.pollinations.ai/' + encodeURIComponent(text) +
+              '?model=openai&private=true&referrer=misnotas&seed=' + seed + '&system=' + encodeURIComponent(system);
+            const r2 = await withTimeout(fetch(url), 45000);
+            if (!r2.ok) throw new Error('http ' + r2.status);
+            const out2 = String(await r2.text()).trim();
+            if (out2) return out2;
+          } catch (e2) {}
+        }
       }
+      return '';
     }
+    const out = await ask();
+    if (!out) { rwReply({ req: m.req, slot: m.slot, dual: !!dual, ok: false }); return; }
+    if (!dual) { rwReply({ req: m.req, slot: m.slot, ok: true, text: clean(out) }); return; }
+    // Separar las dos versiones
+    const i1 = out.indexOf(MK[0]), i2 = out.indexOf(MK[1]);
+    let a = '', b = '';
+    if (i2 >= 0) { a = out.slice(i1 >= 0 ? i1 + MK[0].length : 0, i2); b = out.slice(i2 + MK[1].length); }
+    else a = i1 >= 0 ? out.slice(i1 + MK[0].length) : out;
+    a = clean(a.replace(/<<<[^>]*>>>/g, '')); b = clean(b.replace(/<<<[^>]*>>>/g, ''));
+    rwReply({ req: m.req, dual: true, ok: true, outs: [a || null, b || null] });
   }
 
   /* ---------- Revisar ortografía (LanguageTool, por internet) ---------- */
