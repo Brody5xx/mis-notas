@@ -341,6 +341,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audwrap .audt{flex:none;font-size:15px;color:${c.muted};font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
   .audwrap .audx{width:34px;height:34px;opacity:.85}
   .audwrap audio{display:none}
+  .audwrap{flex-wrap:wrap;row-gap:8px}
+  .audwrap .audctl{flex-basis:100%;display:flex;align-items:center;justify-content:center;gap:26px}
+  .audwrap .audctl button{height:36px;min-width:44px;border-radius:18px;color:${c.text};gap:4px;font-size:13px;font-weight:700}
+  .audwrap .audctl .audsp{min-width:58px;padding:0 12px;background:rgba(255,255,255,.12);font-size:15px;font-variant-numeric:tabular-nums}
+  .audwrap .audctl button:active{background:rgba(255,255,255,.18)}
   .audtx{color:${c.muted};font-style:italic}
   #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
   body.recording #dock,body.recording #rwChip{display:none !important}
@@ -2652,12 +2657,27 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var PAUSE_SVG = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><rect x="9" y="8" width="2" height="8" fill="currentColor" stroke="none"/><rect x="13" y="8" width="2" height="8" fill="currentColor" stroke="none"/></svg>';
   var DEL_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
   function audFmt(sec){ sec = Math.max(0, Math.round(sec || 0)); var m = Math.floor(sec / 60), x = sec % 60; return m + ':' + (x < 10 ? '0' : '') + x; }
+  var RW_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>';
+  var FF_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
+  var AUD_RATES = [1, 1.5, 2];
+  function audRateTxt(r){ var t = String(r); if (/^(es|pt|fr|de|it|ca|nl|sv|nb|da|fi|pl|cs|sk|hu|ro|hr|el|bg|ru|uk|tr|id|vi)/.test(String(LOC))) t = t.replace('.', ','); return t + '×'; }
+  function audCtl(){
+    return '<div class="audctl"><button class="audrw" type="button">' + RW_SVG + '10</button>' +
+      '<button class="audsp" type="button">' + audRateTxt(1) + '</button>' +
+      '<button class="audff" type="button">10' + FF_SVG + '</button></div>';
+  }
+  function audUpgrade(w){                                   // los audios viejos también reciben ⏪ ⏩ y la velocidad
+    if (w.querySelector('.audctl')) return;
+    var au = w.querySelector('audio'), box = document.createElement('div');
+    box.innerHTML = audCtl();
+    w.insertBefore(box.firstChild, au);
+  }
   function audBlock(src, dur){
     return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '">' +
       '<button class="audp" type="button">' + PLAY_SVG + '</button>' +
       '<div class="audbar"><div class="audfill"></div></div>' +
       '<span class="audt">' + audFmt(dur) + '</span>' +
-      '<button class="audx" type="button">' + DEL_SVG + '</button>' +
+      '<button class="audx" type="button">' + DEL_SVG + '</button>' + audCtl() +
       '<audio preload="none" src="' + src + '"></audio></div>';
   }
   var audNow = null;   // el audio que está sonando
@@ -2688,12 +2708,37 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (au.paused) { audStopAll(); audNow = au; au.play().catch(function(){}); }
       return;
     }
+    var rwb = e.target.closest('.audrw'), ffb = e.target.closest('.audff');
+    if (rwb || ffb) {                                      // devolver / adelantar 10 segundos
+      var delta = rwb ? -10 : 10;
+      var go = function(){
+        var d3 = isFinite(au.duration) && au.duration > 0 ? au.duration : dur;
+        try { au.currentTime = Math.max(0, Math.min(d3 || 1e9, (au.currentTime || 0) + delta)); } catch (er) {}
+        fill.style.width = (d3 ? Math.min(100, au.currentTime / d3 * 100) : 0) + '%';
+        tt.textContent = audFmt(au.currentTime);
+      };
+      if (au.readyState === 0) { au.preload = 'auto'; au.addEventListener('loadedmetadata', go, { once: true }); try { au.load(); } catch (er) {} }
+      else go();
+      return;
+    }
+    var spb = e.target.closest('.audsp');
+    if (spb) {                                             // velocidad: 1× → 1,5× → 2× → 1×
+      var cur = +w.dataset.rate || 1, nx = AUD_RATES[(AUD_RATES.indexOf(cur) + 1) % AUD_RATES.length];
+      w.dataset.rate = nx; au.defaultPlaybackRate = nx; au.playbackRate = nx;
+      spb.textContent = audRateTxt(nx);
+      return;
+    }
     if (e.target.closest('.audp')) {
+      au.playbackRate = +w.dataset.rate || 1;
       if (au.paused) { audStopAll(); audNow = au; if (au.ended) au.currentTime = 0; au.play().catch(function(){}); }
       else au.pause();
     }
   }, true);
 
+  Array.prototype.forEach.call(ed.querySelectorAll('.audwrap'), function(w){
+    audUpgrade(w);
+    var r0 = +w.dataset.rate || 1, sp = w.querySelector('.audsp'); if (sp) sp.textContent = audRateTxt(r0);
+  });
   var REC = null, recEl = $('recP');
   /* Idioma en que vas a hablar (Whisper se enfoca en ese idioma y transcribe mejor) */
   var REC_LANGS = [['auto', '🌐 Auto'], ['spanish', 'Español'], ['english', 'English'], ['portuguese', 'Português'],
