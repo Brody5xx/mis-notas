@@ -364,7 +364,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #recP .recLangs button.on{background:${c.text};color:${c.inv};border-color:transparent;font-weight:700}
   #recP .recBtns button{flex:1;height:46px;border-radius:23px;font-size:16px;font-weight:700;border:1px solid ${c.border};background:transparent;color:${c.text}}
   #recP .recBtns .recOk{background:${c.text};color:${c.inv};border-color:transparent}
-  #rw{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:14px 14px 12px;max-height:72vh;overflow:auto}
+  #rw{bottom:calc(14px + var(--kb)) !important;z-index:9;padding:0;overflow:hidden}
+  #rwIn{padding:14px 14px 12px;max-height:72vh;overflow:auto;overscroll-behavior:contain;border-radius:inherit}
   #rw .rwHead{display:flex;align-items:center;justify-content:space-between;color:${c.muted};font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
   #rw .rwX{border:none;background:none;color:${c.text};font-size:20px;padding:2px 6px;line-height:1}
   #rw .rwGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -569,7 +570,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div id="spLayer"></div>
 <div class="panel" id="spell"></div>
 <button id="rwChip">${H('rwBtn')}</button>
-<div class="panel" id="rw"></div>
+<div class="panel" id="rw"><div id="rwIn"></div></div>
 <div class="panel" id="recP"></div>
 <div id="imged">
   <div id="ieTop">
@@ -3128,7 +3129,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   });
   window.recOpen = function(){ return !!REC; };
   var RW = { range: null, text: '', style: null, req: 0, out: '' };
-  var rwChip = $('rwChip'), rwEl = $('rw');
+  var rwChip = $('rwChip'), rwBox = $('rw'), rwEl = $('rwIn');   // la caja no se mueve; lo de adentro se desliza
   var RW_STYLES = [
     ['syn', '📖', ${J('rwSyn')}], ['pro', '💼', ${J('rwPro')}], ['formal', '🎩', ${J('rwFormal')}], ['fix', '✅', ${J('rwFix')}],
     ['report', '📋', ${J('wReport')}], ['email', '✉️', ${J('wEmail')}], ['chat', '💬', ${J('wChat')}], ['english', '🇺🇸', ${J('wEnglish')}],
@@ -3210,7 +3211,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<div class="rwGrid">' + WORK_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>' +
       '<div class="rwSec">✨ ' + rwEsc(${J('rwTitle')}) + '</div>' +
       '<div class="rwGrid many">' + RW_STYLES.filter(function(s){ return WK_EXTRA.indexOf(s[0]) >= 0; }).map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
-    rwEl.classList.add('show');
+    rwBox.classList.add('show');
     send({ type: 'rwOpen', open: true });
   }
   /* Convertir el texto de la IA en renglones de la nota (títulos en negrita, viñetas, listas) */
@@ -3337,7 +3338,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     closePanels(); document.body.classList.add('rw');
     rwEl.innerHTML = rwHead(${J('tplTitle')}) + '<div class="tplList">' + TPLS.map(function(t){ return '<button data-tpl="' + t[0] + '"><b>' + t[1] + '</b>' + rwEsc(t[2]) + '</button>'; }).join('') + '</div>';
-    rwEl.classList.add('show');
+    rwBox.classList.add('show');
     send({ type: 'rwOpen', open: true });
   };
   function tplInsert(k){
@@ -3405,7 +3406,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (RW.tpl) { window.tplOpen(); return; }
     rwEl.innerHTML = rwHead(${J('rwTitle')}) + '<div class="rwOrig">“' + rwEsc(RW.text.slice(0, 220)) + (RW.text.length > 220 ? '…' : '') + '”</div>' +
       '<div class="rwGrid many">' + RW_STYLES.map(function(s){ return '<button class="rwOpt" data-style="' + s[0] + '"><b>' + s[1] + '</b>' + rwEsc(s[2]) + '</button>'; }).join('') + '</div>';
-    rwEl.classList.add('show');
+    rwBox.classList.add('show');
     send({ type: 'rwOpen', open: true });
   }
   /* 🇪🇸🇺🇸 Cada resultado sale en dos idiomas: el de la app y el inglés (si la app está en inglés: inglés y español) */
@@ -3516,7 +3517,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
   }
   window.rewriteResult = function(res){
-    if (!res || res.req !== RW.req || !rwEl.classList.contains('show')) return;
+    if (!res || res.req !== RW.req || !rwBox.classList.contains('show')) return;
     if (RW.dual) {
       if (res.dual) {
         if (!res.ok) { RW.errs = [true, true]; rwRenderDual(); return; }
@@ -3568,11 +3569,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<div class="rwRow"><button data-rw="back">← ' + rwEsc(${J('rwStyles')}) + '</button><button data-rw="again">↻ ' + rwEsc(${J('rwAgain')}) + '</button></div>';
   };
   function rwClose(){
-    rwEl.classList.remove('show'); document.body.classList.remove('rw');
+    rwBox.classList.remove('show'); document.body.classList.remove('rw');
     RW.req++; RW.range = null; RW.work = false; RW.tpl = false;
     send({ type: 'rwOpen', open: false });
   }
-  window.rewriteClose = function(){ if (rwEl.classList.contains('show')) { rwClose(); return true; } return false; };
+  window.rewriteClose = function(){ if (rwBox.classList.contains('show')) { rwClose(); return true; } return false; };
   function rwFrag(text){
     var f = document.createDocumentFragment(), lines = text.split('\\n');
     lines.forEach(function(l, i){ if (i) f.appendChild(document.createElement('br')); if (l) f.appendChild(document.createTextNode(l)); });
