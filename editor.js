@@ -3998,7 +3998,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     var html = '<!DOCTYPE html><html lang="' + xesc(LOC) + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>' + xesc(JOB.name) + '</title><style>' + PAGE_CSS + '</style></head><body><main>' + parts.join('<hr class="sep">') +
-      '<footer>Mis Notas</footer></main><script>' + PAGE_JS + '</scr' + 'ipt></body></html>';
+      '<footer>' + xesc(JOB.app || 'Mis Notas') + '</footer></main><script>' + PAGE_JS + '</scr' + 'ipt></body></html>';
     return { type: 'exported', kind: 'page', name: JOB.name + '.html', mime: 'text/html', text: html };
   }
   async function runExport(){

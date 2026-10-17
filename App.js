@@ -1705,7 +1705,7 @@ function NotesApp() {
       const base = list.length === 1 ? ((list[0].title || '').trim() || tr('note')) : tr('myNotes');
       const name = base.replace(/[\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'nota';
       const html = buildEditorHtml({ id: 'export', content: '', titleHtml: '', updated: Date.now(), editable: false, c,
-        kind: 'text', ink: [], tr, locale: LOCALE, exportJob: { kind, name, notes: items } });
+        kind: 'text', ink: [], tr, locale: LOCALE, exportJob: { kind, name, notes: items, app: tr('appName') } });
       setExportJob({ html, key: Date.now() });
     };
     if (currentId) flushEditor(go); else go();
