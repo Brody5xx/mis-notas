@@ -2337,6 +2337,15 @@ function NotesApp() {
     });
   }, [currentId, dark, langCode, current && current.deleted, editorRev]);
 
+  // Vista previa de una versión del historial con el mismo editor (solo para mirar)
+  const histHtml = useMemo(() => {
+    if (!current || !histView || histView.rec) return '';
+    return buildEditorHtml({
+      id: 'preview', content: toHtml(histView), titleHtml: toTitleHtml(histView),
+      updated: histView.at, editable: false, c, kind: current.kind, ink: histView.ink, tr, locale: LOCALE, colors: colorPrefs.current,
+    });
+  }, [histView, dark, langCode]);
+
   /* ---------- Botón "atrás" de Android ---------- */
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -2865,16 +2874,14 @@ function NotesApp() {
                       </TouchableOpacity>
                       <DoneBtn onPress={() => { setHistView(null); setHistOpen(false); }} t={c} />
                     </View>
-                    <ScrollView style={{ maxHeight: 380, marginVertical: 14 }}>
-                      {!!histView.title && <Text style={s.histViewTitle}>{histView.title}</Text>}
-                      {firstImg(histView) && (
-                        <Image source={{ uri: firstImg(histView) }} style={[s.thumb, { height: 140 }]} resizeMode="cover" />
+                    {/* La versión se ve EXACTAMENTE como quedó: fotos en su lugar, colores, tamaños, audios */}
+                    <View style={{ height: 420, marginVertical: 14, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
+                      {Platform.OS === 'web' ? (
+                        <iframe srcDoc={histHtml} title="version" style={{ border: 'none', width: '100%', height: '100%', backgroundColor: c.grad ? c.grad[0] : 'transparent' }} />
+                      ) : (
+                        <WebView originWhitelist={['*']} source={{ html: histHtml }} style={{ flex: 1, backgroundColor: 'transparent' }} />
                       )}
-                      <Text style={s.histViewText}>{toPlain(histView) || ' '}</Text>
-                      {!!(histView.ink && histView.ink.length) && (
-                        <Text style={[s.histDate, { marginTop: 8 }]}>{tr('includesStrokes', { n: histView.ink.length })}</Text>
-                      )}
-                    </ScrollView>
+                    </View>
                     <TouchableOpacity onPress={() => restoreVersion(histView)} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="rotate-ccw" size={18} color={c.inv} />
                       <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('restoreThisVersion')}</Text>
