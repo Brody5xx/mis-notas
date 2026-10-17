@@ -344,6 +344,33 @@ function toTitleHtml(n) {
   const esc = (n.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return n.titleColor && esc ? `<span style="color:${n.titleColor}">${esc}</span>` : esc;
 }
+/* 📦 Cuánto pesa una nota (texto + fotos + audios y videos guardados aparte) */
+function noteBytes(n) {
+  if (!n) return 0;
+  const h = String(n.content || '');
+  let b = h.length + String(n.titleHtml || n.title || '').length;
+  const re = /<div class="(?:aud|vid)wrap"[^>]*>/g;
+  let m;
+  while ((m = re.exec(h))) {
+    const tag = m[0], after = h.slice(m.index, m.index + 4000);
+    if (!/<(?:audio|video)[^>]*data-aid=/.test(after)) continue;       // está dentro de la nota: ya se contó
+    const sz = /data-size="(\d+)"/.exec(tag), du = /data-dur="(\d+)"/.exec(tag);
+    b += sz ? +sz[1] : du ? +du[1] * 4000 : 0;
+  }
+  return b;
+}
+/* Lo que pesa al enviarla como página (fotos/videos van dentro del archivo, ~1.37 veces) */
+function sendBytes(n) {
+  const all = noteBytes(n), inside = String((n && n.content) || '').length;
+  return Math.round(inside + (all - inside) * 1.37 + 4000);
+}
+function fmtBytes(b) {
+  b = +b || 0;
+  if (b < 1048576) return Math.max(1, Math.round(b / 1024)) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+
 /* Primer color usado en el título (para la tarjeta) */
 function titleColorOf(n) {
   const m = n.titleHtml && n.titleHtml.match(/color:\s*([^;"]+)/);
@@ -1702,10 +1729,10 @@ function NotesApp() {
     let m; try { m = JSON.parse(data); } catch (e) { return; }
     if (m.type !== 'exported') return;
     setExportJob(null);
-    if (m.error || !m.b64) { showToast(tr('exportFail')); return; }
+    if (m.error || (!m.b64 && !m.text)) { showToast(tr('exportFail')); return; }
     if (Platform.OS === 'web') {
       try {
-        const bytes = b64ToBytes(m.b64);
+        const bytes = m.text != null ? m.text : b64ToBytes(m.b64);
         const file = new File([bytes], m.name, { type: m.mime });
         setWebFile({ file, url: URL.createObjectURL(file), name: m.name });
       } catch (e) { showToast(tr('exportFail')); }
@@ -1715,7 +1742,7 @@ function NotesApp() {
       const f = new FS.File(FS.Paths.cache, m.name);
       try { if (f.exists) f.delete(); } catch (e) {}
       try { f.create(); } catch (e) {}
-      f.write(b64ToBytes(m.b64));
+      f.write(m.text != null ? m.text : b64ToBytes(m.b64));
       const ok = await shareFile(f.uri, m.mime, m.name);
       if (!ok) showToast(tr('shareFail'));
     } catch (e) {
@@ -2263,6 +2290,17 @@ function NotesApp() {
   const shareLayer = (
     <>
       <Sheet visible={!!shareFor} onClose={() => setShareFor(null)} title={tr('shareAs')} s={s} t={c}>
+        {!!shareFor && (() => {
+          const sz = shareFor.reduce((a, id) => a + sendBytes(notes.find(n => n.id === id)), 0);
+          const hint = sz <= 20 * 1048576 ? tr('sizeOk') : sz <= 100 * 1048576 ? tr('sizeBig') : tr('sizeHuge');
+          return (
+            <View style={{ paddingHorizontal: 6, paddingBottom: 10 }}>
+              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>📦 {tr('sizeSend', { s: fmtBytes(sz) })}</Text>
+              <Text style={{ color: c.muted, fontSize: 13, marginTop: 3 }}>{hint}</Text>
+            </View>
+          );
+        })()}
+        <Row icon="film" label={tr('sharePage')} s={s} t={c} onPress={() => exportNotes('page', shareFor)} />
         <Row icon="file-text" label={tr('sharePdf')} s={s} t={c} onPress={() => exportNotes('pdf', shareFor)} />
         {shareFor && shareFor.length === 1 && (
           <Row icon="image" label={tr('shareImg')} s={s} t={c} onPress={() => exportNotes('img', shareFor)} />
@@ -2425,6 +2463,8 @@ function NotesApp() {
     trash: notes.length - live.length,
   };
   const folderCount = id => live.filter(n => n.folderId === id).length;
+  const folderSize = id => fmtBytes(live.filter(n => n.folderId === id).reduce((a, n) => a + noteBytes(n), 0));
+  const totalSize = fmtBytes(live.reduce((a, n) => a + noteBytes(n), 0));
   const allTags = useMemo(() => {
     const m = {};
     notes.forEach(n => { if (!n.deleted) tagsOf(n).forEach(t => { m[t] = (m[t] || 0) + 1; }); });
@@ -2954,13 +2994,13 @@ function NotesApp() {
                   <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
                     <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
                     <Text style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}</Text>
+                    <Text style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
                   </Glass>
                 ) : (
                   <View style={[s.navItem, { marginBottom: 4 }]}>
                     <Feather name={icon} size={19} color={c.muted} style={s.navIcon} />
                     <Text style={s.navText}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}</Text>
+                    <Text style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -2986,7 +3026,10 @@ function NotesApp() {
                 <>
                   <Feather name="folder" size={19} color={f.color} style={s.navIcon} />
                   <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
-                  <Text style={s.navCount}>{folderCount(f.id)}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={s.navCount}>{folderCount(f.id)}</Text>
+                    <Text style={{ fontSize: 11, color: c.muted }}>{folderSize(f.id)}</Text>
+                  </View>
                   <TouchableOpacity onPress={() => openFolderEdit(f)} hitSlop={10} style={{ marginLeft: 10 }}>
                     <Feather name="more-horizontal" size={18} color={c.muted} />
                   </TouchableOpacity>

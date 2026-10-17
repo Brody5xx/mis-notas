@@ -9,7 +9,7 @@ export async function shareFile(uri, mime, title) {
   await Sharing.shareAsync(uri, {
     mimeType: mime,
     dialogTitle: title,
-    UTI: mime === 'application/pdf' ? 'com.adobe.pdf' : mime === 'application/json' ? 'public.json' : 'public.jpeg',
+    UTI: mime === 'application/pdf' ? 'com.adobe.pdf' : mime === 'application/json' ? 'public.json' : mime === 'text/html' ? 'public.html' : 'public.jpeg',
   });
   return true;
 }

@@ -347,6 +347,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audwrap .audctl .audsp{min-width:58px;padding:0 12px;background:rgba(255,255,255,.12);font-size:15px;font-variant-numeric:tabular-nums}
   .audwrap .audctl button:active{background:rgba(255,255,255,.18)}
   .audtx{color:${c.muted};font-style:italic}
+  /* ===== Videos dentro de la nota ===== */
+  .vidwrap{margin:12px 0;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.1);user-select:none;-webkit-user-select:none}
+  .vidwrap video{display:block;width:100%;max-height:70vh;background:#000}
+  .vidbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.08)}
+  .vidbar .vidsz{flex:1;font-size:13px;color:${c.muted};font-variant-numeric:tabular-nums}
+  .vidbar button{border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:14px;padding:5px 12px;font-size:13px;font-weight:700;font-family:inherit;display:flex;align-items:center;gap:4px}
+  .vidbar .vidx{padding:5px 8px}
+  ${editable ? '' : '.vidbar button,.audwrap .audx{display:none !important}'}
   #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
   body.recording #dock,body.recording #rwChip{display:none !important}
   #recP .recTop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
@@ -436,7 +444,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 <div id="ed" dir="auto" spellcheck="false" contenteditable="${editable}"></div>
 <canvas id="ink"></canvas>
 <canvas id="live"></canvas>
-<input type="file" id="file" accept="image/*" style="display:none">
+<input type="file" id="file" accept="image/*,video/*" style="display:none">
 
 <!-- Barra flotante -->
 <div class="dock" id="dock" ${editable ? '' : 'style="display:none"'}>
@@ -662,7 +670,26 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function modText(t){
     var w = countWords();
-    return ${J('modified')}.replace('{d}', fmtDate(t)) + (w ? '  ·  ' + (w === 1 ? ${J('nWords1')} : ${J('nWords')}).replace('{n}', w) : '');
+    return ${J('modified')}.replace('{d}', fmtDate(t)) + (w ? '  ·  ' + (w === 1 ? ${J('nWords1')} : ${J('nWords')}).replace('{n}', w) : '') +
+      '  ·  ' + fmtBytes(noteSize());
+  }
+  /* 📦 Cuánto pesa la nota (texto, fotos, audios y videos) */
+  function fmtBytes(b){
+    b = +b || 0;
+    var f = function(x, d){ try { return x.toLocaleString(LOC, { maximumFractionDigits: d }); } catch (e) { return x.toFixed(d); } };
+    if (b < 1024 * 1024) return f(Math.max(1, Math.round(b / 1024)), 0) + ' KB';
+    if (b < 1024 * 1024 * 1024) return f(b / 1048576, 1) + ' MB';
+    return f(b / 1073741824, 2) + ' GB';
+  }
+  function noteSize(){
+    var b = cleanHtml().length + ttl.innerHTML.length;
+    Array.prototype.forEach.call(ed.querySelectorAll('.audwrap,.vidwrap'), function(w){
+      var m = w.querySelector('audio,video');
+      if (!m || !m.getAttribute('data-aid')) return;           // si está dentro de la nota, ya se contó arriba
+      var sz = +w.getAttribute('data-size');
+      b += sz || (+w.getAttribute('data-dur') || 0) * 4000;
+    });
+    return b;
   }
   // La fecha y el conteo de palabras se calculan un ratito después de abrir
   // (son lentos la primera vez y harían que la animación de abrir se trabe)
@@ -690,6 +717,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function changedNow(){
     clearTimeout(sendTimer); dirty = false;
+    vidHydrate();
     if (editable) ensureLines();                // línea para escribir debajo de cada foto
     record();                                   // guardar el paso para Deshacer
     var p = payload();
@@ -1461,6 +1489,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var f = fileInput.files && fileInput.files[0];
     fileInput.value = '';
     if (!f) return;
+    if (/^video[/]/.test(f.type || '') || /[.](mp4|mov|m4v|3gp|webm|mkv)$/i.test(f.name || '')) { insertVideo(f); return; }
     showTip(${J('addingPhoto')});
     var r = new FileReader();
     r.onload = function(){
@@ -2767,8 +2796,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (au.getAttribute('src') || !au.dataset.aid) { cb(); return; }
     audGet(au.dataset.aid).then(function(b){ if (!au.getAttribute('src')) au.src = URL.createObjectURL(b); cb(); }, function(){ cb(); });
   }
-  function audBlock(src, dur, aid){
-    return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '">' +
+  function audBlock(src, dur, aid, size){
+    return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '"' + (size ? ' data-size="' + size + '"' : '') + '>' +
       '<button class="audp" type="button">' + PLAY_SVG + '</button>' +
       '<div class="audbar"><div class="audfill"></div></div>' +
       '<span class="audt">' + audFmt(dur) + '</span>' +
@@ -2851,6 +2880,110 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     audUpgrade(w);
     var r0 = +w.dataset.rate || 1, sp = w.querySelector('.audsp'); if (sp) sp.textContent = audRateTxt(r0);
   });
+  /* =========================================================
+     🎬 VIDEOS en la nota: se guardan aparte (como los audios) y
+     se ven con su botón de play. Se pueden achicar para enviarlos.
+     ========================================================= */
+  var VID_SHRINK_SVG = '🗜️';
+  function vidBlock(src, aid, size){
+    return '<div class="vidwrap" contenteditable="false" data-size="' + (size || 0) + '">' +
+      '<video controls playsinline preload="metadata"' + (aid ? ' data-aid="' + aid + '"' : ' src="' + src + '"') + '></video>' +
+      '<div class="vidbar"><span class="vidsz">🎬 ' + fmtBytes(size) + '</span>' +
+      '<button class="vidsh" type="button">' + VID_SHRINK_SVG + ' ' + rwEsc(${J('vidShrink')}) + '</button>' +
+      '<button class="vidx" type="button">' + DEL_SVG + '</button></div></div>';
+  }
+  function vidHydrate(){
+    Array.prototype.forEach.call(ed.querySelectorAll('.vidwrap video[data-aid]'), function(v){
+      if (v.getAttribute('src') || v._loading) return;
+      v._loading = true;
+      audGet(v.getAttribute('data-aid')).then(function(b){ if (!v.getAttribute('src')) v.src = URL.createObjectURL(b) + '#t=0.1'; }, function(){}).then(function(){ v._loading = false; });
+    });
+  }
+  function insertVideo(f){
+    showTip(${J('vidAdding')});
+    var blob = f.type ? f : new Blob([f], { type: 'video/mp4' });
+    audKeep(blob, function(src, aid){
+      var html = vidBlock(src, aid, f.size) + '<div><br></div>';
+      quietFocus();
+      if (saved && ed.contains(saved.startContainer)) {
+        var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(saved);
+        document.execCommand('insertHTML', false, html);
+      } else ed.insertAdjacentHTML('beforeend', html);
+      changedNow();
+      showTip(${J('vidAdded')});
+    });
+  }
+  function vidShrinkMime(){
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
+    return ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4;codecs=avc1', 'video/mp4']
+      .filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0] || null;
+  }
+  function vidShrink(w){
+    var mime = vidShrinkMime();
+    if (!mime) { showTip(${J('vidNoShrink')}); return; }
+    if (w._busy) return; w._busy = true;
+    var v0 = w.querySelector('video'), lbl = w.querySelector('.vidsz'), oldSize = +w.getAttribute('data-size') || 0;
+    var ac = null;
+    var getBlob = v0.getAttribute('data-aid') ? audGet(v0.getAttribute('data-aid')) : fetch(v0.getAttribute('src')).then(function(r){ return r.blob(); });
+    getBlob.then(function(blob){
+      if (!oldSize) oldSize = blob.size;
+      return new Promise(function(ok, no){
+        var v = document.createElement('video');
+        v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(blob);
+        v.onerror = function(){ no(new Error('video')); };
+        v.onloadedmetadata = function(){
+          var sc = Math.min(1, 1280 / Math.max(v.videoWidth || 1280, v.videoHeight || 720));
+          var cw = Math.max(2, Math.round((v.videoWidth || 1280) * sc / 2) * 2), ch = Math.max(2, Math.round((v.videoHeight || 720) * sc / 2) * 2);
+          var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+          var g = cv.getContext('2d'), stream = cv.captureStream(30);
+          try {
+            var AC = window.AudioContext || window.webkitAudioContext; ac = new AC();
+            var sn = ac.createMediaElementSource(v), dst = ac.createMediaStreamDestination();
+            sn.connect(dst); try { ac.resume(); } catch (e) {}
+            dst.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
+          } catch (e) {}
+          var rec;
+          try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000, audioBitsPerSecond: 96000 }); }
+          catch (e) { no(e); return; }
+          var chunks = [], done = false;
+          rec.ondataavailable = function(ev){ if (ev.data && ev.data.size) chunks.push(ev.data); };
+          rec.onstop = function(){ ok(new Blob(chunks, { type: 'video/mp4' })); };
+          var draw = function(){
+            if (done) return;
+            try { g.drawImage(v, 0, 0, cw, ch); } catch (e) {}
+            lbl.textContent = ${J('vidShrinking')}.replace('{n}', Math.min(99, Math.round(v.currentTime / (v.duration || 1) * 100)));
+            requestAnimationFrame(draw);
+          };
+          v.onended = function(){ done = true; setTimeout(function(){ try { rec.stop(); } catch (e) { no(e); } }, 250); };
+          rec.start(1000);
+          v.play().then(draw, no);
+        };
+      });
+    }).then(function(nb){
+      if (!nb.size || nb.size >= oldSize) return null;       // si no quedó más pequeño, se queda el original
+      return audPut(nb).then(function(aid){
+        v0.removeAttribute('src'); v0.setAttribute('data-aid', aid); v0._loading = false;
+        w.setAttribute('data-size', nb.size);
+        return nb.size;
+      });
+    }).then(function(ns){
+      lbl.textContent = '🎬 ' + fmtBytes(ns || oldSize);
+      if (ns) { vidHydrate(); changedNow(); }
+      showTip(${J('vidShrunk')}.replace('{a}', fmtBytes(oldSize)).replace('{b}', fmtBytes(ns || oldSize)));
+    }).catch(function(){
+      lbl.textContent = '🎬 ' + fmtBytes(oldSize);
+      showTip(${J('vidNoShrink')});
+    }).then(function(){ w._busy = false; try { ac && ac.close(); } catch (e) {} });
+  }
+  ed.addEventListener('mousedown', function(e){ if (e.target.closest && e.target.closest('.vidbar')) e.preventDefault(); });
+  ed.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.vidbar button'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    var w = b.closest('.vidwrap'); if (!w || !editable) return;
+    if (b.classList.contains('vidx')) { w.parentNode.removeChild(w); changedNow(); return; }
+    if (b.classList.contains('vidsh')) vidShrink(w);
+  }, true);
+  vidHydrate();
   ed.addEventListener('click', function(e){                 // 👔 Hacer profesional (debajo de la transcripción)
     var ch = e.target.closest && e.target.closest('.audpro'); if (!ch) return;
     e.preventDefault(); e.stopPropagation();
@@ -3079,7 +3212,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   window.audUpload = function(){ if (!editable) return; audUpKeep = null; audIn.click(); };
   function recInsert(me, text, src, dur, blob, aid){
     var wrap = document.createElement('div');
-    wrap.innerHTML = audBlock(src, dur, aid);
+    wrap.innerHTML = audBlock(src, dur, aid, blob && blob.size);
     var block = wrap.firstChild;
     // se pone después de la línea donde estaba el cursor (o al final de la nota)
     var at = null;
@@ -3185,7 +3318,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var out = [];
     Array.prototype.forEach.call(ed.childNodes, function(n){
       if (n.nodeType === 3) { if (n.data.trim()) out.push(n.data.trim()); return; }
-      if (n.nodeType !== 1 || (n.matches && n.matches('.audwrap,.imgwrap,.audtx,.audpro'))) return;
+      if (n.nodeType !== 1 || (n.matches && n.matches('.audwrap,.vidwrap,.imgwrap,.audtx,.audpro'))) return;
       var t = (n.innerText || n.textContent || '');
       if (n.tagName === 'UL' || n.tagName === 'OL') {
         t = Array.prototype.map.call(n.children, function(li){ return '- ' + (li.innerText || li.textContent || '').trim() + (li.classList.contains('done') ? ' (✓)' : ''); }).join('\\n');
@@ -3258,7 +3391,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var hl = !RW.dual ? rwLabel(RW.style) : RW.tab === 2 ? labelIn(RW.style, DUAL[0]) + ' / ' + labelIn(RW.style, DUAL[1]) : labelIn(RW.style, DUAL[RW.tab]);
     hb.textContent = rwIco(RW.style) + ' ' + hl; hd.appendChild(hb);
     var frag = document.createDocumentFragment();
-    if (ed.textContent.trim() || ed.querySelector('.audwrap,.imgwrap')) frag.appendChild(sp);
+    if (ed.textContent.trim() || ed.querySelector('.audwrap,.vidwrap,.imgwrap')) frag.appendChild(sp);
     frag.appendChild(hd);
     frag.appendChild(wkFrag(RW.out, RW.style));
     var first = frag.firstChild;
@@ -3271,7 +3404,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function wkReplace(){                                   // el texto de la nota se cambia por el resultado; fotos y audios se quedan
     if (!RW.out) return;
     Array.prototype.slice.call(ed.childNodes).forEach(function(n){
-      if (n.nodeType === 1 && n.matches && n.matches('.audwrap,.imgwrap')) return;
+      if (n.nodeType === 1 && n.matches && n.matches('.audwrap,.vidwrap,.imgwrap')) return;
       ed.removeChild(n);
     });
     ed.insertBefore(wkFrag(RW.out, RW.style), ed.firstChild);
@@ -3343,7 +3476,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   function tplInsert(k){
     var html = tplHtml(k); if (!html) return;
-    var empty = !ed.textContent.replace(/​/g, '').trim() && !ed.querySelector('.audwrap,.imgwrap');
+    var empty = !ed.textContent.replace(/​/g, '').trim() && !ed.querySelector('.audwrap,.vidwrap,.imgwrap');
     var box = document.createElement('div'); box.innerHTML = html;
     var firstNew = box.firstChild;
     if (empty) ed.innerHTML = '';
@@ -3424,13 +3557,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function wkSegs(){
     var segs = [], b = -1;
     Array.prototype.forEach.call(ed.children, function(top){
-      if (top.matches('.audwrap,.imgwrap,.audtx,.audpro')) return;
+      if (top.matches('.audwrap,.vidwrap,.imgwrap,.audtx,.audpro')) return;
       var blocks = (top.tagName === 'UL' || top.tagName === 'OL') ? Array.prototype.slice.call(top.children) : [top];
       blocks.forEach(function(blk){
         b++;
         var tw = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT, null), n;
         while ((n = tw.nextNode())) {
-          if (n.parentNode.closest && n.parentNode.closest('.audwrap,.imgwrap,.audpro,.audtx')) continue;
+          if (n.parentNode.closest && n.parentNode.closest('.audwrap,.vidwrap,.imgwrap,.audpro,.audtx')) continue;
           var d = n.data.replace(/\\u200B/g, '');
           if (!/[0-9A-Za-z\\u00C0-\\u1FFF\\u3000-\\uD7FF\\uF900-\\uFFEF]/.test(d)) continue;   // solo signos o emojis: se deja igual
           var m = d.match(/^(\\s*)([\\s\\S]*?)(\\s*)$/);
@@ -3828,7 +3961,51 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     out += 'trailer\\n<< /Size ' + n + ' /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF';
     return btoa(out);
   }
+  /* 🌐 Página con todo (texto, fotos, audios y videos) para enviar; se abre en cualquier teléfono */
+  function blobToData(b){ return new Promise(function(ok, no){ var fr = new FileReader(); fr.onload = function(){ ok(String(fr.result)); }; fr.onerror = no; fr.readAsDataURL(b); }); }
+  async function mediaSrc(el){
+    var src = el.getAttribute('src') || '';
+    if (/^blob:/.test(src)) src = '';
+    if (!src && el.getAttribute('data-aid')) { try { src = await blobToData(await audGet(el.getAttribute('data-aid'))); } catch (e) {} }
+    return src;
+  }
+  var PAGE_CSS = 'body{margin:0;background:#1c1c1e;color:#f2f2f2;font:17px/1.55 -apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}' +
+    'main{max-width:760px;margin:0 auto;padding:22px 16px 40px}h1.nt{font-size:28px;line-height:1.2;margin:6px 0 4px}.dt{color:#9a9a9f;font-size:13px;margin-bottom:18px}' +
+    '.imgwrap{display:inline-block;max-width:100%}.imgwrap img{display:block;width:100%;height:auto;border-radius:12px}' +
+    '.vidwrap,.audwrap{margin:14px 0;clear:both}video{display:block;width:100%;max-height:80vh;border-radius:14px;background:#000}audio{width:100%}' +
+    'ul.checklist{list-style:none;padding-left:4px}ul.checklist li::before{content:"☐ "}ul.checklist li.done::before{content:"☑ "}ul.checklist li.done{opacity:.6;text-decoration:line-through}' +
+    'hr.sep{border:none;border-top:1px solid #3a3a3c;margin:30px 0}footer{color:#6e6e73;font-size:12px;text-align:center;margin-top:34px}a{color:#6ab0ff}';
+  var PAGE_JS = 'document.querySelectorAll("video,audio").forEach(function(v){var s=v.getAttribute("src")||"";if(s.indexOf("data:")===0&&window.fetch&&window.URL){fetch(s).then(function(r){return r.blob()}).then(function(b){v.src=URL.createObjectURL(b)}).catch(function(){})}});';
+  async function buildPage(){
+    var parts = [];
+    for (var i = 0; i < JOB.notes.length; i++) {
+      var n = JOB.notes[i], box = document.createElement('div');
+      if (n.locked) { parts.push('<section><h1 class="nt">' + (n.t || '') + '</h1><p>🔒 ' + xesc(n.lockedTxt || '') + '</p></section>'); continue; }
+      box.innerHTML = n.h || '';
+      Array.prototype.forEach.call(box.querySelectorAll('.audx,.audctl,.audpro,.audtx,.audp,.audbar,.audt,.vidbar,#rsz'), function(x){ x.parentNode && x.parentNode.removeChild(x); });
+      var meds = box.querySelectorAll('.audwrap audio,.vidwrap video');
+      for (var k = 0; k < meds.length; k++) {
+        var el = meds[k], src = await mediaSrc(el), isV = el.tagName === 'VIDEO';
+        var ne = document.createElement(isV ? 'video' : 'audio');
+        ne.setAttribute('controls', ''); ne.setAttribute('preload', 'metadata');
+        if (isV) ne.setAttribute('playsinline', '');
+        if (src) ne.setAttribute('src', isV && src.indexOf('#') < 0 ? src : src);
+        el.parentNode.replaceChild(ne, el);
+      }
+      Array.prototype.forEach.call(box.querySelectorAll('[contenteditable]'), function(x){ x.removeAttribute('contenteditable'); });
+      Array.prototype.forEach.call(box.querySelectorAll('.imgwrap.sel'), function(x){ x.classList.remove('sel'); });
+      parts.push('<section>' + (n.t ? '<h1 class="nt">' + n.t + '</h1>' : '') + '<div class="dt">' + xesc(fmtDate(n.u)) + '</div><div class="bd">' + box.innerHTML + '</div></section>');
+    }
+    var html = '<!DOCTYPE html><html lang="' + xesc(LOC) + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>' + xesc(JOB.name) + '</title><style>' + PAGE_CSS + '</style></head><body><main>' + parts.join('<hr class="sep">') +
+      '<footer>Mis Notas</footer></main><script>' + PAGE_JS + '</scr' + 'ipt></body></html>';
+    return { type: 'exported', kind: 'page', name: JOB.name + '.html', mime: 'text/html', text: html };
+  }
   async function runExport(){
+    if (JOB.kind === 'page') {
+      try { send(await buildPage()); } catch (e) { send({ type: 'exported', error: String(e && e.message || e) }); }
+      return;
+    }
     try {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
       var pages = [], single = null;
