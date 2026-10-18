@@ -10,10 +10,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, Platform } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
-let N = null;
-if (Platform.OS !== 'web') {
-  try { N = require('expo-notifications'); } catch (e) { N = null; }
-}
+import Avisos from './avisos';          // avisos.native.js en el teléfono, avisos.web.js en el navegador
+const N = Avisos || null;
 export const canNotify = () => !!N;
 
 /* Preparar los avisos y qué hacer cuando tocas uno */

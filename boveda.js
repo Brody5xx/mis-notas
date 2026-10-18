@@ -18,12 +18,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { shareFile } from './compartir';
+import Galeria from './galeria';          // galeria.native.js en el teléfono, galeria.web.js en el navegador
 import { vaultKeys, seal, unseal, randomBytes, b64Encode, b64Decode, utf8Encode, utf8Decode } from './respaldo';
 
 let FS = null, ML = null;
 if (Platform.OS !== 'web') {
   try { FS = require('expo-file-system'); } catch (e) { FS = null; }
-  try { ML = require('expo-media-library'); } catch (e) { ML = null; }   // galería del teléfono
+  ML = Galeria || null;   // galería del teléfono
 }
 
 const MAX_MB = 150;                       // tamaño máximo de un archivo o video

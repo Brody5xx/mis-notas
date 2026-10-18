@@ -10,3 +10,7 @@ boveda.js
 reporte.js
 pendientes.js
 recordatorios.js
+avisos.native.js
+avisos.web.js
+galeria.native.js
+galeria.web.js

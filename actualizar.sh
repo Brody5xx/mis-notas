@@ -53,7 +53,7 @@ elif [ ! -f app.json ]; then
 fi
 
 # Paquete para compartir archivos (PDF / imagen) en el teléfono — solo la primera vez
-if [ -f package.json ] && ! grep -q '"expo-sharing"' package.json; then
+if [ -f package.json ] && { ! grep -q '"expo-sharing"' package.json || [ ! -d node_modules/expo-sharing ]; }; then
   echo "  … instalando expo-sharing (para compartir PDF e imágenes). Espera un momento..."
   if npx --yes expo install expo-sharing >/tmp/expo-sharing.log 2>&1; then
     echo "  ✓ expo-sharing instalado"
@@ -63,7 +63,7 @@ if [ -f package.json ] && ! grep -q '"expo-sharing"' package.json; then
 fi
 
 # Paquete para la galería (Bóveda: borrar el original / devolverlo a la galería) — solo la primera vez
-if [ -f package.json ] && ! grep -q '"expo-media-library"' package.json; then
+if [ -f package.json ] && { ! grep -q '"expo-media-library"' package.json || [ ! -d node_modules/expo-media-library ]; }; then
   echo "  … instalando expo-media-library (para la galería de la Bóveda). Espera un momento..."
   if npx --yes expo install expo-media-library >/tmp/expo-media-library.log 2>&1; then
     echo "  ✓ expo-media-library instalado"
@@ -92,7 +92,7 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
 fi
 
 # Paquete para los recordatorios (avisos a una hora) — solo la primera vez
-if [ -f package.json ] && ! grep -q '"expo-notifications"' package.json; then
+if [ -f package.json ] && { ! grep -q '"expo-notifications"' package.json || [ ! -d node_modules/expo-notifications ]; }; then
   echo "  … instalando expo-notifications (para los recordatorios). Espera un momento..."
   if npx --yes expo install expo-notifications >/tmp/expo-notifications.log 2>&1; then
     echo "  ✓ expo-notifications instalado"
