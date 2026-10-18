@@ -45,7 +45,43 @@ const FIELDS = {
   photo: ['title', 'note'], video: ['title', 'note'], file: ['title', 'note'],
 };
 
-/* ---------- Dónde se guarda (archivos en el teléfono / navegador) ---------- */
+/* ---------- Dónde se guarda (archivos en el teléfono / navegador) ----------
+   En el navegador NO se usa AsyncStorage (localStorage), porque solo deja ~5 MB
+   en total y los videos no caben. Se usa IndexedDB, que deja guardar archivos grandes.
+   Lo que ya estaba guardado en localStorage se sigue leyendo y se pasa a IndexedDB. */
+const WebDB = {
+  db: null,
+  open() {
+    if (this.db) return this.db;
+    this.db = new Promise((ok, no) => {
+      try {
+        const rq = indexedDB.open('misnotas_boveda', 1);
+        rq.onupgradeneeded = () => { try { rq.result.createObjectStore('f'); } catch (e) {} };
+        rq.onsuccess = () => ok(rq.result);
+        rq.onerror = () => { this.db = null; no(rq.error); };
+      } catch (e) { this.db = null; no(e); }
+    });
+    return this.db;
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((ok, no) => {
+      const tx = db.transaction('f', mode), st = tx.objectStore('f');
+      let out;
+      const rq = fn(st);
+      if (rq) rq.onsuccess = () => { out = rq.result; };
+      tx.oncomplete = () => ok(out);
+      tx.onerror = () => no(tx.error);
+      tx.onabort = () => no(tx.error || new Error('abort'));
+    });
+  },
+  get(k) { return this.run('readonly', st => st.get(k)); },
+  set(k, v) { return this.run('readwrite', st => st.put(v, k)); },
+  del(k) { return this.run('readwrite', st => st.delete(k)); },
+  keys() { return this.run('readonly', st => st.getAllKeys()); },
+};
+const useWebDB = () => !FS && typeof indexedDB !== 'undefined';
+
 const Store = {
   dir() {
     const d = new FS.Directory(FS.Paths.document, 'boveda');
@@ -56,6 +92,18 @@ const Store = {
     if (FS) {
       try { const f = new FS.File(this.dir(), name); if (!f.exists) return null; return await f.text(); } catch (e) { return null; }
     }
+    if (useWebDB()) {
+      try {
+        const v = await WebDB.get(name);
+        if (v != null) return v;
+      } catch (e) {}
+      // Algo guardado antes en localStorage: pasarlo a IndexedDB
+      const old = await AsyncStorage.getItem('boveda_' + name);
+      if (old != null) {
+        try { await WebDB.set(name, old); await AsyncStorage.removeItem('boveda_' + name); } catch (e) {}
+      }
+      return old;
+    }
     return AsyncStorage.getItem('boveda_' + name);
   },
   async set(name, text) {
@@ -65,10 +113,16 @@ const Store = {
       f.write(text);
       return;
     }
+    if (useWebDB()) {
+      await WebDB.set(name, text);
+      try { await AsyncStorage.removeItem('boveda_' + name); } catch (e) {}
+      return;
+    }
     await AsyncStorage.setItem('boveda_' + name, text);
   },
   async del(name) {
     if (FS) { try { const f = new FS.File(this.dir(), name); if (f.exists) f.delete(); } catch (e) {} return; }
+    if (useWebDB()) { try { await WebDB.del(name); } catch (e) {} }
     await AsyncStorage.removeItem('boveda_' + name);
   },
   async wipe(names) { for (const n of names) await this.del(n); },
@@ -84,7 +138,11 @@ async function vaultNames() {
     } catch (e) { return []; }
   }
   const all = await AsyncStorage.getAllKeys();
-  return all.filter(k => k.startsWith('boveda_')).map(k => k.slice(7));
+  const names = all.filter(k => k.startsWith('boveda_')).map(k => k.slice(7));
+  if (useWebDB()) {
+    try { for (const k of await WebDB.keys()) if (!names.includes(String(k))) names.push(String(k)); } catch (e) {}
+  }
+  return names;
 }
 export async function exportVaultRaw() {
   const names = await vaultNames();
