@@ -3301,7 +3301,7 @@ function NotesApp() {
               <Image source={{ uri: ICON_URI }} style={{ width: 44, height: 44, borderRadius: 12 }} />
               <View style={{ flex: 1 }}>
                 <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Best Notes</Text>
-                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12.5, marginTop: 2 }}>Developer: Luisell Peña Rodríguez</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12.5, marginTop: 2 }}>{tr('devBy')}: Luisell Peña Rodríguez</Text>
               </View>
             </View>
            </ScrollView>

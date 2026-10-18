@@ -4391,6 +4391,49 @@ for (const code in HMT) {
   if (HMT[code].length !== HMK.length) throw new Error('hm ' + code);
   HMK.forEach((k, i) => { S[code][k] = HMT[code][i]; });
 }
+/* "Developer" en cada idioma (menú ☰) */
+const DEVT = {
+  es: 'Desarrollador',
+  en: 'Developer',
+  pt: 'Desenvolvedor',
+  fr: 'Développeur',
+  de: 'Entwickler',
+  it: 'Sviluppatore',
+  ca: 'Desenvolupador',
+  nl: 'Ontwikkelaar',
+  sv: 'Utvecklare',
+  nb: 'Utvikler',
+  da: 'Udvikler',
+  fi: 'Kehittäjä',
+  pl: 'Twórca',
+  cs: 'Vývojář',
+  sk: 'Vývojár',
+  hu: 'Fejlesztő',
+  ro: 'Dezvoltator',
+  hr: 'Programer',
+  el: 'Προγραμματιστής',
+  bg: 'Разработчик',
+  ru: 'Разработчик',
+  uk: 'Розробник',
+  tr: 'Geliştirici',
+  ar: 'المطوّر',
+  he: 'מפתח',
+  fa: 'توسعه\u200cدهنده',
+  ur: 'ڈیولپر',
+  hi: 'डेवलपर',
+  bn: 'ডেভেলপার',
+  id: 'Pengembang',
+  ms: 'Pembangun',
+  fil: 'Developer',
+  vi: 'Nhà phát triển',
+  th: 'ผู้พัฒนา',
+  ja: '開発者',
+  ko: '개발자',
+  sw: 'Msanidi',
+  'zh-Hans': '开发者',
+  'zh-Hant': '開發者',
+};
+for (const code in DEVT) S[code].devBy = DEVT[code];
 /* El nombre de la app es el mismo en todos los idiomas */
 for (const code in S) S[code].appName = 'Best Notes';
 
