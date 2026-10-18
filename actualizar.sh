@@ -174,8 +174,10 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
     x.cli = x.cli || { appVersionSource: "local" };
     x.build = x.build || {};
     x.build.apk = { android: { buildType: "apk" } };
+    const pv = (process.argv[1] || "").trim();
+    if (/^\d+\.\d+\.\d+$/.test(pv)) x.build.apk.pnpm = pv;   // la misma versión de pnpm que usa Replit
     if (JSON.stringify(x) !== a2) { fs.writeFileSync("eas.json", JSON.stringify(x, null, 2) + "\n"); console.log("  ✓ eas.json (perfil apk para instalar en el teléfono)"); }
-  ' || echo "  ✗ No pude preparar la instalación (eas.json)"
+  ' "$(pnpm -v 2>/dev/null)" || echo "  ✗ No pude preparar la instalación (eas.json)"
 fi
 
 # Permitir que esbuild se instale bien en los servidores de Expo (si no, falla "Install dependencies")
@@ -205,7 +207,10 @@ if [ -f "$RAIZ/pnpm-workspace.yaml" ] && command -v node >/dev/null 2>&1; then
       }
       t = lines.join("\n");
     }
-    if (changed) { fs.writeFileSync(f, t); console.log("  ✓ pnpm-workspace.yaml (esbuild permitido para construir la app)"); }
+    if (/^strictDepBuilds:.*$/m.test(t)) { if (!/^strictDepBuilds:\s*false\s*$/m.test(t)) { t = t.replace(/^strictDepBuilds:.*$/m, "strictDepBuilds: false"); changed = true; } }
+    else { if (!t.endsWith("\n")) t += "\n"; t += "strictDepBuilds: false\n"; changed = true; }
+    if (changed) fs.writeFileSync(f, t);
+    console.log("  ✓ pnpm-workspace.yaml (esbuild permitido para construir la app)");
   ' "$RAIZ/pnpm-workspace.yaml" || echo "  ✗ No pude ajustar pnpm-workspace.yaml"
 fi
 
