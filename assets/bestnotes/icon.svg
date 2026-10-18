@@ -48,8 +48,8 @@
   </g>
   <rect x="262" y="226" width="500" height="590" rx="92" fill="none" stroke="url(#rim)" stroke-width="7"/>
   <!-- el nombre dentro de la nota -->
-  <text x="512" y="420" text-anchor="middle" font-family="JurB" font-weight="500" font-size="134" letter-spacing="6" fill="#ffffff" color="#ffffff" stroke="currentColor" stroke-width="7" stroke-linejoin="round" paint-order="stroke">BEST</text>
-  <text x="512" y="548" text-anchor="middle" font-family="JurB" font-weight="500" font-size="110" letter-spacing="8" fill="url(#word)" stroke="url(#word)" stroke-width="7" stroke-linejoin="round" paint-order="stroke">NOTES</text>
+  <text x="512" y="420" text-anchor="middle" font-family="JurB" font-weight="500" font-size="136" letter-spacing="10" fill="#ffffff" color="#ffffff" stroke="currentColor" stroke-width="15" stroke-linejoin="round" paint-order="stroke">BEST</text>
+  <text x="512" y="548" text-anchor="middle" font-family="JurB" font-weight="500" font-size="110" letter-spacing="11" fill="url(#word)" stroke="url(#word)" stroke-width="15" stroke-linejoin="round" paint-order="stroke">NOTES</text>
   <rect x="352" y="606" width="320" height="22" rx="11" fill="#ffffff" opacity=".55"/>
   <circle cx="380" cy="692" r="30" fill="#ffffff"/>
   <path d="M365 692 l10 11 l21 -23" fill="none" stroke="#4a55ff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
