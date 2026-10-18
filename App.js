@@ -940,6 +940,9 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
 /* ============================================================
    PORTAL: la nota se abre como un círculo que crece desde donde tocaste
    ============================================================ */
+/* Dirección fija para las páginas del editor en el teléfono: así pueden usar su almacén (IndexedDB)
+   y los audios/videos se guardan aparte, en vez de meterse gigantes dentro de la nota (eso la ponía lenta) */
+const EDITOR_BASE = 'https://bestnotes.app/';
 const DROP = { pt: null, openPt: null };   // dónde tocaste (para que el círculo salga de ahí)
 const ND = Platform.OS !== 'web';
 const easeIO = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -2490,7 +2493,7 @@ function NotesApp() {
           style={{ position: 'absolute', left: 0, top: 0, width: width, height: 800, opacity: 0, pointerEvents: 'none', border: 'none' }} />
       ) : (
         <View key={exportJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: width, height: 800, opacity: 0.01 }}>
-          <WebView originWhitelist={['*']} source={{ html: exportJob.html }} onMessage={e => onExported(e.nativeEvent.data)}
+          <WebView originWhitelist={['*']} source={{ html: exportJob.html, baseUrl: EDITOR_BASE }} onMessage={e => onExported(e.nativeEvent.data)}
             style={{ flex: 1, backgroundColor: 'transparent' }} />
         </View>
       ))}
@@ -2961,7 +2964,7 @@ function NotesApp() {
                 textZoom={webTextZoom()}
                 ref={webRef}
                 originWhitelist={['*']}
-                source={{ html: editorHtml }}
+                source={{ html: editorHtml, baseUrl: EDITOR_BASE }}
                 onMessage={e => onEditorMessage(e.nativeEvent.data)}
                 style={{ flex: 1, backgroundColor: 'transparent' }}
                 containerStyle={{ backgroundColor: 'transparent' }}
@@ -3133,7 +3136,7 @@ function NotesApp() {
                       {Platform.OS === 'web' ? (
                         <iframe srcDoc={histHtml} title="version" style={{ border: 'none', width: '100%', height: '100%', backgroundColor: c.grad ? c.grad[0] : 'transparent' }} />
                       ) : (
-                        <WebView textZoom={webTextZoom()} originWhitelist={['*']} source={{ html: histHtml }} style={{ flex: 1, backgroundColor: 'transparent' }} />
+                        <WebView textZoom={webTextZoom()} originWhitelist={['*']} source={{ html: histHtml, baseUrl: EDITOR_BASE }} style={{ flex: 1, backgroundColor: 'transparent' }} />
                       )}
                     </View>
                     <TouchableOpacity onPress={() => restoreVersion(histView)} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>

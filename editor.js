@@ -3009,7 +3009,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
 
   (function(){                                            // audios viejos guardados dentro de la nota → pasarlos aparte
-    var olds = Array.prototype.filter.call(ed.querySelectorAll('.audwrap audio'), function(a){ return /^data:/.test(a.getAttribute('src') || ''); });
+    var olds = Array.prototype.filter.call(ed.querySelectorAll('.audwrap audio, .vidwrap video'), function(a){ return /^data:/.test(a.getAttribute('src') || ''); });
     if (!olds.length || !editable) return;
     var left = olds.length, moved = 0;
     olds.forEach(function(a){
@@ -3059,7 +3059,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function vidShrinkMime(){
     if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
-    return ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4;codecs=avc1', 'video/mp4']
+    return ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4;codecs=avc1', 'video/mp4',
+            'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
       .filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0] || null;
   }
   function vidShrink(w){
@@ -3102,7 +3103,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           catch (e) { no(e); return; }
           var chunks = [], done = false;
           rec.ondataavailable = function(ev){ if (ev.data && ev.data.size) chunks.push(ev.data); };
-          rec.onstop = function(){ ok(new Blob(chunks, { type: 'video/mp4' })); };
+          rec.onstop = function(){ ok(new Blob(chunks, { type: mime.split(';')[0] })); };
           var rvfc = typeof v.requestVideoFrameCallback === 'function';
           var draw = function(){
             if (done) return;
@@ -3112,7 +3113,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           };
           var finish = function(){
             if (done) return; done = true;
-            setTimeout(function(){ try { rec.state !== 'inactive' ? rec.stop() : ok(new Blob(chunks, { type: 'video/mp4' })); } catch (e) { no(e); } }, 300);
+            setTimeout(function(){ try { rec.state !== 'inactive' ? rec.stop() : ok(new Blob(chunks, { type: mime.split(';')[0] })); } catch (e) { no(e); } }, 300);
           };
           v.onended = finish;
           v.ontimeupdate = function(){ if (v.duration && v.currentTime >= v.duration - 0.08) finish(); };
