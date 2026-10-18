@@ -1120,7 +1120,7 @@ function NotesApp() {
     menuClosing.current = true;
     setMenuLeaving(true);
     menuOff.stopAnimation(); menuIn.stopAnimation();
-    setMenuOpen(false); menuOff.setValue(0);
+    setMenuOpen(false);
     setTimeout(fn, 80);
   }
   function closeMenu(after) {
@@ -1133,7 +1133,7 @@ function NotesApp() {
       Animated.timing(menuOff, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: nd }),  // se aplasta en línea de luz
       Animated.timing(menuOff, { toValue: 1.2, duration: 260, easing: Easing.linear, useNativeDriver: nd }),              // la línea suelta estrellitas
       Animated.timing(menuOff, { toValue: 2, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: nd }),    // la línea se encoge y se apaga
-    ]).start(() => { setMenuOpen(false); menuOff.setValue(0); if (after) after(); });
+    ]).start(() => { setMenuOpen(false); if (after) after(); });   // (se reinicia al volver a abrir: así no parpadea)
   }
   const MENU_W = 290;
   const sideTop = (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44) + 10;
@@ -1282,6 +1282,7 @@ function NotesApp() {
      cada ratito mientras estás en la pantalla de inicio. Así, aunque dejes la app quieta un
      tiempo, la nota abre rápido (el navegador no "se duerme" ni olvida lo que ya preparó). */
   const warmBusy = useRef(false);
+  const warmHtmlRef = useRef(null);
   const curRef = useRef(null);
   curRef.current = currentId;
   useEffect(() => {
@@ -3676,6 +3677,10 @@ function NotesApp() {
     </View>
   );
 
+  /* Editor escondido para "calentar" el motor del navegador del teléfono (se arma una sola vez) */
+  const warmHtml = warmHtmlRef.current || (Platform.OS !== 'web' && loaded ? (warmHtmlRef.current = buildEditorHtml({
+    id: 'warm', content: '<div>Hola</div>', titleHtml: 'T', updated: Date.now(), editable: false, c,
+    kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current })) : null);
   /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
@@ -3695,6 +3700,12 @@ function NotesApp() {
               </View>
             </Animated.View>
           </Animated.View>
+        </View>
+      )}
+      {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
+      {warmHtml && (
+        <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01, overflow: 'hidden' }}>
+          <WebView originWhitelist={['*']} source={{ html: warmHtml, baseUrl: EDITOR_BASE }} style={{ width: 2, height: 2 }} />
         </View>
       )}
       {portalStars && Platform.OS !== 'web' && (
