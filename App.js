@@ -482,9 +482,14 @@ function Background({ t, wall, blur, see }) {
 
 /* Cristal: relleno 4%, borde 0.5 con degradado, brillo arriba y sombra abajo */
 function Glass({ t, style, inner, radius = 20, strong, children }) {
+  /* En Android/iPhone, "crecer" sin un tamaño fijo hace que el vidrio se estire hasta llenar toda la
+     pantalla (así se tapaba el editor). Solo se estira por dentro si la tarjeta tiene su propio alto. */
+  const fs = StyleSheet.flatten(style) || {};
+  const grow = Platform.OS === 'web' || fs.height != null || fs.flex != null || fs.flexGrow != null || fs.minHeight != null;
+  const G = grow ? { flexGrow: 1 } : null;
   return (
     <View style={[{ borderRadius: radius, borderWidth: 1, borderColor: t.stroke[0] }, style]}>
-      <View style={{ flexGrow: 1, borderRadius: radius - 0.5, overflow: 'hidden', backgroundColor: strong ? t.strong : t.fill }}>
+      <View style={[G, { borderRadius: radius - 0.5, overflow: 'hidden', backgroundColor: strong ? t.strong : t.fill }]}>
         {/* brillo interno pegado al borde (efecto lente) */}
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           borderRadius: radius - 0.5, borderWidth: 2.5, borderColor: t.rim }} />
@@ -511,7 +516,7 @@ function Glass({ t, style, inner, radius = 20, strong, children }) {
           colors={['rgba(0,0,0,0)', t.lo]}
           style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 6 }}
         />
-        <View style={[{ flexGrow: 1 }, inner]}>{children}</View>
+        <View style={[G, inner]}>{children}</View>
       </View>
     </View>
   );
@@ -2896,7 +2901,7 @@ function NotesApp() {
           <IconBtn name="arrow-left" onPress={closeEditor} s={s} t={c} />
           <View style={{ flex: 1, alignItems: 'center' }}>
             {!inTrash && (
-              <Glass t={c} radius={22} inner={s.undoPill}>
+              <Glass t={c} radius={22} style={{ height: 46 }} inner={s.undoPill}>
                 <TouchableOpacity onPress={() => callEditor('undoNow')} style={s.undoBtn} activeOpacity={0.6}>
                   <MaterialCommunityIcons name="undo-variant" size={20} color={c.text} style={!undoState.canUndo && { opacity: 0.35 }} />
                 </TouchableOpacity>
@@ -3675,14 +3680,10 @@ function NotesApp() {
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
-          {/* En Android/iPhone: la nota crece desde donde tocaste (sin vistas gigantes, que Android no puede dibujar) */}
-          <Animated.View style={nat ? { flex: 1, overflow: 'hidden',
-            borderRadius: 28,
-            opacity: revP.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
-            transformOrigin: [o.x, o.y, 0],
-            transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
-            <Animated.View style={{ flex: 1 }}>
-              <View style={{ flex: 1 }}>
+          <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
+            borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
+            <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
+              <View style={nat ? { position: 'absolute', left: D / 2 - o.x, top: D / 2 - o.y, width, height: winH } : { flex: 1 }}>
                 {editorView}
               </View>
             </Animated.View>
