@@ -158,6 +158,26 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
   ' || echo "  ✗ No pude poner el nombre y el ícono en app.json"
 fi
 
+# Preparar la instalación en el teléfono (archivo APK): identificador de la app y perfil "apk"
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j; const antes = JSON.stringify(j);
+    e.android = e.android || {};
+    if (!e.android.package) e.android.package = "com.luisell.bestnotes";
+    e.ios = e.ios || {};
+    if (!e.ios.bundleIdentifier) e.ios.bundleIdentifier = "com.luisell.bestnotes";
+    if (JSON.stringify(j) !== antes) { fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n"); console.log("  ✓ app.json (identificador com.luisell.bestnotes)"); }
+    let x = {}; try { x = JSON.parse(fs.readFileSync("eas.json", "utf8")); } catch (err) {}
+    const a2 = JSON.stringify(x);
+    x.cli = x.cli || { appVersionSource: "local" };
+    x.build = x.build || {};
+    x.build.apk = { android: { buildType: "apk" } };
+    if (JSON.stringify(x) !== a2) { fs.writeFileSync("eas.json", JSON.stringify(x, null, 2) + "\n"); console.log("  ✓ eas.json (perfil apk para instalar en el teléfono)"); }
+  ' || echo "  ✗ No pude preparar la instalación (eas.json)"
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."

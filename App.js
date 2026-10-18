@@ -1718,14 +1718,47 @@ function NotesApp() {
     setSelected(selIds.length === visible.length ? {} : all);
   }
   /* ---------- Transferir notas (archivo de respaldo) ---------- */
+  /* Los audios y videos se guardan aparte (en el almacén del navegador). Para pasar las notas a otro
+     teléfono o a la app instalada, se meten dentro de la nota; al abrirla allá se vuelven a guardar aparte. */
+  async function withMediaInside(list) {
+    if (Platform.OS !== 'web' || typeof indexedDB === 'undefined') return list;
+    if (!list.some(n => /data-aid="/.test(String(n.content || '')))) return list;
+    let db;
+    try {
+      db = await new Promise((ok, no) => {
+        const rq = indexedDB.open('misnotas_audios', 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore('a');
+        rq.onsuccess = () => ok(rq.result); rq.onerror = () => no(rq.error);
+      });
+    } catch (e) { return list; }
+    const get = aid => new Promise(ok => {
+      try { const rq = db.transaction('a').objectStore('a').get(aid); rq.onsuccess = () => ok(rq.result || null); rq.onerror = () => ok(null); }
+      catch (e) { ok(null); }
+    });
+    const toData = b => new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = () => ok(null); fr.readAsDataURL(b); });
+    const out = [];
+    for (const n of list) {
+      let h = String(n.content || '');
+      const ids = Array.from(new Set((h.match(/data-aid="([^"]+)"/g) || []).map(x => x.slice(10, -1))));
+      for (const aid of ids) {
+        const b = await get(aid);
+        const d = b ? await toData(b) : null;
+        if (d) h = h.split('data-aid="' + aid + '"').join('src="' + d + '"');
+      }
+      out.push(h === n.content ? n : { ...n, content: h });
+    }
+    try { db.close(); } catch (e) {}
+    return out;
+  }
   async function makeTransferFile(password) {
     await new Promise(r => (currentId ? flushEditor(r) : r()));
     const all = notesRef.current;
     const walls = {};
     for (const n of all) if (n.hasWall) { try { const w = await loadWallpaper(n.id); if (w) walls[n.id] = w; } catch (e) {} }
     let mainWall = null; try { mainWall = await loadWallpaper(); } catch (e) {}
+    const notesOut = await withMediaInside(all);           // 🎙️🎬 los audios y videos van dentro del archivo
     const data = {
-      v: 1, made: Date.now(), notes: all, folders, walls, wallpaper: mainWall, calc: calcState.current,
+      v: 1, made: Date.now(), notes: notesOut, folders, walls, wallpaper: mainWall, calc: calcState.current,
       settings: { layout, dark, translucent, lang, wallBlur, sortBy, pinHash, appLock },
       vault: await exportVaultRaw().catch(() => null),
     };
