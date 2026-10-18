@@ -16,6 +16,7 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StatusBar, TextInput, 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { askAI, titleColorOf } from './reporte';
+import { useInsets } from './pantalla';
 
 import { KEY, DAY, newId, norm, esc, groupsOf, qtyTxt } from './matlista';
 const STATES = ['pending', 'ordered', 'arrived'];
@@ -68,6 +69,7 @@ function shareText(groups, lang, locale) {
 
 export default function Materials({ visible, onClose, notes, plainOf, onOpen, onCreateNote, titleSegments, s, t, tr, Glass, langCode, locale }) {
   const C = t;
+  const ins = useInsets();
   const [entries, setEntries] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [range, setRange] = useState('all');        // 'today' | 'week' | 'all'
@@ -183,12 +185,12 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
   const chip = (k, label, on, onPress) => (
     <TouchableOpacity key={k} onPress={onPress} activeOpacity={0.7}
       style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
-      <Text style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
     </TouchableOpacity>
   );
   const stIcon = st => st === 'arrived' ? 'check-circle' : st === 'ordered' ? 'cart-outline' : 'circle-outline';
   const field = (val, set, ph, extra) => (
-    <TextInput value={val} onChangeText={set} placeholder={ph} placeholderTextColor={C.muted}
+    <TextInput maxFontSizeMultiplier={1.3} value={val} onChangeText={set} placeholder={ph} placeholderTextColor={C.muted}
       style={[{ color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }, extra]} />
   );
 
@@ -200,14 +202,14 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
           <TouchableOpacity onPress={onClose} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
             <Glass t={C} radius={22} style={{ width: 44, height: 44 }} inner={s.center}><Feather name="arrow-left" size={20} color={C.text} /></Glass>
           </TouchableOpacity>
-          <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📦 {tr('mtTitle')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📦 {tr('mtTitle')}</Text>
           <TouchableOpacity onPress={() => openEdit(null)} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
             <Glass t={C} radius={22} style={{ width: 44, height: 44 }} inner={s.center}><Feather name="plus" size={20} color={C.text} /></Glass>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('mtHint')}</Text>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 + ins.bottom }} keyboardShouldPersistTaps="handled">
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('mtHint')}</Text>
 
           {/* Buscar en las notas */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
@@ -218,7 +220,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
           <TouchableOpacity onPress={scan} disabled={busy || !scope.length} activeOpacity={0.8}
             style={[s.wallBtn, { backgroundColor: C.text, marginTop: 12, flexDirection: 'row', justifyContent: 'center', gap: 10, opacity: !scope.length ? 0.4 : 1 }]}>
             {busy ? <ActivityIndicator color={C.inv} /> : <Feather name="search" size={18} color={C.inv} />}
-            <Text style={[s.wallBtnText, { color: C.inv }]}>{busy ? tr('mtReading') : tr('mtScan', { n: scope.length })}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: C.inv }]}>{busy ? tr('mtReading') : tr('mtScan', { n: scope.length })}</Text>
           </TouchableOpacity>
 
           {/* Pestañas por estado */}
@@ -233,8 +235,8 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
 
           {!all.length && !busy && (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <Text style={{ fontSize: 44 }}>📦</Text>
-              <Text style={{ color: C.muted, fontSize: 14, marginTop: 8, textAlign: 'center' }}>{tr('mtEmpty')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 44 }}>📦</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, marginTop: 8, textAlign: 'center' }}>{tr('mtEmpty')}</Text>
             </View>
           )}
 
@@ -245,13 +247,13 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                   <MaterialCommunityIcons name={stIcon(g.status)} size={26} color={C.text} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => openEdit(g)} activeOpacity={0.7} style={{ flex: 1 }}>
-                  <Text style={{ color: C.text, fontSize: 17, fontWeight: '800', textDecorationLine: g.status === 'arrived' ? 'line-through' : 'none' }}>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 17, fontWeight: '800', textDecorationLine: g.status === 'arrived' ? 'line-through' : 'none' }}>
                     {qtyTxt(g)}{g.item}{g.unit ? ' (' + g.unit + ')' : ''}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => toggleUrgent(g)} hitSlop={8} activeOpacity={0.7}
                   style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: g.urgent ? '#ff453a' : C.border, backgroundColor: g.urgent ? 'rgba(255,69,58,0.15)' : 'transparent' }}>
-                  <Text style={{ color: g.urgent ? '#ff6b61' : C.muted, fontSize: 12, fontWeight: '800' }}>{g.urgent ? '🔴 ' + tr('mtUrgent') : '⚪ ' + tr('mtNormal')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: g.urgent ? '#ff6b61' : C.muted, fontSize: 12, fontWeight: '800' }}>{g.urgent ? '🔴 ' + tr('mtUrgent') : '⚪ ' + tr('mtNormal')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => openEdit(g)} hitSlop={10}><Feather name="edit-2" size={16} color={C.muted} /></TouchableOpacity>
               </View>
@@ -261,13 +263,13 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                   const n = e.noteId && noteById(e.noteId);
                   return (
                     <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={{ color: C.muted, fontSize: 14 }}>{e.qty != null ? e.qty + ' · ' : '• '}{e.site || tr('mtNoSite')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14 }}>{e.qty != null ? e.qty + ' · ' : '• '}{e.site || tr('mtNoSite')}</Text>
                       {!!n && (
                         <TouchableOpacity onPress={() => onOpen(n)} hitSlop={6}>
-                          <Text style={{ color: titleColorOf(n) || C.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>↗ {(n.title || '').trim() || tr('note')}</Text>
+                          <Text maxFontSizeMultiplier={1.3} style={{ color: titleColorOf(n) || C.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>↗ {(n.title || '').trim() || tr('note')}</Text>
                         </TouchableOpacity>
                       )}
-                      {e.src === 'manual' && <Text style={{ color: C.muted, fontSize: 12 }}>✍️</Text>}
+                      {e.src === 'manual' && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12 }}>✍️</Text>}
                     </View>
                   );
                 })}
@@ -278,16 +280,16 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
 
         {/* Compartir / guardar */}
         {all.length > 0 && (
-          <View style={{ position: 'absolute', left: 16, right: 16, bottom: 26, flexDirection: 'row', gap: 10 }}>
+          <View style={{ position: 'absolute', left: 16, right: 16, bottom: 26 + ins.bottom, flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity onPress={() => setShareAsk(true)} activeOpacity={0.8}
               style={[s.wallBtn, { flex: 1, backgroundColor: C.text, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}>
               <Feather name="send" size={17} color={C.inv} />
-              <Text style={[s.wallBtnText, { color: C.inv }]} numberOfLines={1}>{tr('mtSend')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: C.inv }]} numberOfLines={1}>{tr('mtSend')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={saveAsNote} activeOpacity={0.8}
               style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}>
               <Feather name="file-plus" size={17} color={C.text} />
-              <Text style={[s.wallBtnText, { color: C.text }]} numberOfLines={1}>{tr('mtAsNote')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: C.text }]} numberOfLines={1}>{tr('mtAsNote')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -296,12 +298,12 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
         {shareAsk && (
           <Overlay onClose={() => setShareAsk(false)}>
             <Glass t={C} strong radius={22} style={{ width: '86%', maxWidth: 340 }} inner={{ padding: 20, gap: 10 }}>
-              <Text style={{ color: C.text, fontSize: 18, fontWeight: '800' }}>{tr('mtSendQ')}</Text>
-              <Text style={{ color: C.muted, fontSize: 13 }}>{tr('mtSendHint')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 18, fontWeight: '800' }}>{tr('mtSendQ')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13 }}>{tr('mtSendHint')}</Text>
               {[['es', '🇪🇸 Español'], ['en', '🇺🇸 English'], ['both', '🇪🇸 + 🇺🇸 ' + tr('rpBoth')]].map(([k, lb]) => (
                 <TouchableOpacity key={k} onPress={() => doShare(k)} activeOpacity={0.7}
                   style={{ paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
-                  <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{lb}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{lb}</Text>
                 </TouchableOpacity>
               ))}
             </Glass>
@@ -313,19 +315,19 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
           <Overlay onClose={() => setEdit(null)}>
             <Glass t={C} strong radius={22} style={{ width: '92%', maxWidth: 420, maxHeight: '85%' }} inner={{ padding: 18 }}>
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 10 }}>{edit.key ? tr('mtEdit') : tr('mtAdd')}</Text>
-                <Text style={{ color: C.muted, fontSize: 12, marginBottom: 6 }}>{tr('mtItem')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 10 }}>{edit.key ? tr('mtEdit') : tr('mtAdd')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, marginBottom: 6 }}>{tr('mtItem')}</Text>
                 {field(edit.item, v => setEdit(x => ({ ...x, item: v })), tr('mtItemPh'))}
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                   {[[false, '⚪ ' + tr('mtNormal')], [true, '🔴 ' + tr('mtUrgent')]].map(([v, lb]) => (
                     <TouchableOpacity key={String(v)} onPress={() => setEdit(x => ({ ...x, urgent: v }))} activeOpacity={0.7}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 14, borderWidth: 1, alignItems: 'center',
                         borderColor: edit.urgent === v ? (v ? '#ff453a' : C.text) : C.border, backgroundColor: edit.urgent === v ? (v ? 'rgba(255,69,58,0.15)' : C.text) : 'transparent' }}>
-                      <Text style={{ color: edit.urgent === v ? (v ? '#ff6b61' : C.inv) : C.text, fontSize: 14, fontWeight: '700' }}>{lb}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: edit.urgent === v ? (v ? '#ff6b61' : C.inv) : C.text, fontSize: 14, fontWeight: '700' }}>{lb}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Text style={{ color: C.muted, fontSize: 12, marginTop: 14, marginBottom: 6 }}>{tr('mtWhere')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, marginTop: 14, marginBottom: 6 }}>{tr('mtWhere')}</Text>
                 {edit.entries.map((e, i) => (
                   <View key={e.id} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                     {field(e.qtyTxt, v => setEdit(x => ({ ...x, entries: x.entries.map((y, j) => (j === i ? { ...y, qtyTxt: v.replace(/[^0-9.,]/g, '') } : y)) })), '#', { width: 64, textAlign: 'center' })}
@@ -340,7 +342,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                 <TouchableOpacity onPress={() => setEdit(x => ({ ...x, entries: [...x.entries, { id: newId(), qtyTxt: '', site: '', unit: '', noteId: null, src: 'manual', status: 'pending' }] }))}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}>
                   <Feather name="plus" size={16} color={C.text} />
-                  <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{tr('mtAddSite')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{tr('mtAddSite')}</Text>
                 </TouchableOpacity>
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                   {!!edit.key && (
@@ -351,11 +353,11 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                   )}
                   <TouchableOpacity onPress={() => setEdit(null)} activeOpacity={0.7}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
-                    <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{tr('cancel')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{tr('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={saveEdit} activeOpacity={0.7}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 16, backgroundColor: C.text, alignItems: 'center', opacity: edit.item.trim() ? 1 : 0.4 }}>
-                    <Text style={{ color: C.inv, fontSize: 15, fontWeight: '700' }}>{tr('save')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: C.inv, fontSize: 15, fontWeight: '700' }}>{tr('save')}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -364,9 +366,9 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
         )}
 
         {!!msg && (
-          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 96, alignItems: 'center' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 96 + ins.bottom, alignItems: 'center' }}>
             <View style={{ backgroundColor: 'rgba(20,20,20,0.92)', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18 }}>
-              <Text style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>{msg}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>{msg}</Text>
             </View>
           </View>
         )}

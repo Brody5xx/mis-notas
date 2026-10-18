@@ -12,6 +12,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StatusBar, TextInput } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useInsets } from './pantalla';
 
 /* ---------- Herramientas para el HTML de los checklists ---------- */
 // Dónde termina el bloque <tag ...> que empieza en i (contando los que tiene adentro)
@@ -97,6 +98,7 @@ export function countPending(notes) {
    ============================================================ */
 export default function Pending({ visible, onClose, notes, onPatch, onOpen, onRemind, reminders, titleSegments, s, t, tr, Glass }) {
   const C = t;
+  const ins = useInsets();
   const [ask, setAsk] = useState(null);       // { note, item }
   const [q, setQ] = useState('');
   const [msg, setMsg] = useState('');
@@ -132,10 +134,10 @@ export default function Pending({ visible, onClose, notes, onPatch, onOpen, onRe
   const hasRem = (noteId, text) => (reminders || []).some(r => r.noteId === noteId && r.text === text && r.at > Date.now());
 
   const title = n => (
-    <Text style={{ fontSize: 16, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+    <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 16, fontWeight: '800', flex: 1 }} numberOfLines={1}>
       {n.title ? titleSegments(n).map((g, i) => (
-        <Text key={i} style={{ color: g.color || C.text, fontWeight: g.bold === false ? '400' : '800', fontStyle: g.italic ? 'italic' : 'normal' }}>{g.text}</Text>
-      )) : <Text style={{ color: C.text }}>{tr('untitled')}</Text>}
+        <Text maxFontSizeMultiplier={1.3} key={i} style={{ color: g.color || C.text, fontWeight: g.bold === false ? '400' : '800', fontStyle: g.italic ? 'italic' : 'normal' }}>{g.text}</Text>
+      )) : <Text maxFontSizeMultiplier={1.3} style={{ color: C.text }}>{tr('untitled')}</Text>}
     </Text>
   );
 
@@ -147,28 +149,28 @@ export default function Pending({ visible, onClose, notes, onPatch, onOpen, onRe
           <TouchableOpacity onPress={onClose} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
             <Glass t={C} radius={22} style={{ width: 44, height: 44 }} inner={s.center}><Feather name="arrow-left" size={20} color={C.text} /></Glass>
           </TouchableOpacity>
-          <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>✅ {tr('pdTitle')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>✅ {tr('pdTitle')}</Text>
           {total > 0 && (
             <View style={{ minWidth: 30, height: 30, borderRadius: 15, paddingHorizontal: 8, backgroundColor: C.text, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-              <Text style={{ color: C.inv, fontWeight: '800', fontSize: 14 }}>{total}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.inv, fontWeight: '800', fontSize: 14 }}>{total}</Text>
             </View>
           )}
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('pdHint')}</Text>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + ins.bottom }} keyboardShouldPersistTaps="handled">
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('pdHint')}</Text>
           {total > 6 && (
             <View style={[s.folderInputWrap, { borderColor: C.border, marginTop: 12 }]}>
               <Feather name="search" size={16} color={C.muted} />
-              <TextInput style={s.folderInput} value={q} onChangeText={setQ} placeholder={tr('pdSearch')} placeholderTextColor={C.muted} />
+              <TextInput maxFontSizeMultiplier={1.3} style={s.folderInput} value={q} onChangeText={setQ} placeholder={tr('pdSearch')} placeholderTextColor={C.muted} />
             </View>
           )}
 
           {!total && (
             <View style={{ alignItems: 'center', paddingVertical: 50 }}>
-              <Text style={{ fontSize: 46 }}>🎉</Text>
-              <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', marginTop: 10 }}>{tr('pdNone')}</Text>
-              <Text style={{ color: C.muted, fontSize: 14, marginTop: 6, textAlign: 'center' }}>{tr('pdNoneHint')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 46 }}>🎉</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 18, fontWeight: '800', marginTop: 10 }}>{tr('pdNone')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, marginTop: 6, textAlign: 'center' }}>{tr('pdNoneHint')}</Text>
             </View>
           )}
 
@@ -178,14 +180,14 @@ export default function Pending({ visible, onClose, notes, onPatch, onOpen, onRe
               <TouchableOpacity onPress={() => onOpen(n)} activeOpacity={0.7}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
                 {title(n)}
-                <Text style={{ color: C.muted, fontSize: 13 }}>{items.length}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13 }}>{items.length}</Text>
                 <Feather name="chevron-right" size={18} color={C.muted} />
               </TouchableOpacity>
               {items.map(it => (
                 <View key={it.ui + ':' + it.li} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 14, paddingVertical: 11 }}>
                   <TouchableOpacity onPress={() => setAsk({ note: n, item: it })} hitSlop={10} activeOpacity={0.6}
                     style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.text, marginTop: 1 }} />
-                  <Text style={{ color: C.text, fontSize: 15, lineHeight: 21, flex: 1 }}>{it.text}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, lineHeight: 21, flex: 1 }}>{it.text}</Text>
                   {!!onRemind && (
                     <TouchableOpacity onPress={() => onRemind(n, it.text)} hitSlop={10} activeOpacity={0.6}>
                       <MaterialCommunityIcons name={hasRem(n.id, it.text) ? 'bell-ring' : 'bell-plus-outline'} size={20} color={hasRem(n.id, it.text) ? C.text : C.muted} />
@@ -196,35 +198,35 @@ export default function Pending({ visible, onClose, notes, onPatch, onOpen, onRe
             </View>
           ))}
 
-          {locked > 0 && <Text style={{ color: C.muted, fontSize: 13, marginTop: 18, textAlign: 'center' }}>🔒 {tr('pdLocked', { n: locked })}</Text>}
+          {locked > 0 && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13, marginTop: 18, textAlign: 'center' }}>🔒 {tr('pdLocked', { n: locked })}</Text>}
         </ScrollView>
 
         {/* ¿Ya terminaste esto? */}
         {!!ask && (
           <Pressable0 onPress={() => setAsk(null)}>
             <Glass t={C} strong radius={22} style={{ width: '86%', maxWidth: 340 }} inner={{ padding: 20 }}>
-              <Text style={{ color: C.text, fontSize: 18, fontWeight: '800' }}>{tr('ckDoneQ')}</Text>
-              <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 6 }}>{tr('ckDoneMsg')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 18, fontWeight: '800' }}>{tr('ckDoneQ')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 6 }}>{tr('ckDoneMsg')}</Text>
               <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 10, marginTop: 12 }}>
-                <Text style={{ color: C.text, fontSize: 14 }} numberOfLines={4}>{ask.item.text}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 14 }} numberOfLines={4}>{ask.item.text}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <TouchableOpacity onPress={() => setAsk(null)} activeOpacity={0.7}
                   style={{ flex: 1, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
-                  <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{tr('cancel')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{tr('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={confirm} activeOpacity={0.7}
                   style={{ flex: 1, paddingVertical: 12, borderRadius: 16, backgroundColor: C.text, alignItems: 'center' }}>
-                  <Text style={{ color: C.inv, fontSize: 15, fontWeight: '700' }}>{tr('ckDoneYes')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.inv, fontSize: 15, fontWeight: '700' }}>{tr('ckDoneYes')}</Text>
                 </TouchableOpacity>
               </View>
             </Glass>
           </Pressable0>
         )}
         {!!msg && (
-          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 50, alignItems: 'center' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 50 + ins.bottom, alignItems: 'center' }}>
             <View style={{ backgroundColor: 'rgba(20,20,20,0.92)', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18 }}>
-              <Text style={{ color: '#fff', fontSize: 15 }}>{msg}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: '#fff', fontSize: 15 }}>{msg}</Text>
             </View>
           </View>
         )}

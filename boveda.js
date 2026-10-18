@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { shareFile } from './compartir';
+import { useInsets } from './pantalla';
 import Galeria from './galeria';          // galeria.native.js en el teléfono, galeria.web.js en el navegador
 import { vaultKeys, seal, unseal, randomBytes, b64Encode, b64Decode, utf8Encode, utf8Decode } from './respaldo';
 
@@ -206,6 +207,7 @@ r.readAsDataURL(f);});</script></body></html>`;
    LA BÓVEDA
    ============================================================ */
 export default function Vault({ visible, onClose, s, t, tr, Glass }) {
+  const ins = useInsets();
   const [msg, setMsg] = useState('');
   const msgTimer = useRef(null);
   const toast = m => { setMsg(m); clearTimeout(msgTimer.current); msgTimer.current = setTimeout(() => setMsg(''), 2200); };
@@ -571,7 +573,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
   const pwInput = (val, set, ph, onSubmit) => (
     <View style={[s.folderInputWrap, { borderColor: C.border, marginTop: 10 }]}>
       <Feather name="lock" size={16} color={C.muted} />
-      <TextInput style={s.folderInput} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
+      <TextInput maxFontSizeMultiplier={1.3} style={s.folderInput} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
         placeholderTextColor={C.muted} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false}
         onSubmitEditing={onSubmit} returnKeyType={onSubmit ? 'go' : 'next'} />
       <TouchableOpacity onPress={() => setShow(!show)} hitSlop={10}><Feather name={show ? 'eye-off' : 'eye'} size={18} color={C.muted} /></TouchableOpacity>
@@ -580,13 +582,13 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
   const bigBtn = (label, onPress, danger) => (
     <TouchableOpacity onPress={onPress} disabled={!!busy} activeOpacity={0.8}
       style={[s.wallBtn, { backgroundColor: danger ? '#e53935' : C.text, marginTop: 16, opacity: busy ? 0.5 : 1 }]}>
-      <Text style={[s.wallBtnText, { color: danger ? '#fff' : C.inv }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: danger ? '#fff' : C.inv }]}>{label}</Text>
     </TouchableOpacity>
   );
   const header = (title, left, right) => (
     <View style={[s.topbar, { paddingTop: 6 }]}>
       {left}
-      <Text style={{ flex: 1, color: C.text, fontSize: 20, fontWeight: '800', marginLeft: 6 }} numberOfLines={1}>{title}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: C.text, fontSize: 20, fontWeight: '800', marginLeft: 6 }} numberOfLines={1}>{title}</Text>
       {right}
     </View>
   );
@@ -595,7 +597,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13,
         borderRadius: 24, borderWidth: 1, borderColor: dark ? 'rgba(255,255,255,0.35)' : C.border, opacity: busy ? 0.5 : 1 }}>
       <Feather name={icon} size={17} color={dark ? '#fff' : C.text} />
-      <Text style={{ color: dark ? '#fff' : C.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: dark ? '#fff' : C.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
   const iconBtn = (name, onPress, color) => (
@@ -613,24 +615,24 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
           <View style={{ width: 84, height: 84, borderRadius: 42, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' }}>
             <MaterialCommunityIcons name={creating ? 'shield-lock-outline' : 'safe-square-outline'} size={44} color={C.text} />
           </View>
-          <Text style={{ color: C.text, fontSize: 24, fontWeight: '800', marginTop: 14 }}>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 24, fontWeight: '800', marginTop: 14 }}>
             {changePass ? tr('vChangePass') : creating ? tr('vaultCreate') : tr('vaultLocked')}
           </Text>
-          {creating && <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8 }}>{tr('vaultCreateHint')}</Text>}
+          {creating && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8 }}>{tr('vaultCreateHint')}</Text>}
         </View>
         {pwInput(p1, setP1, changePass ? tr('vNewPass') : tr('bkPass'), creating ? undefined : doUnlock)}
         {creating && pwInput(p2, setP2, tr('bkPass2'))}
-        {!!err && <Text style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
+        {!!err && <Text maxFontSizeMultiplier={1.3} style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
         {busy ? (
           <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
-            <ActivityIndicator size="large" color={C.text} /><Text style={{ color: C.text }}>{busy}</Text>
+            <ActivityIndicator size="large" color={C.text} /><Text maxFontSizeMultiplier={1.3} style={{ color: C.text }}>{busy}</Text>
           </View>
         ) : (
           <>
             {bigBtn(changePass ? tr('save') : creating ? tr('vaultCreate') : tr('vaultOpen'), changePass ? doChangePass : creating ? doCreate : doUnlock)}
             {phase === 'locked' && !changePass && (
               <TouchableOpacity onPress={askReset} style={{ alignSelf: 'center', padding: 12, marginTop: 6 }}>
-                <Text style={{ color: C.muted, fontSize: 14 }}>{tr('vaultForgot')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14 }}>{tr('vaultForgot')}</Text>
               </TouchableOpacity>
             )}
           </>
@@ -651,14 +653,14 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
         {header(tr(typeRow[3]),
           iconBtn('arrow-left', () => setEdit(null)),
           e.id ? iconBtn('trash-2', () => askDelete(e), '#ff6b6b') : null)}
-        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 60 + ins.bottom }} keyboardShouldPersistTaps="handled">
           {isMedia && (
             <TouchableOpacity onPress={() => openMedia(e)} activeOpacity={0.8}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.border, marginBottom: 8 }}>
               <Feather name={ICON[e.type]} size={26} color={C.text} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{e.file.name}</Text>
-                <Text style={{ color: C.muted, fontSize: 13 }}>{fmtSize(e.file.size)}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{e.file.name}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13 }}>{fmtSize(e.file.size)}</Text>
               </View>
               <Feather name="eye" size={20} color={C.text} />
             </TouchableOpacity>
@@ -666,9 +668,9 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
           {isMedia && e.id && restoreRow(e, { marginBottom: 8, marginTop: 4 })}
           {FIELDS[e.type].map(k => (
             <View key={k} style={{ marginTop: 12 }}>
-              <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label[k]}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label[k]}</Text>
               <View style={[s.folderInputWrap, { borderColor: C.border, marginTop: 0, alignItems: k === 'note' ? 'flex-start' : 'center' }]}>
-                <TextInput style={[s.folderInput, k === 'note' && { minHeight: 110, textAlignVertical: 'top' }]}
+                <TextInput maxFontSizeMultiplier={1.3} style={[s.folderInput, k === 'note' && { minHeight: 110, textAlignVertical: 'top' }]}
                   value={e[k] || ''} onChangeText={v => set(k, v)} placeholder={label[k]} placeholderTextColor={C.muted}
                   secureTextEntry={k === 'pass' && !show} autoCapitalize={k === 'title' || k === 'note' ? 'sentences' : 'none'}
                   autoCorrect={k === 'title' || k === 'note'} multiline={k === 'note'}
@@ -679,7 +681,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
                     <TouchableOpacity onPress={() => { set('pass', genPassword()); setShow(true); }} hitSlop={8}
                       style={{ marginLeft: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Feather name="refresh-cw" size={16} color={C.text} />
-                      <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{tr('vGen')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{tr('vGen')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -719,8 +721,8 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       body = (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }}>
           <Feather name="file" size={64} color={C.text} />
-          <Text style={{ color: C.text, fontSize: 17, fontWeight: '700', marginTop: 14, textAlign: 'center' }}>{it.file.name}</Text>
-          <Text style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>{fmtSize(it.file.size)}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 17, fontWeight: '700', marginTop: 14, textAlign: 'center' }}>{it.file.name}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>{fmtSize(it.file.size)}</Text>
         </View>
       );
     }
@@ -748,7 +750,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
         <View style={{ paddingHorizontal: 16 }}>
           <View style={[s.folderInputWrap, { borderColor: C.border, marginTop: 4 }]}>
             <Feather name="search" size={16} color={C.muted} />
-            <TextInput style={s.folderInput} value={query} onChangeText={setQuery} placeholder={tr('vSearch')} placeholderTextColor={C.muted} />
+            <TextInput maxFontSizeMultiplier={1.3} style={s.folderInput} value={query} onChangeText={setQuery} placeholder={tr('vSearch')} placeholderTextColor={C.muted} />
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10, flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingRight: 20 }}>
             {[['all', 'grid', 'vaultAll'], ...TYPES].map(([k, ic, lb]) => {
@@ -758,7 +760,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18,
                     borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
                   <Feather name={ic} size={14} color={on ? C.inv : C.text} />
-                  <Text style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{tr(lb)}{n ? '  ' + n : ''}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{tr(lb)}{n ? '  ' + n : ''}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -767,8 +769,8 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
         <FlatList
           data={shown}
           keyExtractor={x => x.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 10 }}
-          ListEmptyComponent={<Text style={[s.emptyText, { marginTop: 50 }]}>{tr('vaultEmpty')}</Text>}
+          contentContainerStyle={{ padding: 16, paddingBottom: 120 + ins.bottom, gap: 10 }}
+          ListEmptyComponent={<Text maxFontSizeMultiplier={1.3} style={[s.emptyText, { marginTop: 50 }]}>{tr('vaultEmpty')}</Text>}
           renderItem={({ item: x }) => (
             <TouchableOpacity activeOpacity={0.75} onPress={() => (x.file && x.type !== 'file' ? openMedia(x) : setEdit({ ...x }))}
               onLongPress={() => setEdit({ ...x })}>
@@ -777,8 +779,8 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
                   <Feather name={ICON[x.type]} size={19} color={C.text} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }} numberOfLines={1}>{x.title}</Text>
-                  {!!sub(x) && <Text style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{sub(x)}</Text>}
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 16, fontWeight: '700' }} numberOfLines={1}>{x.title}</Text>
+                  {!!sub(x) && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{sub(x)}</Text>}
                 </View>
                 {x.file && x.type !== 'file'
                   ? <TouchableOpacity onPress={() => setEdit({ ...x })} hitSlop={10}><Feather name="edit-2" size={17} color={C.muted} /></TouchableOpacity>
@@ -800,7 +802,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
                   <TouchableOpacity key={k} style={s.row} activeOpacity={0.6}
                     onPress={() => (k === 'photo' || k === 'video' ? pickMedia(k) : k === 'file' ? pickAnyFile() : addText(k))}>
                     <Feather name={ic} size={19} color={C.text} style={{ marginRight: 14 }} />
-                    <Text style={s.rowText}>{tr(one)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{tr(one)}</Text>
                   </TouchableOpacity>
                 ))}
               </Glass>
@@ -814,10 +816,10 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
             <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
               <Glass t={C} strong radius={26} inner={{ paddingVertical: 10 }}>
                 <TouchableOpacity style={s.row} activeOpacity={0.6} onPress={() => { setMenuOpen(false); setP1(''); setP2(''); setErr(''); setChangePass(true); }}>
-                  <Feather name="key" size={19} color={C.text} style={{ marginRight: 14 }} /><Text style={s.rowText}>{tr('vChangePass')}</Text>
+                  <Feather name="key" size={19} color={C.text} style={{ marginRight: 14 }} /><Text maxFontSizeMultiplier={1.3} style={s.rowText}>{tr('vChangePass')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.row} activeOpacity={0.6} onPress={() => { setMenuOpen(false); lock(); setPhase('locked'); }}>
-                  <Feather name="lock" size={19} color={C.text} style={{ marginRight: 14 }} /><Text style={s.rowText}>{tr('vLock')}</Text>
+                  <Feather name="lock" size={19} color={C.text} style={{ marginRight: 14 }} /><Text maxFontSizeMultiplier={1.3} style={s.rowText}>{tr('vLock')}</Text>
                 </TouchableOpacity>
               </Glass>
             </Pressable>
@@ -829,7 +831,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
           <Pressable style={[s.wallScrim, { backgroundColor: C.scrim }]} onPress={() => setPickFile(false)}>
             <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 400 }}>
               <Glass t={C} strong radius={26} inner={{ padding: 18 }}>
-                <Text style={[s.wallTitle, { marginBottom: 12 }]}>{tr('vFile')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { marginBottom: 12 }]}>{tr('vFile')}</Text>
                 <View style={{ height: 64 }}>
                   {pickFile && Platform.OS !== 'web' && (
                     <WebView originWhitelist={['*']} source={{ html: PICK_FILE_HTML(tr('vPickFile'), C) }} style={{ flex: 1, backgroundColor: 'transparent' }}
@@ -877,9 +879,9 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
         <StatusBar barStyle={C.bar} backgroundColor="transparent" translucent />
         {screen}
         {!!msg && (
-          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 110, alignItems: 'center' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', left: 20, right: 20, bottom: 110 + ins.bottom, alignItems: 'center' }}>
             <View style={{ backgroundColor: 'rgba(20,20,20,0.92)', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18 }}>
-              <Text style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>{msg}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>{msg}</Text>
             </View>
           </View>
         )}
@@ -887,7 +889,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}>
             <Glass t={C} strong radius={22} inner={{ paddingVertical: 20, paddingHorizontal: 26, alignItems: 'center', gap: 12 }}>
               <ActivityIndicator size="large" color={C.text} />
-              <Text style={{ color: C.text, fontSize: 15 }}>{busy}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15 }}>{busy}</Text>
             </Glass>
           </View>
         )}

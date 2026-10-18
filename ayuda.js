@@ -237,7 +237,7 @@ export default function Guide({ visible, onClose, s, t, tr, Glass, langCode }) {
   const chip = (k, label) => (
     <TouchableOpacity key={k} onPress={() => setLang(k)} activeOpacity={0.7}
       style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: lang === k ? C.text : C.border, backgroundColor: lang === k ? C.text : 'transparent' }}>
-      <Text style={{ color: lang === k ? C.inv : C.text, fontSize: 13, fontWeight: '700' }}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: lang === k ? C.inv : C.text, fontSize: 13, fontWeight: '700' }}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -249,21 +249,21 @@ export default function Guide({ visible, onClose, s, t, tr, Glass, langCode }) {
           <TouchableOpacity onPress={onClose} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
             <Glass t={C} radius={22} style={{ width: 44, height: 44 }} inner={s.center}><Feather name="arrow-left" size={20} color={C.text} /></Glass>
           </TouchableOpacity>
-          <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📖 {tr('gdTitle')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📖 {tr('gdTitle')}</Text>
           <View style={{ flexDirection: 'row', gap: 6, marginRight: 6 }}>{chip('es', '🇪🇸')}{chip('en', '🇺🇸')}</View>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
           <View style={[s.folderInputWrap, { borderColor: C.border, marginTop: 0 }]}>
             <Feather name="search" size={16} color={C.muted} />
-            <TextInput style={s.folderInput} value={q} onChangeText={setQ} placeholder={tr('gdSearch')} placeholderTextColor={C.muted} />
+            <TextInput maxFontSizeMultiplier={1.3} style={s.folderInput} value={q} onChangeText={setQ} placeholder={tr('gdSearch')} placeholderTextColor={C.muted} />
           </View>
 
           {/* Novedades */}
           {!qq && (
             <View style={{ marginTop: 14, padding: 14, borderRadius: 18, backgroundColor: C.text }}>
-              <Text style={{ color: C.inv, fontSize: 15, fontWeight: '800', marginBottom: 6 }}>🆕 {lang === 'es' ? 'Novedades' : "What's new"}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.inv, fontSize: 15, fontWeight: '800', marginBottom: 6 }}>🆕 {lang === 'es' ? 'Novedades' : "What's new"}</Text>
               {NEWS.map((n, i) => (
-                <Text key={i} style={{ color: C.inv, fontSize: 14, lineHeight: 21, opacity: i ? 0.75 : 1 }}>
+                <Text maxFontSizeMultiplier={1.3} key={i} style={{ color: C.inv, fontSize: 14, lineHeight: 21, opacity: i ? 0.75 : 1 }}>
                   {n.date.slice(5).replace('-', '/')} · {n[lang]}
                 </Text>
               ))}
@@ -277,11 +277,11 @@ export default function Guide({ visible, onClose, s, t, tr, Glass, langCode }) {
               <View key={g.icon} style={{ marginTop: 10, borderWidth: 1, borderColor: C.border, borderRadius: 18, overflow: 'hidden' }}>
                 <TouchableOpacity onPress={() => setOpen(o => ({ ...o, [g.icon]: !o[g.icon] }))} activeOpacity={0.7}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
-                  <Text style={{ fontSize: 24 }}>{g.icon}</Text>
-                  <Text style={{ color: C.text, fontSize: 16, fontWeight: '800', flex: 1 }}>{L.t}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>{g.icon}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 16, fontWeight: '800', flex: 1 }}>{L.t}</Text>
                   {g.isNew && (
                     <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.text }}>
-                      <Text style={{ color: C.inv, fontSize: 11, fontWeight: '800' }}>{lang === 'es' ? 'NUEVO' : 'NEW'}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: C.inv, fontSize: 11, fontWeight: '800' }}>{lang === 'es' ? 'NUEVO' : 'NEW'}</Text>
                     </View>
                   )}
                   <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={C.muted} />
@@ -290,8 +290,8 @@ export default function Guide({ visible, onClose, s, t, tr, Glass, langCode }) {
                   <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
                     {L.d.map((line, k) => (
                       <View key={k} style={{ flexDirection: 'row', gap: 8 }}>
-                        <Text style={{ color: C.muted, fontSize: 14, lineHeight: 21 }}>•</Text>
-                        <Text style={{ color: C.text, fontSize: 14, lineHeight: 21, flex: 1 }}>{line}</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 21 }}>•</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 14, lineHeight: 21, flex: 1 }}>{line}</Text>
                       </View>
                     ))}
                   </View>
@@ -299,7 +299,7 @@ export default function Guide({ visible, onClose, s, t, tr, Glass, langCode }) {
               </View>
             );
           })}
-          {!items.length && <Text style={{ color: C.muted, fontSize: 14, textAlign: 'center', marginTop: 30 }}>{tr('noMatch')}</Text>}
+          {!items.length && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, textAlign: 'center', marginTop: 30 }}>{tr('noMatch')}</Text>}
         </ScrollView>
       </View>
     </Modal>

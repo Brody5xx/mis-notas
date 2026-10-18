@@ -16,6 +16,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { langLabel } from './idiomas';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { groupsOf, loadMaterials, qtyTxt } from './matlista';
+import { useInsets } from './pantalla';
 
 const DAY = 24 * 60 * 60 * 1000;
 const startOfDay = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -139,6 +140,7 @@ function titleHtmlOf(n, fallback) {
 
 export default function DailyReport({ visible, onClose, notes, plainOf, onCreate, s, t, tr, Glass, langCode, locale }) {
   const C = t;
+  const ins = useInsets();
   const [day, setDay] = useState(() => startOfDay(Date.now()));
   const [off, setOff] = useState({});           // notas que quitaste del reporte
   const [lang, setLang] = useState(null);       // un código de idioma, o 'both' (español + inglés)
@@ -265,7 +267,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
     return (
       <TouchableOpacity key={k} onPress={() => setLang(k)} activeOpacity={0.7}
         style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18, borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
-        <Text style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
       </TouchableOpacity>
     );
   };
@@ -283,11 +285,11 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           <TouchableOpacity onPress={() => { if (!busy) onClose(); }} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
             <Glass t={C} radius={22} style={{ width: 44, height: 44 }} inner={s.center}><Feather name="arrow-left" size={20} color={C.text} /></Glass>
           </TouchableOpacity>
-          <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📊 {tr('rpTitle')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 22, fontWeight: '800', marginLeft: 10, flex: 1 }} numberOfLines={1}>📊 {tr('rpTitle')}</Text>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 140 }}>
-          <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('rpHint')}</Text>
+        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 140 + ins.bottom }}>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>{tr('rpHint')}</Text>
 
           {/* Elegir el día */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: C.border, borderRadius: 18, paddingVertical: 6 }}>
@@ -295,8 +297,8 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
               <Feather name="chevron-left" size={22} color={C.text} />
             </TouchableOpacity>
             <View style={{ flex: 1, alignItems: 'center' }}>
-              {!!dayName && <Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>{dayName}</Text>}
-              <Text style={{ color: dayName ? C.muted : C.text, fontSize: dayName ? 13 : 16, fontWeight: dayName ? '400' : '700' }}>{fmtDay(day)}</Text>
+              {!!dayName && <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>{dayName}</Text>}
+              <Text maxFontSizeMultiplier={1.3} style={{ color: dayName ? C.muted : C.text, fontSize: dayName ? 13 : 16, fontWeight: dayName ? '400' : '700' }}>{fmtDay(day)}</Text>
             </View>
             <TouchableOpacity onPress={() => { if (day < today) { setDay(d => d + DAY); setOff({}); } }} hitSlop={10} style={{ padding: 10, opacity: day < today ? 1 : 0.25 }}>
               <Feather name="chevron-right" size={22} color={C.text} />
@@ -308,7 +310,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
             {!dayNotes.length && (
               <View style={{ alignItems: 'center', paddingVertical: 30 }}>
                 <MaterialCommunityIcons name="note-off-outline" size={40} color={C.muted} />
-                <Text style={{ color: C.muted, fontSize: 15, marginTop: 8 }}>{tr('rpNone')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 15, marginTop: 8 }}>{tr('rpNone')}</Text>
               </View>
             )}
             {dayNotes.map(n => {
@@ -321,17 +323,17 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
                     borderWidth: 1, borderColor: C.border, marginBottom: 8, opacity: locked || empty ? 0.45 : 1 }}>
                   {box(on)}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: titleColorOf(n) || C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{(n.title || '').trim() || tr('note')}</Text>
-                    {!!sub && <Text style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{sub}</Text>}
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: titleColorOf(n) || C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{(n.title || '').trim() || tr('note')}</Text>
+                    {!!sub && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{sub}</Text>}
                   </View>
-                  <Text style={{ color: C.muted, fontSize: 12 }}>{fmtTime(n.updated)}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12 }}>{fmtTime(n.updated)}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
           {/* Idioma */}
-          <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 8 }}>{tr('rpLang')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 8 }}>{tr('rpLang')}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {chip(esCode, langLabel(esCode))}
             {chip(enCode, langLabel(enCode))}
@@ -340,33 +342,33 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           </View>
 
           {/* Qué incluir: cada cosa por separado, o todo de un solo toque */}
-          <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 20, marginBottom: 8 }}>{tr('rpIncHead')}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 20, marginBottom: 8 }}>{tr('rpIncHead')}</Text>
           <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' }}>
             <TouchableOpacity onPress={() => { const v = !allInc; setInc({ text: v, mat: v, imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
               {box(allInc)}
-              <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', flex: 1 }}>{allInc ? tr('rpNoneInc') : tr('rpAll')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '800', flex: 1 }}>{allInc ? tr('rpNoneInc') : tr('rpAll')}</Text>
             </TouchableOpacity>
             {KINDS.map(([k, ic, lb]) => (
               <TouchableOpacity key={k} onPress={() => setInc(o => ({ ...o, [k]: !o[k] }))} activeOpacity={0.7}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, paddingLeft: 24 }}>
                 {box(inc[k])}
                 <Feather name={ic} size={17} color={C.muted} />
-                <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{tr(lb)}</Text>
-                <Text style={{ color: C.muted, fontSize: 14 }}>{counts[k] || 0}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, flex: 1 }}>{tr(lb)}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14 }}>{counts[k] || 0}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {!!err && <Text style={{ color: '#ff6b6b', fontSize: 14, marginTop: 16 }}>{err}</Text>}
+          {!!err && <Text maxFontSizeMultiplier={1.3} style={{ color: '#ff6b6b', fontSize: 14, marginTop: 16 }}>{err}</Text>}
         </ScrollView>
 
         {/* Botón de crear */}
-        <View style={{ position: 'absolute', left: 18, right: 18, bottom: 28 }}>
+        <View style={{ position: 'absolute', left: 18, right: 18, bottom: 28 + ins.bottom }}>
           <TouchableOpacity onPress={make} disabled={!chosen.length || busy || nothing} activeOpacity={0.8}
             style={[s.wallBtn, { backgroundColor: C.text, flexDirection: 'row', justifyContent: 'center', gap: 10, opacity: !chosen.length || nothing ? 0.4 : 1 }]}>
             {busy ? <ActivityIndicator color={C.inv} /> : <MaterialCommunityIcons name="file-document-edit-outline" size={20} color={C.inv} />}
-            <Text style={[s.wallBtnText, { color: C.inv }]}>
+            <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: C.inv }]}>
               {busy ? tr('rpWorking') : chosen.length ? `${tr('rpMake')} · ${tr('rpNotes', { n: chosen.length })}` : tr('rpMake')}
             </Text>
           </TouchableOpacity>

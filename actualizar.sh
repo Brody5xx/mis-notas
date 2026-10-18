@@ -53,6 +53,16 @@ elif [ ! -f app.json ]; then
   echo "  (Aviso: no encontré app.json; el modo translúcido se configura al construir la app)"
 fi
 
+# Paquete para que la app se acomode a cualquier pantalla (notch, barra de gestos) — solo la primera vez
+if [ -f package.json ] && { ! grep -q '"react-native-safe-area-context"' package.json || [ ! -d node_modules/react-native-safe-area-context ]; }; then
+  echo "  … instalando react-native-safe-area-context (para que se vea bien en cualquier pantalla). Espera un momento..."
+  if npx --yes expo install react-native-safe-area-context >/tmp/safe-area.log 2>&1; then
+    echo "  ✓ react-native-safe-area-context instalado"
+  else
+    echo "  ✗ No pude instalarlo. Escribe en el Shell:  npx expo install react-native-safe-area-context"
+  fi
+fi
+
 # Paquete para compartir archivos (PDF / imagen) en el teléfono — solo la primera vez
 if [ -f package.json ] && { ! grep -q '"expo-sharing"' package.json || [ ! -d node_modules/expo-sharing ]; }; then
   echo "  … instalando expo-sharing (para compartir PDF e imágenes). Espera un momento..."

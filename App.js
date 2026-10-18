@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share,
-  KeyboardAvoidingView, Platform, useWindowDimensions, AppState, ActivityIndicator, Animated, Easing,
+  KeyboardAvoidingView, Platform, useWindowDimensions, Dimensions, AppState, ActivityIndicator, Animated, Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +19,8 @@ import Pending, { countPending, pendingOf, markDoneHtml } from './pendientes';
 import { groupsOf as matGroupsOf, loadMaterials } from './matlista';
 import Materials from './materiales';
 import { ICON_URI } from './icono';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useInsets, webTextZoom } from './pantalla';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
 import RemindSheet, { setupNotifications, scheduleAt, cancelAt, canNotify, fmtWhen } from './recordatorios';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
@@ -542,10 +544,10 @@ function Sheet({ visible, onClose, title, s, t, children, onBack }) {
           <Glass t={t} strong radius={26} inner={{ paddingVertical: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 }}>
               <BackBtn onPress={onBack || onClose} t={t} />
-              <Text style={[s.sheetTitle, { flex: 1, paddingLeft: 10, paddingRight: 8 }]} numberOfLines={1}>{title || ''}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.sheetTitle, { flex: 1, paddingLeft: 10, paddingRight: 8 }]} numberOfLines={1}>{title || ''}</Text>
               <DoneBtn onPress={onClose} t={t} />
             </View>
-            <ScrollView style={{ maxHeight: 420 }}>{children}</ScrollView>
+            <ScrollView style={{ maxHeight: Math.min(420, Dimensions.get('window').height * 0.6) }}>{children}</ScrollView>
           </Glass>
         </Pressable>
       </Pressable>
@@ -619,7 +621,7 @@ function ColorWheel({ value, onChange, t, size = 200 }) {
               borderColor: hex === col ? t.text : 'rgba(255,255,255,0.35)' }} />
         ))}
       </View>
-      <Text style={{ color: t.muted, fontSize: 12, marginTop: 8, letterSpacing: 1 }}>{hex.toUpperCase()}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 12, marginTop: 8, letterSpacing: 1 }}>{hex.toUpperCase()}</Text>
     </View>
   );
 }
@@ -639,11 +641,11 @@ function ColorSheet({ visible, title, value, allowNone, onDone, onClose, s, t })
                 <TouchableOpacity onPress={() => onDone(null)} activeOpacity={0.8}
                   style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: t.border }]}>
                   <Feather name="slash" size={16} color={t.text} />
-                  <Text style={[s.wallBtnText, { color: t.text }]}>{tr('noColor')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: t.text }]}>{tr('noColor')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => onDone(cur)} activeOpacity={0.8} style={[s.wallBtn, { flex: 1, backgroundColor: t.text }]}>
-                <Text style={[s.wallBtnText, { color: t.inv }]}>{tr('done')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: t.inv }]}>{tr('done')}</Text>
               </TouchableOpacity>
             </View>
           </Glass>
@@ -663,15 +665,15 @@ function WarnSheet({ visible, title, msg, okText, onOk, onClose, s, t }) {
             <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(229,57,53,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
               <Feather name="alert-triangle" size={28} color="#e53935" />
             </View>
-            <Text style={[s.wallTitle, { textAlign: 'center', marginBottom: 8 }]}>{title}</Text>
-            <Text style={{ color: t.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' }}>{msg}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { textAlign: 'center', marginBottom: 8 }]}>{title}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' }}>{msg}</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 20, alignSelf: 'stretch' }}>
               <TouchableOpacity onPress={onClose} activeOpacity={0.8}
                 style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: t.border }]}>
-                <Text style={[s.wallBtnText, { color: t.text }]}>{tr('cancel')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: t.text }]}>{tr('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={onOk} activeOpacity={0.8} style={[s.wallBtn, { flex: 1, backgroundColor: '#e53935' }]}>
-                <Text style={[s.wallBtnText, { color: '#fff' }]}>{okText}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: '#fff' }]}>{okText}</Text>
               </TouchableOpacity>
             </View>
           </Glass>
@@ -727,7 +729,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
   const input = (val, set, ph) => (
     <View style={[s.folderInputWrap, { borderColor: t.border, marginTop: 10 }]}>
       <Feather name="lock" size={16} color={t.muted} />
-      <TextInput style={s.folderInput} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
+      <TextInput maxFontSizeMultiplier={1.3} style={s.folderInput} value={val} onChangeText={v => { set(v); setErr(''); }} placeholder={ph}
         placeholderTextColor={t.muted} secureTextEntry={!show} autoCapitalize="none" autoCorrect={false} />
       <TouchableOpacity onPress={() => setShow(!show)} hitSlop={10}><Feather name={show ? 'eye-off' : 'eye'} size={18} color={t.muted} /></TouchableOpacity>
     </View>
@@ -737,15 +739,15 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
       borderWidth: 1, borderColor: t.border, marginTop: 10 }}>
       <Feather name={icon} size={24} color={t.text} />
       <View style={{ flex: 1 }}>
-        <Text style={{ color: t.text, fontSize: 17, fontWeight: '700' }}>{title}</Text>
-        <Text style={{ color: t.muted, fontSize: 13, marginTop: 2 }}>{sub}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 17, fontWeight: '700' }}>{title}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 13, marginTop: 2 }}>{sub}</Text>
       </View>
       <Feather name="chevron-right" size={18} color={t.muted} />
     </TouchableOpacity>
   );
   const mainBtn = (label, onPress) => (
     <TouchableOpacity onPress={onPress} disabled={!!busy} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: t.text, marginTop: 16, opacity: busy ? 0.5 : 1 }]}>
-      <Text style={[s.wallBtnText, { color: t.inv }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: t.inv }]}>{label}</Text>
     </TouchableOpacity>
   );
   return (
@@ -757,7 +759,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
               {!busy && !ok && (
                 <BackBtn t={t} onPress={() => { if (step === 'menu') onClose(); else { setStep('menu'); setErr(''); setP1(''); setP2(''); } }} />
               )}
-              <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>
                 {step === 'make' ? tr('bkMake') : step === 'import' ? tr('bkImport') : tr('transfer')}
               </Text>
               {!busy && <DoneBtn onPress={onClose} t={t} />}
@@ -766,26 +768,26 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
             {ok ? (
               <View style={{ alignItems: 'center', paddingVertical: 14 }}>
                 <Feather name="check-circle" size={44} color="#43a047" />
-                <Text style={{ color: t.text, fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>{ok}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>{ok}</Text>
                 {mainBtn(tr('done'), onClose)}
               </View>
             ) : busy ? (
               <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
                 <ActivityIndicator size="large" color={t.text} />
-                <Text style={{ color: t.text, fontSize: 15 }}>{busy}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 15 }}>{busy}</Text>
               </View>
             ) : step === 'menu' ? (
               <>
-                <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('transferHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('transferHint')}</Text>
                 {bigBtn('upload', tr('bkMake'), tr('bkMakeSub'), () => setStep('make'))}
                 {bigBtn('download', tr('bkImport'), tr('bkImportSub'), () => setStep('import'))}
               </>
             ) : step === 'make' ? (
               <>
-                <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('bkPassHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>{tr('bkPassHint')}</Text>
                 {input(p1, setP1, tr('bkPass'))}
                 {input(p2, setP2, tr('bkPass2'))}
-                {!!err && <Text style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
+                {!!err && <Text maxFontSizeMultiplier={1.3} style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
                 {mainBtn(tr('bkCreateFile'), doMake)}
               </>
             ) : (
@@ -794,7 +796,7 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
                   {Platform.OS === 'web' ? (
                     <TouchableOpacity onPress={pickWeb} activeOpacity={0.75} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
                       borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.border, borderRadius: 16 }}>
-                      <Text style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>📁 {tr('bkPick')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>📁 {tr('bkPick')}</Text>
                     </TouchableOpacity>
                   ) : (
                     <WebView originWhitelist={['*']} source={{ html: PICK_HTML(tr('bkPick'), t) }} style={{ flex: 1, backgroundColor: 'transparent' }}
@@ -805,11 +807,11 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
                 {file && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
                     <Feather name="file" size={16} color="#43a047" />
-                    <Text style={{ color: t.text, fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
                   </View>
                 )}
                 {input(p1, setP1, tr('bkPass'))}
-                {!!err && <Text style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
+                {!!err && <Text maxFontSizeMultiplier={1.3} style={{ color: '#ff6b6b', marginTop: 10, fontSize: 14 }}>{err}</Text>}
                 {mainBtn(tr('bkImportBtn'), doImport)}
               </>
             )}
@@ -876,7 +878,7 @@ function Sparkles({ anim, top, height, screenW, groups, starRefs }) {
         <Animated.View key={gi} ref={el => { if (starRefs) starRefs.current[gi] = el; }}
           style={[StyleSheet.absoluteFill, styles[gi]]} renderToHardwareTextureAndroid>
           {gr.stars.map((st, i) => (
-            <Text key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
+            <Text maxFontSizeMultiplier={1.3} key={i} style={{ position: 'absolute', left: st.x, top: st.y, color: '#ffffff', fontSize: st.size,
               transform: [{ rotate: st.rot + 'deg' }] }}>✦</Text>
           ))}
         </Animated.View>
@@ -899,9 +901,9 @@ function BackBtn({ onPress, t, style }) {
 function DoneBtn({ onPress, t, style }) {
   return (
     <TouchableOpacity onPress={onPress} hitSlop={10} activeOpacity={0.6}
-      style={[{ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+      style={[{ minHeight: 36, paddingHorizontal: 14, paddingVertical: 4, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
         backgroundColor: t.text }, style]}>
-      <Text style={{ color: t.inv, fontSize: 15, fontWeight: '700' }}>{tr('done')}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: t.inv, fontSize: 15, fontWeight: '700' }}>{tr('done')}</Text>
     </TouchableOpacity>
   );
 }
@@ -911,7 +913,7 @@ function PanelHead({ title, onBack, onDone, s, t, style }) {
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, style]}>
       <BackBtn onPress={onBack} t={t} />
-      <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{title}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{title}</Text>
       <DoneBtn onPress={onDone || onBack} t={t} />
     </View>
   );
@@ -921,7 +923,7 @@ function Row({ icon, iconColor, label, right, onPress, s, t, danger }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={s.row}>
       {icon ? <Feather name={icon} size={19} color={iconColor || (danger ? '#e53935' : t.text)} style={{ marginRight: 14 }} /> : null}
-      <Text style={[s.rowText, danger && { color: '#e53935' }]} numberOfLines={1}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={[s.rowText, danger && { color: '#e53935' }]} numberOfLines={1}>{label}</Text>
       {right}
     </TouchableOpacity>
   );
@@ -1013,7 +1015,11 @@ const LIQ = (() => {
   return { inR, sx, sy, ix, iy };
 })();
 
+/* La app va dentro de SafeAreaProvider: así sabe cuánto miden la barra de arriba y la de abajo en cada teléfono */
 export default function App() {
+  return <SafeAreaProvider><AppMain /></SafeAreaProvider>;
+}
+function AppMain() {
   return (
     <View style={{ flex: 1 }} onStartShouldSetResponderCapture={e => {
       const n = e.nativeEvent; if (n && n.pageX != null) DROP.pt = { x: n.pageX, y: n.pageY };
@@ -1284,7 +1290,8 @@ function NotesApp() {
   const webRef = useRef(null);
 
   const c = dark ? THEMES.dark : THEMES.light;
-  const s = useMemo(() => makeStyles(c), [dark]);
+  const ins = useInsets();
+  const s = useMemo(() => makeStyles(c, ins), [dark, ins.top, ins.bottom]);
 
   /* ---------- Cargar notas guardadas ---------- */
   useEffect(() => {
@@ -2386,7 +2393,7 @@ function NotesApp() {
         {!!calcOpen && (Platform.OS === 'web' ? (
           <iframe ref={calcFrame} srcDoc={calcHtml} title="calc" style={{ border: 'none', width: '100%', height: '100%', backgroundColor: c.grad[0] }} />
         ) : (
-          <WebView ref={calcWeb} originWhitelist={['*']} source={{ html: calcHtml }} onMessage={e => onCalcMessage(e.nativeEvent.data)}
+          <WebView ref={calcWeb} textZoom={webTextZoom()} originWhitelist={['*']} source={{ html: calcHtml }} onMessage={e => onCalcMessage(e.nativeEvent.data)}
             style={{ flex: 1, backgroundColor: c.grad[0] }} keyboardDisplayRequiresUserAction={false} hideKeyboardAccessoryView />
         ))}
       </View>
@@ -2403,14 +2410,14 @@ function NotesApp() {
           const ways = [['📧', tr('chEmail'), 20 * MB], ['💬', tr('chWa'), 2048 * MB], ['📱', tr('chRcs'), 100 * MB], ['✉️', tr('chMms'), 1 * MB]];
           return (
             <View style={{ paddingHorizontal: 6, paddingBottom: 10 }}>
-              <Text style={{ color: c.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>📦 {tr('sizeSend', { s: fmtBytes(sz) })}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>📦 {tr('sizeSend', { s: fmtBytes(sz) })}</Text>
               {ways.map(([ic, label, max]) => {
                 const ok = sz <= max;
                 return (
                   <View key={label} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 15, width: 26 }}>{ic}</Text>
-                    <Text style={{ flex: 1, color: ok ? c.text : c.muted, fontSize: 13.5, textDecorationLine: ok ? 'none' : 'line-through' }}>{label}</Text>
-                    <Text style={{ fontSize: 16, marginLeft: 8 }}>{ok ? '✅' : '❌'}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 15, width: 26 }}>{ic}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, color: ok ? c.text : c.muted, fontSize: 13.5, textDecorationLine: ok ? 'none' : 'line-through' }}>{label}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 16, marginLeft: 8 }}>{ok ? '✅' : '❌'}</Text>
                   </View>
                 );
               })}
@@ -2437,7 +2444,7 @@ function NotesApp() {
         <View style={[s.wallScrim, { backgroundColor: c.scrim }]}>
           <Glass t={c} strong radius={24} inner={{ paddingVertical: 22, paddingHorizontal: 28, alignItems: 'center', gap: 12 }}>
             <ActivityIndicator size="large" color={c.text} />
-            <Text style={{ color: c.text, fontSize: 16 }}>{tr('exporting')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 16 }}>{tr('exporting')}</Text>
           </Glass>
         </View>
       </Modal>
@@ -2447,16 +2454,16 @@ function NotesApp() {
             <Glass t={c} strong radius={28} inner={{ padding: 22, alignItems: 'center' }}>
               <PanelHead title={tr('fileReady')} onBack={() => setWebFile(null)} s={s} t={c} style={{ alignSelf: 'stretch', marginBottom: 14 }} />
               <Feather name={webFile && webFile.name.endsWith('.pdf') ? 'file-text' : 'image'} size={40} color={c.text} />
-              <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center' }} numberOfLines={2}>{webFile ? webFile.name : ''}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 14, textAlign: 'center' }} numberOfLines={2}>{webFile ? webFile.name : ''}</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 18, alignSelf: 'stretch' }}>
                 <TouchableOpacity onPress={webDownload} activeOpacity={0.8}
                   style={[s.wallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: c.border }]}>
                   <Feather name="download" size={16} color={c.text} />
-                  <Text style={[s.wallBtnText, { color: c.text }]}>{tr('download')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.text }]}>{tr('download')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={webShare} activeOpacity={0.8} style={[s.wallBtn, { flex: 1, backgroundColor: c.text }]}>
                   <Feather name="share-2" size={16} color={c.inv} />
-                  <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('share')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('share')}</Text>
                 </TouchableOpacity>
               </View>
             </Glass>
@@ -2502,9 +2509,9 @@ function NotesApp() {
     return buildEditorHtml({
       id: current.id, content: toHtml(current), titleHtml: toTitleHtml(current),
       updated: current.updated, editable: !current.deleted, c,
-      kind: current.kind, ink: current.ink, tr, locale: LOCALE, colors: colorPrefs.current,
+      kind: current.kind, ink: current.ink, tr, locale: LOCALE, colors: colorPrefs.current, safeBottom: Platform.OS === 'web' ? 0 : ins.bottom,
     });
-  }, [currentId, dark, langCode, current && current.deleted, editorRev]);
+  }, [currentId, dark, langCode, current && current.deleted, editorRev, ins.bottom]);
 
   // Vista previa de una versión del historial con el mismo editor (solo para mirar)
   const histHtml = useMemo(() => {
@@ -2609,10 +2616,10 @@ function NotesApp() {
   const toast = toastMsg ? (
     <View style={s.toastWrap} pointerEvents="box-none">
       <Glass t={c} strong radius={20} inner={toastUndo ? { flexDirection: 'row', alignItems: 'center' } : null}>
-        <Text style={[s.toastText, toastUndo && { flexShrink: 1, paddingRight: 4 }]}>{toastMsg}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={[s.toastText, toastUndo && { flexShrink: 1, paddingRight: 4 }]}>{toastMsg}</Text>
         {toastUndo && (
           <TouchableOpacity onPress={runUndo} hitSlop={10} style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-            <Text style={{ color: c.text, fontWeight: '800', fontSize: 15 }}>{tr('undoBtn')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontWeight: '800', fontSize: 15 }}>{tr('undoBtn')}</Text>
           </TouchableOpacity>
         )}
       </Glass>
@@ -2630,22 +2637,22 @@ function NotesApp() {
           <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <BackBtn onPress={() => setWallOpen(false)} t={c} />
-              <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{wallFor ? tr('bgThisNote') : tr('wallpaper')}</Text>
               <DoneBtn onPress={() => setWallOpen(false)} t={c} />
             </View>
-            <Text style={s.wallHint}>{wallFor ? tr('bgNoteHint') : tr('bgMainHint')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.wallHint}>{wallFor ? tr('bgNoteHint') : tr('bgMainHint')}</Text>
 
             <View style={s.wallPreview}>
               <Background t={c} wall={wallData} blur={wallBlurNow} />
-              <Text style={[s.wallPreviewText, { color: c.text }]}>{tr('preview')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallPreviewText, { color: c.text }]}>{tr('preview')}</Text>
             </View>
 
             {!wallFor && (
               <TouchableOpacity onPress={toggleTranslucent} style={[s.row, { paddingHorizontal: 4, marginBottom: 12 }]} activeOpacity={0.7}>
                 <Feather name="smartphone" size={18} color={c.text} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.rowText}>{tr('translucent')}</Text>
-                  <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('translucentHint')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{tr('translucent')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('translucentHint')}</Text>
                 </View>
                 <View style={[s.toggle, { borderColor: c.text }, translucent && { backgroundColor: c.text }]}>
                   <View style={[s.toggleKnob, { backgroundColor: translucent ? c.inv : c.text }, translucent && { alignSelf: 'flex-end' }]} />
@@ -2655,12 +2662,12 @@ function NotesApp() {
 
             <TouchableOpacity onPress={pickWallpaper} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
               <Feather name="image" size={18} color={c.inv} />
-              <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('pickGallery')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('pickGallery')}</Text>
             </TouchableOpacity>
 
             {wallData && (
               <>
-                <Text style={s.wallLabel}>{tr('blur')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.wallLabel}>{tr('blur')}</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {[[tr('blurNone'), -1], [tr('blurLow'), 0], [tr('blurSoft'), 8], [tr('blurStrong'), 20]].map(([label, v]) => (
                     <TouchableOpacity
@@ -2668,19 +2675,19 @@ function NotesApp() {
                       onPress={() => (wallFor ? patch(wallFor, { wallBlur: v }, false) : setWallBlur(v))}
                       style={[s.blurChip, { borderColor: c.border }, wallBlurNow === v && { backgroundColor: c.text, borderColor: c.text }]}
                     >
-                      <Text style={{ color: wallBlurNow === v ? c.inv : c.text, fontSize: 15 }}>{label}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: wallBlurNow === v ? c.inv : c.text, fontSize: 15 }}>{label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
                 <TouchableOpacity onPress={removeWallpaper} activeOpacity={0.7} style={s.wallRemove}>
                   <Feather name="x" size={16} color={c.muted} />
-                  <Text style={{ color: c.muted, fontSize: 15, marginLeft: 6 }}>{wallFor ? tr('removeNoteBg') : tr('removeMyBg')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 15, marginLeft: 6 }}>{wallFor ? tr('removeNoteBg') : tr('removeMyBg')}</Text>
                 </TouchableOpacity>
               </>
             )}
 
             <TouchableOpacity onPress={() => setWallOpen(false)} style={{ alignSelf: 'center', padding: 10, marginTop: 6 }}>
-              <Text style={{ color: c.text, fontSize: 16, fontWeight: '600' }}>{tr('done')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 16, fontWeight: '600' }}>{tr('done')}</Text>
             </TouchableOpacity>
           </Glass>
         </Pressable>
@@ -2697,12 +2704,12 @@ function NotesApp() {
             <Glass t={c} strong radius={28} inner={{ padding: 20 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <BackBtn onPress={() => setFolderEdit(null)} t={c} />
-                <Text style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { flex: 1, marginBottom: 0 }]}>{folderEdit.id ? tr('editFolder') : tr('newFolder')}</Text>
                 <DoneBtn onPress={() => setFolderEdit(null)} t={c} />
               </View>
               <View style={[s.folderInputWrap, { borderColor: c.border }]}>
                 <Feather name="folder" size={20} color={folderEdit.color} />
-                <TextInput
+                <TextInput maxFontSizeMultiplier={1.3}
                   style={s.folderInput}
                   value={folderEdit.name}
                   onChangeText={tx => setFolderEdit(f => ({ ...f, name: tx }))}
@@ -2712,19 +2719,19 @@ function NotesApp() {
                   maxLength={40}
                 />
               </View>
-              <Text style={s.wallLabel}>{tr('color')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.wallLabel}>{tr('color')}</Text>
               <ColorWheel value={folderEdit.color} onChange={col => setFolderEdit(f => ({ ...f, color: col }))} t={c} size={170} />
               <TouchableOpacity onPress={saveFolder} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text, marginTop: 20 }]}>
-                <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('save')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('save')}</Text>
               </TouchableOpacity>
               {folderEdit.id && (
                 <TouchableOpacity onPress={() => deleteFolder(folderEdit)} style={s.wallRemove}>
                   <Feather name="trash-2" size={16} color="#e53935" />
-                  <Text style={{ color: '#e53935', fontSize: 15, marginLeft: 6 }}>{tr('deleteFolder')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: '#e53935', fontSize: 15, marginLeft: 6 }}>{tr('deleteFolder')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => setFolderEdit(null)} style={{ alignSelf: 'center', padding: 10, marginTop: 4 }}>
-                <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
               </TouchableOpacity>
             </Glass>
           )}
@@ -2743,9 +2750,9 @@ function NotesApp() {
           <Glass t={c} strong radius={30} style={{ width: '100%', maxWidth: 340 }} inner={{ padding: 22, alignItems: 'center' }}>
             {pinPad.mode !== 'app' && <BackBtn onPress={() => setPinPad(null)} t={c} style={{ position: 'absolute', left: 14, top: 14 }} />}
             <Feather name="lock" size={28} color={c.text} />
-            <Text style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{pinPad.title}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { textAlign: 'center', marginTop: 10 }]}>{pinPad.title}</Text>
             {(pinPad.mode === 'set1') && (
-              <Text style={[s.wallHint, { textAlign: 'center' }]}>{tr('pinKeepSafe')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { textAlign: 'center' }]}>{tr('pinKeepSafe')}</Text>
             )}
             <View style={s.pinDots}>
               {[0, 1, 2, 3].map(i => (
@@ -2759,7 +2766,7 @@ function NotesApp() {
                     <Glass t={c} radius={32} style={{ width: 64, height: 64 }} inner={s.center}>
                       {k === 'del'
                         ? <Feather name="delete" size={22} color={c.text} />
-                        : <Text style={s.pinKeyText}>{k}</Text>}
+                        : <Text maxFontSizeMultiplier={1.3} style={s.pinKeyText}>{k}</Text>}
                     </Glass>
                   </TouchableOpacity>
                 )
@@ -2767,7 +2774,7 @@ function NotesApp() {
             </View>
             {pinPad.mode !== 'app' && (
               <TouchableOpacity onPress={() => setPinPad(null)} style={{ padding: 10, marginTop: 4 }}>
-                <Text style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 16 }}>{tr('cancel')}</Text>
               </TouchableOpacity>
             )}
           </Glass>
@@ -2808,7 +2815,7 @@ function NotesApp() {
               </View>} />
             {open && vars.map(([code, flag, region]) => (
               <TouchableOpacity key={code} onPress={() => pickLang(code)} activeOpacity={0.6} style={[s.row, { paddingLeft: 44 }]}>
-                <Text style={[s.rowText, { fontSize: 15 }]} numberOfLines={1}>{flag + '  ' + region}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.rowText, { fontSize: 15 }]} numberOfLines={1}>{flag + '  ' + region}</Text>
                 {check(lang === code)}
               </TouchableOpacity>
             ))}
@@ -2879,7 +2886,7 @@ function NotesApp() {
           <View style={{ paddingHorizontal: 20, paddingTop: inTrash ? 10 : 0 }}>
             {inTrash && (
               <Glass t={c} radius={16} style={{ marginBottom: 12 }} inner={{ padding: 12 }}>
-                <Text style={s.bannerText}>{tr('inTrashBanner')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.bannerText}>{tr('inTrashBanner')}</Text>
               </Glass>
             )}
             {/* El título y la fecha ahora están dentro del editor */}
@@ -2897,6 +2904,7 @@ function NotesApp() {
               />
             ) : (
               <WebView
+                textZoom={webTextZoom()}
                 ref={webRef}
                 originWhitelist={['*']}
                 source={{ html: editorHtml }}
@@ -2924,10 +2932,10 @@ function NotesApp() {
         <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
           <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
-            <Text style={{ fontSize: 24 }}>👔</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>👔</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('workTitle')}</Text>
-              <Text style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('wHint')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('workTitle')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('wHint')}</Text>
             </View>
             <Feather name="chevron-right" size={20} color={c.inv} />
           </TouchableOpacity>
@@ -2939,16 +2947,16 @@ function NotesApp() {
             label={current.locked ? tr('unlock') : tr('lockPin')} onPress={toggleLock} />
           <TouchableOpacity onPress={() => { setOptsOpen(false); setColorFor('note'); }} activeOpacity={0.6} style={s.row}>
             <View style={[s.colorDot, { backgroundColor: current.color || 'transparent', borderColor: current.color || c.muted }]} />
-            <Text style={s.rowText}>{tr('noteColor')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{tr('noteColor')}</Text>
             <Feather name="chevron-right" size={18} color={c.muted} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => { setOptsOpen(false); togglePin(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.pinned ? 'pin-off-outline' : 'pin-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
-            <Text style={s.rowText}>{current.pinned ? tr('unpin') : tr('pinTop')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{current.pinned ? tr('unpin') : tr('pinTop')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => { setOptsOpen(false); toggleFav(); }} activeOpacity={0.6} style={s.row}>
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
-            <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
           <Row icon="bell" label={tr('rmTitle') + (remFor(current.id).length ? ' · ' + fmtWhen(remFor(current.id).sort((a, b) => a.at - b.at)[0].at, LOCALE) : '')} s={s} t={c}
             onPress={() => { setOptsOpen(false); setTimeout(() => setRemTarget({ noteId: current.id, text: '' }), 250); }}
@@ -2982,10 +2990,10 @@ function NotesApp() {
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <BackBtn onPress={() => setHistOpen(false)} t={c} />
                       <MaterialCommunityIcons name="history" size={22} color={c.text} style={{ marginLeft: 10 }} />
-                      <Text style={[s.wallTitle, { marginLeft: 8, marginBottom: 0, flex: 1 }]}>{tr('history')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { marginLeft: 8, marginBottom: 0, flex: 1 }]}>{tr('history')}</Text>
                       <DoneBtn onPress={() => setHistOpen(false)} t={c} />
                     </View>
-                    <Text style={[s.wallHint, { marginTop: 6 }]}>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { marginTop: 6 }]}>
                       {tr('histIntro')}
                     </Text>
                     <TouchableOpacity onPress={openRecord} activeOpacity={0.7}>
@@ -2994,8 +3002,8 @@ function NotesApp() {
                           <Feather name="book-open" size={18} color={c.inv} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={s.recTitle}>{tr('record')}</Text>
-                          <Text style={s.histDate}>
+                          <Text maxFontSizeMultiplier={1.3} style={s.recTitle}>{tr('record')}</Text>
+                          <Text maxFontSizeMultiplier={1.3} style={s.histDate}>
                             {tr('recLines', { n: ((recCache.current[current.id] || {}).e || []).length })}
                           </Text>
                         </View>
@@ -3004,19 +3012,19 @@ function NotesApp() {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={saveVersionNow} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="save" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('saveVersionNow')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('saveVersionNow')}</Text>
                     </TouchableOpacity>
-                    <Text style={[s.sideHeaderText, { marginTop: 16, marginBottom: 8, marginLeft: 4 }]}>{tr('savedVersions')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.sideHeaderText, { marginTop: 16, marginBottom: 8, marginLeft: 4 }]}>{tr('savedVersions')}</Text>
                     <ScrollView style={{ maxHeight: 260 }}>
                       {histList.length === 0 && (
-                        <Text style={[s.emptyText, { paddingVertical: 16 }]}>{tr('noVersions', { btn: tr('saveVersionNow') })}</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={[s.emptyText, { paddingVertical: 16 }]}>{tr('noVersions', { btn: tr('saveVersionNow') })}</Text>
                       )}
                       {histList.map((v, i) => (
                         <TouchableOpacity key={v.at} onPress={() => setHistView(v)} activeOpacity={0.7}>
                           <Glass t={c} radius={16} style={{ marginBottom: 8 }} inner={s.histRow}>
                             <View style={{ flex: 1 }}>
-                              <Text style={s.histDate}>{fmtDate(v.at)}{i === 0 ? '  · ' + tr('latest') : ''}</Text>
-                              <Text style={s.histPrev} numberOfLines={2}>
+                              <Text maxFontSizeMultiplier={1.3} style={s.histDate}>{fmtDate(v.at)}{i === 0 ? '  · ' + tr('latest') : ''}</Text>
+                              <Text maxFontSizeMultiplier={1.3} style={s.histPrev} numberOfLines={2}>
                                 {(v.title ? v.title + ' — ' : '') + (toPlain(v) || (v.ink && v.ink.length ? tr('drawing') : tr('emptyNote')))}
                               </Text>
                             </View>
@@ -3027,7 +3035,7 @@ function NotesApp() {
                     </ScrollView>
                     <TouchableOpacity onPress={toggleHistLock} style={[s.row, { paddingHorizontal: 4, paddingBottom: 4 }]} activeOpacity={0.7}>
                       <Feather name={current.histLocked ? 'lock' : 'unlock'} size={18} color={c.text} style={{ marginRight: 12 }} />
-                      <Text style={s.rowText}>{current.histLocked ? tr('histWithPin') : tr('protectHist')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={s.rowText}>{current.histLocked ? tr('histWithPin') : tr('protectHist')}</Text>
                       <View style={[s.toggle, { borderColor: c.text }, current.histLocked && { backgroundColor: c.text }]}>
                         <View style={[s.toggleKnob, { backgroundColor: current.histLocked ? c.inv : c.text },
                           current.histLocked && { alignSelf: 'flex-end' }]} />
@@ -3038,47 +3046,47 @@ function NotesApp() {
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <BackBtn onPress={() => setHistView(null)} t={c} />
-                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('record')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]}>{tr('record')}</Text>
                       <TouchableOpacity onPress={clearRecord} hitSlop={10} style={{ marginRight: 12 }}>
                         <Feather name="trash-2" size={20} color="#e53935" />
                       </TouchableOpacity>
                       <DoneBtn onPress={() => { setHistView(null); setHistOpen(false); }} t={c} />
                     </View>
-                    <Text style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
-                      {recEntries.length === 0 && <Text style={[s.emptyText, { paddingVertical: 16 }]}>{tr('recEmpty')}</Text>}
+                      {recEntries.length === 0 && <Text maxFontSizeMultiplier={1.3} style={[s.emptyText, { paddingVertical: 16 }]}>{tr('recEmpty')}</Text>}
                       {recEntries.map((e, i) => (e[0] === REC_IMG
                         ? <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />
-                        : <Text key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
+                        : <Text maxFontSizeMultiplier={1.3} key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
                     </ScrollView>
                     <TouchableOpacity onPress={restoreRecord} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="rotate-ccw" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('putAllInNote')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('putAllInNote')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <BackBtn onPress={() => setHistView(null)} t={c} />
-                      <Text style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]} numberOfLines={1}>{fmtDate(histView.at)}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallTitle, { marginLeft: 10, marginBottom: 0, flex: 1 }]} numberOfLines={1}>{fmtDate(histView.at)}</Text>
                       <TouchableOpacity onPress={() => deleteVersion(histView)} hitSlop={10} style={{ marginRight: 12 }}>
                         <Feather name="trash-2" size={20} color="#e53935" />
                       </TouchableOpacity>
                       <DoneBtn onPress={() => { setHistView(null); setHistOpen(false); }} t={c} />
                     </View>
                     {/* La versión se ve EXACTAMENTE como quedó: fotos en su lugar, colores, tamaños, audios */}
-                    <View style={{ height: 420, marginVertical: 14, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
+                    <View style={{ height: Math.min(420, winH * 0.48), marginVertical: 14, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
                       {Platform.OS === 'web' ? (
                         <iframe srcDoc={histHtml} title="version" style={{ border: 'none', width: '100%', height: '100%', backgroundColor: c.grad ? c.grad[0] : 'transparent' }} />
                       ) : (
-                        <WebView originWhitelist={['*']} source={{ html: histHtml }} style={{ flex: 1, backgroundColor: 'transparent' }} />
+                        <WebView textZoom={webTextZoom()} originWhitelist={['*']} source={{ html: histHtml }} style={{ flex: 1, backgroundColor: 'transparent' }} />
                       )}
                     </View>
                     <TouchableOpacity onPress={() => restoreVersion(histView)} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
                       <Feather name="rotate-ccw" size={18} color={c.inv} />
-                      <Text style={[s.wallBtnText, { color: c.inv }]}>{tr('restoreThisVersion')}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: c.inv }]}>{tr('restoreThisVersion')}</Text>
                     </TouchableOpacity>
-                    <Text style={[s.wallHint, { textAlign: 'center', marginTop: 10, marginBottom: 0 }]}>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { textAlign: 'center', marginTop: 10, marginBottom: 0 }]}>
                       {tr('nowKeptInRec')}
                     </Text>
                   </>
@@ -3124,20 +3132,20 @@ function NotesApp() {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
               <BackBtn onPress={() => closeMenu()} t={c} />
               <Image source={{ uri: ICON_URI }} style={{ width: 32, height: 32, borderRadius: 9, marginLeft: 10 }} />
-              <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
               <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
             {/* 📖 Guía de la app: siempre primero, para que se note */}
             <TouchableOpacity onPress={() => { setGuideOpen(true); setGuideNew(false); }} activeOpacity={0.8}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 12, borderRadius: 18, backgroundColor: c.text }}>
-              <Text style={{ fontSize: 22 }}>📖</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 22 }}>📖</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('gdTitle')}</Text>
-                <Text style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('gdMenuHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('gdTitle')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('gdMenuHint')}</Text>
               </View>
               {guideNew && (
                 <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.inv }}>
-                  <Text style={{ color: c.text, fontSize: 11, fontWeight: '800' }}>{tr('gdNew')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 11, fontWeight: '800' }}>{tr('gdNew')}</Text>
                 </View>
               )}
               <Feather name="chevron-right" size={18} color={c.inv} />
@@ -3147,14 +3155,14 @@ function NotesApp() {
                 {view === key ? (
                   <Glass t={c} radius={16} style={{ marginBottom: 4 }} inner={s.navItem}>
                     <Feather name={icon} size={19} color={c.text} style={s.navIcon} />
-                    <Text style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.navText, { fontWeight: '700' }]}>{tr(key)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
                   </Glass>
                 ) : (
                   <View style={[s.navItem, { marginBottom: 4 }]}>
                     <Feather name={icon} size={19} color={c.muted} style={s.navIcon} />
-                    <Text style={s.navText}>{tr(key)}</Text>
-                    <Text style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr(key)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.navCount}>{counts[key]}{key === 'all' ? '  ·  ' + totalSize : ''}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -3163,7 +3171,7 @@ function NotesApp() {
 
             {/* Carpetas */}
             <View style={s.sideHeader}>
-              <Text style={s.sideHeaderText}>{tr('folders')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.sideHeaderText}>{tr('folders')}</Text>
               <TouchableOpacity onPress={() => openFolderEdit(null)} hitSlop={10}>
                 <Feather name="plus" size={20} color={c.text} />
               </TouchableOpacity>
@@ -3171,7 +3179,7 @@ function NotesApp() {
             {folders.length === 0 && (
               <TouchableOpacity style={s.navItem} onPress={() => openFolderEdit(null)} activeOpacity={0.7}>
                 <Feather name="folder-plus" size={19} color={c.muted} style={s.navIcon} />
-                <Text style={[s.navText, { color: c.muted }]}>{tr('createFolder')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.navText, { color: c.muted }]}>{tr('createFolder')}</Text>
               </TouchableOpacity>
             )}
             {folders.map(f => {
@@ -3179,10 +3187,10 @@ function NotesApp() {
               const body = (
                 <>
                   <Feather name="folder" size={19} color={f.color} style={s.navIcon} />
-                  <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{f.name}</Text>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={s.navCount}>{folderCount(f.id)}</Text>
-                    <Text style={{ fontSize: 11, color: c.muted }}>{folderSize(f.id)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.navCount}>{folderCount(f.id)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 11, color: c.muted }}>{folderSize(f.id)}</Text>
                   </View>
                   <TouchableOpacity onPress={() => openFolderEdit(f)} hitSlop={10} style={{ marginLeft: 10 }}>
                     <Feather name="more-horizontal" size={18} color={c.muted} />
@@ -3202,14 +3210,14 @@ function NotesApp() {
             {/* Etiquetas */}
             {allTags.length > 0 && (
               <>
-                <View style={s.sideHeader}><Text style={s.sideHeaderText}>{tr('tags')}</Text></View>
+                <View style={s.sideHeader}><Text maxFontSizeMultiplier={1.3} style={s.sideHeaderText}>{tr('tags')}</Text></View>
                 {allTags.map(([tg, n]) => {
                   const on = view === 't:' + tg;
                   const body = (
                     <>
                       <Feather name="hash" size={18} color={on ? c.text : c.muted} style={s.navIcon} />
-                      <Text style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{tg}</Text>
-                      <Text style={s.navCount}>{n}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={[s.navText, on && { fontWeight: '700' }]} numberOfLines={1}>{tg}</Text>
+                      <Text maxFontSizeMultiplier={1.3} style={s.navCount}>{n}</Text>
                     </>
                   );
                   return (
@@ -3226,51 +3234,51 @@ function NotesApp() {
             <View style={s.sep} />
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => openWall(null)}>
               <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('wallpaper')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setTransferOpen(true)}>
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('transfer')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setPendOpen(true)}>
               <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={19} color={c.muted} style={s.navIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={s.navText}>{tr('pdTitle')}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('pdMenuHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('pdTitle')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('pdMenuHint')}</Text>
               </View>
               {pendCount > 0 && (
                 <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: c.inv, fontWeight: '800', fontSize: 12 }}>{pendCount}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, fontWeight: '800', fontSize: 12 }}>{pendCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setMatOpen(true)}>
               <MaterialCommunityIcons name="package-variant-closed" size={19} color={c.muted} style={s.navIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={s.navText}>{tr('mtTitle')}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('mtMenuHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('mtTitle')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('mtMenuHint')}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setReportOpen(true)}>
               <MaterialCommunityIcons name="file-chart-outline" size={19} color={c.muted} style={s.navIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={s.navText}>{tr('rpTitle')}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('rpMenuHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('rpTitle')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('rpMenuHint')}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setVaultOpen(true)}>
               <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('vault')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('vault')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={changePin}>
               <Feather name="key" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{pinHash ? tr('changePin') : tr('createLockPin')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={toggleAppLock}>
               <Feather name="shield" size={19} color={c.muted} style={s.navIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={s.navText}>{tr('lockApp')}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('lockAppHint')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('lockApp')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('lockAppHint')}</Text>
               </View>
               <View style={[s.toggle, { borderColor: c.text }, appLock && { backgroundColor: c.text }]}>
                 <View style={[s.toggleKnob, { backgroundColor: appLock ? c.inv : c.text }, appLock && { alignSelf: 'flex-end' }]} />
@@ -3278,16 +3286,16 @@ function NotesApp() {
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setLangOpen(true)}>
               <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
-              <Text style={s.navText}>{tr('language')}</Text>
-              <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('language')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.navCount} numberOfLines={1}>{langName}</Text>
             </TouchableOpacity>
             {/* Sobre la app */}
             <View style={s.sep} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 10 }}>
               <Image source={{ uri: ICON_URI }} style={{ width: 44, height: 44, borderRadius: 12 }} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Best Notes</Text>
-                <Text style={{ color: c.muted, fontSize: 12.5, marginTop: 2 }}>Developer: Luisell Peña Rodríguez</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Best Notes</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12.5, marginTop: 2 }}>Developer: Luisell Peña Rodríguez</Text>
               </View>
             </View>
            </ScrollView>
@@ -3316,13 +3324,13 @@ function NotesApp() {
             <TouchableOpacity onPress={clearSelection} hitSlop={10} style={{ paddingHorizontal: 6 }}>
               <Feather name="x" size={22} color={c.text} />
             </TouchableOpacity>
-            <Text style={s.selCount}>{selIds.length}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.selCount}>{selIds.length}</Text>
           </Glass>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={selectAll} activeOpacity={0.7}>
             <Glass t={c} radius={22} inner={s.selAll}>
               <Feather name={selIds.length === visible.length ? 'minus-square' : 'check-square'} size={18} color={c.text} />
-              <Text style={s.selAllText}>{selIds.length === visible.length ? tr('none') : tr('selAll')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.selAllText}>{selIds.length === visible.length ? tr('none') : tr('selAll')}</Text>
             </Glass>
           </TouchableOpacity>
         </View>
@@ -3344,16 +3352,16 @@ function NotesApp() {
         keyExtractor={n => n.id}
         numColumns={isGrid ? cols : 1}
         columnWrapperStyle={isGrid ? { gap: 12 } : undefined}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 + ins.bottom, gap: 12 }}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View>
             <View style={s.hero}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {viewFolder && <Feather name="folder" size={26} color={viewFolder.color} style={{ marginRight: 10 }} />}
-                <Text style={[s.heroTitle, { flexShrink: 1 }]} numberOfLines={1}>{viewTitle}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={[s.heroTitle, { flexShrink: 1 }]} numberOfLines={1}>{viewTitle}</Text>
               </View>
-              <Text style={s.heroCount}>{tr('nNotes', { n: visible.length })}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={s.heroCount}>{tr('nNotes', { n: visible.length })}</Text>
             </View>
             {/* ✅ Pendientes en vivo (y 📦 materiales por pedir) */}
             {view === 'all' && !selMode && !query && (homeTodos.length > 0 || matSum.n > 0) && (
@@ -3363,14 +3371,14 @@ function NotesApp() {
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <TouchableOpacity activeOpacity={0.7} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                         onPress={() => { const v = !todoOpen; setTodoOpen(v); AsyncStorage.setItem('homeTodoOpen', v ? '1' : '0').catch(() => {}); }}>
-                        <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>✅ {tr('hmTodo')}</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>✅ {tr('hmTodo')}</Text>
                         <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ color: c.inv, fontSize: 13, fontWeight: '800' }}>{homeTodos.length}</Text>
+                          <Text maxFontSizeMultiplier={1.3} style={{ color: c.inv, fontSize: 13, fontWeight: '800' }}>{homeTodos.length}</Text>
                         </View>
                         <Feather name={todoOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setPendOpen(true)} hitSlop={8}>
-                        <Text style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmSeeAll')} ›</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmSeeAll')} ›</Text>
                       </TouchableOpacity>
                     </View>
                     {todoOpen && homeTodos.slice(0, 5).map(({ n, it }) => (
@@ -3379,8 +3387,8 @@ function NotesApp() {
                           <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={22} color={c.text} />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => openNote(n)} activeOpacity={0.7} style={{ flex: 1 }}>
-                          <Text style={{ color: c.text, fontSize: 15 }} numberOfLines={2}>{it.text}</Text>
-                          <Text style={{ color: titleColorOf(n) || c.muted, fontSize: 12, fontWeight: '700', marginTop: 1 }} numberOfLines={1}>
+                          <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 15 }} numberOfLines={2}>{it.text}</Text>
+                          <Text maxFontSizeMultiplier={1.3} style={{ color: titleColorOf(n) || c.muted, fontSize: 12, fontWeight: '700', marginTop: 1 }} numberOfLines={1}>
                             {(n.title || '').trim() || tr('untitled')}
                           </Text>
                         </TouchableOpacity>
@@ -3388,7 +3396,7 @@ function NotesApp() {
                     ))}
                     {todoOpen && homeTodos.length > 5 && (
                       <TouchableOpacity onPress={() => setPendOpen(true)} style={{ marginTop: 10, marginLeft: 32 }}>
-                        <Text style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmMore', { n: homeTodos.length - 5 })}</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmMore', { n: homeTodos.length - 5 })}</Text>
                       </TouchableOpacity>
                     )}
                   </>
@@ -3397,8 +3405,8 @@ function NotesApp() {
                   <TouchableOpacity onPress={() => setMatOpen(true)} activeOpacity={0.7}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: homeTodos.length ? 12 : 0, paddingTop: homeTodos.length ? 10 : 0,
                       borderTopWidth: homeTodos.length ? 1 : 0, borderTopColor: c.border }}>
-                    <Text style={{ color: c.text, fontSize: 15, fontWeight: '700', flex: 1 }}>📦 {tr('hmMat', { n: matSum.n })}</Text>
-                    {matSum.urg > 0 && <Text style={{ color: '#ff6b61', fontSize: 13, fontWeight: '800' }}>🔴 {tr('hmMatUrg', { n: matSum.urg })}</Text>}
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 15, fontWeight: '700', flex: 1 }}>📦 {tr('hmMat', { n: matSum.n })}</Text>
+                    {matSum.urg > 0 && <Text maxFontSizeMultiplier={1.3} style={{ color: '#ff6b61', fontSize: 13, fontWeight: '800' }}>🔴 {tr('hmMatUrg', { n: matSum.urg })}</Text>}
                     <Feather name="chevron-right" size={16} color={c.muted} />
                   </TouchableOpacity>
                 )}
@@ -3409,13 +3417,13 @@ function NotesApp() {
                 <TouchableOpacity onPress={restoreAllTrash} activeOpacity={0.75} style={{ flex: 1 }}>
                   <Glass t={c} radius={18} inner={s.trashBtn}>
                     <Feather name="rotate-ccw" size={18} color={c.text} />
-                    <Text style={s.trashBtnText}>{tr('recoverAll')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.trashBtnText}>{tr('recoverAll')}</Text>
                   </Glass>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={emptyTrash} activeOpacity={0.75} style={{ flex: 1 }}>
                   <Glass t={c} radius={18} inner={s.trashBtn}>
                     <Feather name="trash-2" size={18} color="#e53935" />
-                    <Text style={[s.trashBtnText, { color: '#e53935' }]}>{tr('emptyTrash')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.trashBtnText, { color: '#e53935' }]}>{tr('emptyTrash')}</Text>
                   </Glass>
                 </TouchableOpacity>
               </View>
@@ -3423,7 +3431,7 @@ function NotesApp() {
             {/* Barra de búsqueda fija (el teclado solo sale al tocarla) */}
             <Glass t={c} radius={24} style={{ marginBottom: 14 }} inner={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16 }}>
               <Feather name="search" size={18} color={c.muted} />
-              <TextInput
+              <TextInput maxFontSizeMultiplier={1.3}
                 style={[s.search, { flex: 1, minWidth: 0, paddingLeft: 10 }]}
                 value={query}
                 onChangeText={setQuery}
@@ -3442,7 +3450,7 @@ function NotesApp() {
         ListEmptyComponent={
           <View style={s.empty}>
             <View style={{ marginBottom: 14, opacity: 0.6 }}><Feather name={emptyMsg[0]} size={42} color={c.muted} /></View>
-            <Text style={s.emptyText}>{emptyMsg[1]}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.emptyText}>{emptyMsg[1]}</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -3468,9 +3476,9 @@ function NotesApp() {
                   </View>
                 )}
                 <View style={s.cardHeader}>
-                  <Text style={s.cardTitle} numberOfLines={1}>
+                  <Text maxFontSizeMultiplier={1.3} style={s.cardTitle} numberOfLines={1}>
                     {item.title ? titleSegments(item).map((g, i) => (
-                      <Text key={i} style={{
+                      <Text maxFontSizeMultiplier={1.3} key={i} style={{
                         color: g.color || c.text,
                         fontWeight: g.bold === false ? '400' : '700',
                         fontStyle: g.italic ? 'italic' : 'normal',
@@ -3490,14 +3498,14 @@ function NotesApp() {
                 {item.locked ? (
                   <View style={s.lockedBox}>
                     <Feather name="lock" size={22} color={c.muted} />
-                    <Text style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>{tr('lockedNote')}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>{tr('lockedNote')}</Text>
                   </View>
                 ) : (
                   <>
                     {thumb && (
                       <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />
                     )}
-                    <Text style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{toPlain(item)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{toPlain(item)}</Text>
                   </>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -3505,7 +3513,7 @@ function NotesApp() {
                     const f = !viewFolder && folders.find(x => x.id === item.folderId);
                     return f ? <View style={[s.folderDot, { backgroundColor: f.color }]} /> : null;
                   })()}
-                  <Text style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(sortBy === 'created' ? (item.created || item.updated) : item.updated)}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(sortBy === 'created' ? (item.created || item.updated) : item.updated)}</Text>
                   {(() => {
                     const pr = !item.locked && checklistProgress(item);
                     if (!pr) return null;
@@ -3513,7 +3521,7 @@ function NotesApp() {
                     return (
                       <View style={[s.progPill, { borderColor: c.border }, full && { backgroundColor: c.text, borderColor: c.text }]}>
                         <Feather name="check-square" size={11} color={full ? c.inv : c.muted} />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: full ? c.inv : c.muted, marginLeft: 4 }}>{pr.done}/{pr.total}</Text>
+                        <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 11, fontWeight: '700', color: full ? c.inv : c.muted, marginLeft: 4 }}>{pr.done}/{pr.total}</Text>
                       </View>
                     );
                   })()}
@@ -3532,30 +3540,30 @@ function NotesApp() {
               <>
                 <TouchableOpacity onPress={restoreSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="rotate-ccw" size={24} color={c.text} />
-                  <Text style={s.selActionText}>{tr('recover')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.selActionText}>{tr('recover')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={destroySelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="trash-2" size={24} color="#e53935" />
-                  <Text style={[s.selActionText, { color: '#e53935' }]}>{tr('remove')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.selActionText, { color: '#e53935' }]}>{tr('remove')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <TouchableOpacity onPress={shareSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="share-2" size={24} color={c.text} />
-                  <Text style={s.selActionText}>{tr('share')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.selActionText}>{tr('share')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => exportNotes('pdf', selIds)} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="file-text" size={24} color={c.text} />
-                  <Text style={s.selActionText}>PDF</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.selActionText}>PDF</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setColorFor('sel')} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="droplet" size={24} color={c.text} />
-                  <Text style={s.selActionText}>{tr('color')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.selActionText}>{tr('color')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={trashSelected} style={s.selAction} activeOpacity={0.6}>
                   <Feather name="trash-2" size={24} color={c.text} />
-                  <Text style={s.selActionText}>{tr('trash')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={s.selActionText}>{tr('trash')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -3634,7 +3642,7 @@ function NotesApp() {
               <Animated.View key={gi} renderToHardwareTextureAndroid style={[StyleSheet.absoluteFill,
                 { opacity: starAnim.interpolate({ inputRange: r.inR, outputRange: r.op, extrapolate: 'clamp' }) }]}>
                 {gr.stars.map((st, i) => (
-                  <Text key={i} style={{ position: 'absolute', left: st.x - st.size / 2, top: st.y - st.size / 2, color: '#ffffff',
+                  <Text maxFontSizeMultiplier={1.3} key={i} style={{ position: 'absolute', left: st.x - st.size / 2, top: st.y - st.size / 2, color: '#ffffff',
                     fontSize: st.size, textShadowColor: 'rgba(180,230,255,0.95)', textShadowRadius: 5,
                     transform: [{ rotate: st.rot + 'deg' }] }}>✦</Text>
                 ))}
@@ -3650,8 +3658,9 @@ function NotesApp() {
 /* ============================================================
    ESTILOS
    ============================================================ */
-function makeStyles(c) {
-  const top = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
+function makeStyles(c, ins = { top: 0, bottom: 0 }) {
+  const top = Math.max(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44, ins.top || 0);
+  const bot = ins.bottom || 0;            // barra de gestos / botones del teléfono
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.grad[0], paddingTop: top },
     center: { alignItems: 'center', justifyContent: 'center' },
@@ -3676,7 +3685,7 @@ function makeStyles(c) {
     emptyText: { color: c.muted, textAlign: 'center', fontSize: 15, lineHeight: 22 },
 
     fabWrap: {
-      position: 'absolute', right: 20, bottom: 30, borderRadius: 31, elevation: 8,
+      position: 'absolute', right: 20, bottom: 30 + bot, borderRadius: 31, elevation: 8,
       shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 },
     },
     fab: {
@@ -3685,7 +3694,7 @@ function makeStyles(c) {
     },
 
     sidebar: { width: 290, maxWidth: '86%', margin: 10, marginTop: top + 10, alignSelf: 'flex-start' },
-    sidebarInner: { paddingTop: 22, paddingHorizontal: 12, paddingBottom: 40 },
+    sidebarInner: { paddingTop: 22, paddingHorizontal: 12, paddingBottom: 40 + bot },
     sideTitle: { fontSize: 21, fontWeight: '800', color: c.text, paddingHorizontal: 12, marginBottom: 18 },
     navItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 12 },
     navIcon: { marginRight: 14 },
@@ -3702,15 +3711,15 @@ function makeStyles(c) {
     wallScrim: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
     wallTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 4 },
     wallHint: { fontSize: 13, color: c.muted, marginBottom: 14 },
-    newScrim: { flex: 1, justifyContent: 'flex-end', padding: 16, paddingBottom: 40 },
-    selPill: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 10, gap: 10 },
+    newScrim: { flex: 1, justifyContent: 'flex-end', padding: 16, paddingBottom: 40 + bot },
+    selPill: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 10, gap: 10 },
     selCount: { fontSize: 20, fontWeight: '700', color: c.text, marginRight: 6, minWidth: 16 },
-    selAll: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 14, gap: 8 },
+    selAll: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 14, gap: 8 },
     selAllText: { fontSize: 15, fontWeight: '600', color: c.text },
     selCheck: { position: 'absolute', top: 10, left: 10, zIndex: 2, width: 24, height: 24, borderRadius: 12, borderWidth: 2,
                 alignItems: 'center', justifyContent: 'center' },
     cardSel: { transform: [{ scale: 0.95 }], opacity: 0.85 },
-    selBarWrap: { position: 'absolute', left: 12, right: 12, bottom: 24 },
+    selBarWrap: { position: 'absolute', left: 12, right: 12, bottom: 24 + bot },
     selBar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 },
     selAction: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, gap: 6, minWidth: 64 },
     selActionText: { fontSize: 14, color: c.text, fontWeight: '500' },
@@ -3760,7 +3769,7 @@ function makeStyles(c) {
     blurChip: { flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2, borderRadius: 14, borderWidth: 1 },
     wallRemove: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, padding: 6 },
 
-    toastWrap: { position: 'absolute', bottom: 110, alignSelf: 'center' },
+    toastWrap: { position: 'absolute', bottom: 110 + bot, alignSelf: 'center', maxWidth: '92%' },
     toastText: { color: c.text, fontSize: 14, paddingHorizontal: 18, paddingVertical: 10 },
   });
 }

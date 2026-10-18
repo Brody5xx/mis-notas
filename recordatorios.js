@@ -113,7 +113,7 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
       <TouchableOpacity onPress={() => set(list2[(list2.indexOf(val) + 1) % list2.length])} hitSlop={8} style={{ padding: 6 }}>
         <Feather name="chevron-up" size={24} color={C.text} />
       </TouchableOpacity>
-      <Text style={{ color: C.text, fontSize: 34, fontWeight: '800', minWidth: 58, textAlign: 'center' }}>{fmt(val)}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 34, fontWeight: '800', minWidth: 58, textAlign: 'center' }}>{fmt(val)}</Text>
       <TouchableOpacity onPress={() => set(list2[(list2.indexOf(val) - 1 + list2.length) % list2.length])} hitSlop={8} style={{ padding: 6 }}>
         <Feather name="chevron-down" size={24} color={C.text} />
       </TouchableOpacity>
@@ -122,7 +122,7 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
   const chip = (key, label, on, onPress) => (
     <TouchableOpacity key={key} onPress={onPress} activeOpacity={0.7}
       style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
-      <Text style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={{ color: on ? C.inv : C.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
     </TouchableOpacity>
   );
   const mine = (list || []).filter(r => r.at > Date.now()).sort((a, b) => a.at - b.at);
@@ -134,14 +134,14 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
         <View style={{ backgroundColor: C.grad[0], borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '88%', borderWidth: 1, borderColor: C.border }}>
           <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 34 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Text style={{ color: C.text, fontSize: 20, fontWeight: '800', flex: 1 }}>⏰ {tr('rmTitle')}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 20, fontWeight: '800', flex: 1 }}>⏰ {tr('rmTitle')}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={10}><Feather name="x" size={22} color={C.text} /></TouchableOpacity>
             </View>
             <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12 }}>
-              <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{noteTitle || tr('note')}</Text>
-              {!!(target && target.text) && <Text style={{ color: C.muted, fontSize: 14, marginTop: 4 }} numberOfLines={3}>☐ {target.text}</Text>}
+              <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{noteTitle || tr('note')}</Text>
+              {!!(target && target.text) && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 14, marginTop: 4 }} numberOfLines={3}>☐ {target.text}</Text>}
             </View>
-            {!canNotify() && <Text style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>ⓘ {tr('rmWebHint')}</Text>}
+            {!canNotify() && <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>ⓘ {tr('rmWebHint')}</Text>}
 
             {/* Ya puestos */}
             {mine.length > 0 && (
@@ -149,7 +149,7 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
                 {mine.map(r => (
                   <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}>
                     <MaterialCommunityIcons name="bell-ring" size={18} color={C.text} />
-                    <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{fmtWhen(r.at, locale)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 15, flex: 1 }}>{fmtWhen(r.at, locale)}</Text>
                     <TouchableOpacity onPress={() => onDelete(r)} hitSlop={10}><Feather name="trash-2" size={18} color="#ff6b6b" /></TouchableOpacity>
                   </View>
                 ))}
@@ -157,13 +157,13 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
             )}
 
             {/* Rápidos */}
-            <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 16, marginBottom: 8 }}>{tr('rmQuick')}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 16, marginBottom: 8 }}>{tr('rmQuick')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {quick.map(q => (
                 <TouchableOpacity key={q.k} onPress={() => onSave(q.at)} activeOpacity={0.7}
                   style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: C.border }}>
-                  <Text style={{ color: C.text, fontSize: 14, fontWeight: '700' }}>{q.label}</Text>
-                  <Text style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{fmtWhen(q.at, locale)}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 14, fontWeight: '700' }}>{q.label}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{fmtWhen(q.at, locale)}</Text>
                 </TouchableOpacity>
               ))}
               {chip('custom', '🗓️ ' + tr('rmPick'), custom, () => setCustom(v => !v))}
@@ -177,19 +177,19 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
                 </ScrollView>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 16 }}>
                   {stepper(h12, setH12, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], x => String(x))}
-                  <Text style={{ color: C.text, fontSize: 34, fontWeight: '800' }}>:</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 34, fontWeight: '800' }}>:</Text>
                   {stepper(min, setMin, [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], pad)}
                   <View style={{ gap: 8, marginLeft: 8 }}>
                     {chip('am', 'AM', !pm, () => setPm(false))}
                     {chip('pm', 'PM', pm, () => setPm(true))}
                   </View>
                 </View>
-                <Text style={{ color: pickOk ? C.text : '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 12 }}>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: pickOk ? C.text : '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 12 }}>
                   {pickOk ? fmtWhen(pickAt, locale) : tr('rmPast')}
                 </Text>
                 <TouchableOpacity onPress={() => pickOk && onSave(pickAt)} disabled={!pickOk} activeOpacity={0.8}
                   style={[s.wallBtn, { backgroundColor: C.text, marginTop: 14, opacity: pickOk ? 1 : 0.4 }]}>
-                  <Text style={[s.wallBtnText, { color: C.inv }]}>{tr('rmSave')}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={[s.wallBtnText, { color: C.inv }]}>{tr('rmSave')}</Text>
                 </TouchableOpacity>
               </View>
             )}

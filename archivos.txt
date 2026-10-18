@@ -22,3 +22,4 @@ assets/bestnotes/icon.png
 assets/bestnotes/adaptive-foreground.png
 assets/bestnotes/adaptive-background.png
 assets/bestnotes/favicon.png
+pantalla.js

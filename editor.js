@@ -13,7 +13,8 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors, safeBottom }) {
+  const SB = Math.max(0, Math.round(+safeBottom || 0));       // barra de gestos / botones del teléfono (para que no tape la barra de abajo)
   /* exportJob = { kind: 'pdf' | 'img', name, notes: [{ t, h, k, u, locked, bg }] } → hace el archivo y lo manda a la app */
   const safeJob = JSON.stringify(exportJob || null).replace(/</g, '\\u003c');
   /* Textos traducidos: H = para HTML, J = para JavaScript, C = para CSS */
@@ -33,7 +34,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   return `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
-  :root{--kb:0px}
+  :root{--kb:${SB}px}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:transparent;color:${c.text};font-family:-apple-system,Roboto,"Segoe UI",sans-serif}
   #ttl{outline:none;padding:14px 20px 2px;font-size:26px;font-weight:700;line-height:1.25;word-wrap:break-word}
@@ -260,7 +261,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #imged #iebar{transition:transform .28s ease,opacity .28s ease !important}
   #imged.zoomed #iebar{transform:translateY(160%) !important;opacity:0;pointer-events:none}
   #ieCanvas{touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.25);transform-origin:center center;will-change:transform}
-  #iebar{left:10px !important;right:10px;transform:none !important;max-width:none !important;bottom:14px !important;
+  #iebar{left:10px !important;right:10px;transform:none !important;max-width:none !important;bottom:${14 + SB}px !important;
          flex-direction:column;align-items:stretch;flex-wrap:nowrap;padding:4px 6px;border-radius:24px;row-gap:0}
   #iebar .drow{display:flex;align-items:center;justify-content:space-between;gap:0}
   #imged #iebar{background:rgba(22,22,22,.88) !important;z-index:12}
@@ -792,7 +793,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function placeKb(){
     var vv = window.visualViewport;
     var off = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    document.documentElement.style.setProperty('--kb', off + 'px');
+    document.documentElement.style.setProperty('--kb', Math.max(off, ${SB}) + 'px');
   }
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', placeKb);
