@@ -178,6 +178,37 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
   ' || echo "  ✗ No pude preparar la instalación (eas.json)"
 fi
 
+# Permitir que esbuild se instale bien en los servidores de Expo (si no, falla "Install dependencies")
+RAIZ="$HOME/workspace"
+if [ -f "$RAIZ/pnpm-workspace.yaml" ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs"); const f = process.argv[1];
+    let t = fs.readFileSync(f, "utf8");
+    const want = ["esbuild"];
+    const lines = t.split("\n");
+    let i = lines.findIndex(l => /^onlyBuiltDependencies:/.test(l));
+    let changed = false;
+    if (i < 0) {
+      if (!t.endsWith("\n")) t += "\n";
+      t += "onlyBuiltDependencies:\n" + want.map(w => "  - " + w).join("\n") + "\n";
+      changed = true;
+    } else {
+      const inline = lines[i].match(/^onlyBuiltDependencies:\s*\[(.*)\]\s*$/);
+      if (inline) {
+        const items = inline[1].split(",").map(x => x.trim().replace(/^["\x27]|["\x27]$/g, "")).filter(Boolean);
+        want.forEach(w => { if (!items.includes(w)) { items.push(w); changed = true; } });
+        lines[i] = "onlyBuiltDependencies:"; lines.splice(i + 1, 0, ...items.map(x => "  - " + x));
+      } else {
+        let j = i + 1; const have = [];
+        while (j < lines.length && /^\s+-\s*/.test(lines[j])) { have.push(lines[j].replace(/^\s+-\s*/, "").replace(/["\x27]/g, "").trim()); j++; }
+        want.forEach(w => { if (!have.includes(w)) { lines.splice(j, 0, "  - " + w); j++; changed = true; } });
+      }
+      t = lines.join("\n");
+    }
+    if (changed) { fs.writeFileSync(f, t); console.log("  ✓ pnpm-workspace.yaml (esbuild permitido para construir la app)"); }
+  ' "$RAIZ/pnpm-workspace.yaml" || echo "  ✗ No pude ajustar pnpm-workspace.yaml"
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."
