@@ -3073,14 +3073,25 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (!oldSize) oldSize = blob.size;
       return new Promise(function(ok, no){
         var v = document.createElement('video');
-        v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(blob);
+        /* En Android el video y el lienzo tienen que estar en la página (aunque no se vean) para que se graben bien */
+        var box = document.createElement('div');
+        box.style.cssText = 'position:fixed;left:0;top:0;width:4px;height:4px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1';
+        document.body.appendChild(box); w._box = box;
+        v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto'; v.src = URL.createObjectURL(blob);
+        v.style.cssText = 'width:4px;height:4px'; box.appendChild(v);
         v.onerror = function(){ no(new Error('video')); };
         v.onloadedmetadata = function(){
           var sc = Math.min(1, 1280 / Math.max(v.videoWidth || 1280, v.videoHeight || 720));
           var cw = Math.max(2, Math.round((v.videoWidth || 1280) * sc / 2) * 2), ch = Math.max(2, Math.round((v.videoHeight || 720) * sc / 2) * 2);
           var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+          cv.style.cssText = 'width:4px;height:4px'; box.appendChild(cv);
           var g = cv.getContext('2d'), stream = cv.captureStream(30);
-          try {
+          var gotAudio = false;
+          try {                                   // el sonido directo del video (lo más seguro en Android)
+            var vs = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
+            if (vs) vs.getAudioTracks().forEach(function(t){ stream.addTrack(t); gotAudio = true; });
+          } catch (e) {}
+          if (!gotAudio) try {
             var AC = window.AudioContext || window.webkitAudioContext; ac = new AC();
             var sn = ac.createMediaElementSource(v), dst = ac.createMediaStreamDestination();
             sn.connect(dst); try { ac.resume(); } catch (e) {}
@@ -3092,15 +3103,23 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           var chunks = [], done = false;
           rec.ondataavailable = function(ev){ if (ev.data && ev.data.size) chunks.push(ev.data); };
           rec.onstop = function(){ ok(new Blob(chunks, { type: 'video/mp4' })); };
+          var rvfc = typeof v.requestVideoFrameCallback === 'function';
           var draw = function(){
             if (done) return;
             try { g.drawImage(v, 0, 0, cw, ch); } catch (e) {}
             lbl.textContent = ${J('vidShrinking')}.replace('{n}', Math.min(99, Math.round(v.currentTime / (v.duration || 1) * 100)));
-            requestAnimationFrame(draw);
+            if (rvfc) v.requestVideoFrameCallback(draw); else requestAnimationFrame(draw);
           };
-          v.onended = function(){ done = true; setTimeout(function(){ try { rec.stop(); } catch (e) { no(e); } }, 250); };
+          var finish = function(){
+            if (done) return; done = true;
+            setTimeout(function(){ try { rec.state !== 'inactive' ? rec.stop() : ok(new Blob(chunks, { type: 'video/mp4' })); } catch (e) { no(e); } }, 300);
+          };
+          v.onended = finish;
+          v.ontimeupdate = function(){ if (v.duration && v.currentTime >= v.duration - 0.08) finish(); };
+          v.onpause = function(){ if (!done && v.duration && v.currentTime < v.duration - 0.3) { try { v.play(); } catch (e) {} } };
+          setTimeout(finish, ((v.duration && isFinite(v.duration)) ? v.duration * 1000 : 60000) + 8000);   // por si acaso: nunca se queda pegado
           rec.start(1000);
-          v.play().then(draw, no);
+          v.play().then(function(){ draw(); }, no);
         };
       });
     }).then(function(nb){
@@ -3117,7 +3136,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }).catch(function(){
       lbl.textContent = '🎬 ' + fmtBytes(oldSize);
       showTip(${J('vidNoShrink')});
-    }).then(function(){ w._busy = false; try { ac && ac.close(); } catch (e) {} });
+    }).then(function(){ w._busy = false; try { ac && ac.close(); } catch (e) {} try { w._box && w._box.parentNode && w._box.parentNode.removeChild(w._box); } catch (e) {} });
   }
   ed.addEventListener('mousedown', function(e){ if (e.target.closest && e.target.closest('.vidbar')) e.preventDefault(); });
   ed.addEventListener('click', function(e){

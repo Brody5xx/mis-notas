@@ -1500,6 +1500,7 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
+    closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
     setRevealing(true);                    // la pantalla de inicio aparece detrás
@@ -2209,6 +2210,9 @@ function NotesApp() {
   }
   // 🌀 La nota se abre como un portal: un círculo que crece desde donde tocaste
   function openWithDrop(id) {
+    // Sin la animación del círculo líquido: la nota se abre al instante (más rápido y sin errores)
+    revBusy.current = false; revPending.current = null; revP.setValue(1); setRevealing(false);
+    setCurrentId(id); return;
     if (revBusy.current) { setCurrentId(id); return; }
     revBusy.current = true;
     DROP.openPt = DROP.pt || { x: width / 2, y: winH / 2 };
