@@ -14,6 +14,7 @@ import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
 import Vault, { exportVaultRaw, importVaultRaw } from './boveda';
+import DailyReport from './reporte';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -1213,6 +1214,7 @@ function NotesApp() {
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
   const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
+  const [reportOpen, setReportOpen] = useState(false);     // 📊 reporte del día
   const [vaultOpen, setVaultOpen] = useState(false);        // la bóveda cifrada
   const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
@@ -1342,6 +1344,20 @@ function NotesApp() {
     openWithDrop(n.id);
     // Nota con dibujo: primero elegir un fondo (se puede omitir con "Listo")
     if (kind === 'draw') setTimeout(() => openWall(n.id), 1100);
+  }
+
+  /* 📊 El reporte del día se guarda como una nota nueva y se abre */
+  function createReport({ title, content }) {
+    const now = Date.now();
+    const n = {
+      id: now.toString(36) + Math.random().toString(36).slice(2, 6),
+      title, content, html: true, created: now, updated: now,
+      fav: false, pinned: false, deleted: false, kind: 'text', isReport: true,
+      folderId: view.startsWith('f:') ? view.slice(2) : undefined,
+    };
+    setMenuOpen(false);
+    setNotes(ns => [...ns, n]);
+    setTimeout(() => openWithDrop(n.id), 350);
   }
 
   // Cambia algo de una nota. "touch" = actualizar la fecha de modificación
@@ -3089,6 +3105,13 @@ function NotesApp() {
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setReportOpen(true)}>
+              <MaterialCommunityIcons name="file-chart-outline" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.navText}>{tr('rpTitle')}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('rpMenuHint')}</Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setVaultOpen(true)}>
               <MaterialCommunityIcons name="shield-lock-outline" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('vault')}</Text>
@@ -3353,6 +3376,8 @@ function NotesApp() {
       <TransferModal visible={transferOpen} onClose={() => setTransferOpen(false)}
         onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} />
       <Vault visible={vaultOpen} onClose={() => setVaultOpen(false)} s={s} t={c} tr={tr} Glass={Glass} />
+      <DailyReport visible={reportOpen} onClose={() => setReportOpen(false)} notes={notes} plainOf={toPlain} onCreate={createReport}
+        s={s} t={c} tr={tr} Glass={Glass} langCode={langCode} locale={LOCALE} />
       {sortSheet}
       {langSheet}
       {!current && folderModal}
