@@ -3131,8 +3131,14 @@ function NotesApp() {
              contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
               <BackBtn onPress={() => closeMenu()} t={c} />
-              <Image source={{ uri: ICON_URI }} style={{ width: 32, height: 32, borderRadius: 9, marginLeft: 10 }} />
-              <Text maxFontSizeMultiplier={1.3} style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
+              <Image source={{ uri: ICON_URI }} style={{ width: 40, height: 40, borderRadius: 11, marginLeft: 10 }} />
+              {/* El nombre en dos renglones: siempre se ve completo sin hacer el panel más ancho */}
+              <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
+                  style={{ color: c.text, fontSize: 19, fontWeight: '900', letterSpacing: 1.5, lineHeight: 21 }}>BEST</Text>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
+                  style={{ color: c.muted, fontSize: 15, fontWeight: '800', letterSpacing: 3, lineHeight: 18 }}>NOTES</Text>
+              </View>
               <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
             {/* 📖 Guía de la app: siempre primero, para que se note */}
