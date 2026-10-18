@@ -132,7 +132,7 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
     e.android.adaptiveIcon = Object.assign({}, e.android.adaptiveIcon, {
       foregroundImage: "./assets/bestnotes/adaptive-foreground.png",
       backgroundImage: "./assets/bestnotes/adaptive-background.png",
-      backgroundColor: "#16161c"
+      backgroundColor: "#101016"
     });
     delete e.android.adaptiveIcon.monochromeImage;
     e.ios = e.ios || {};
