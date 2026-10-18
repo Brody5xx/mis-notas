@@ -17,12 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { askAI, titleColorOf } from './reporte';
 
-const KEY = 'misnotas_materials';
-const DAY = 24 * 60 * 60 * 1000;
-const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .replace(/[^a-z0-9À-￿]+/g, ' ').trim().split(' ').map(w => (w.length <= 3 ? w : /(ch|sh|x|z|ss)es$/.test(w) ? w.slice(0, -2) : /[^s]s$/.test(w) ? w.slice(0, -1) : w)).join(' ');
-const esc = x => String(x || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+import { KEY, DAY, newId, norm, esc, groupsOf, qtyTxt } from './matlista';
 const STATES = ['pending', 'ordered', 'arrived'];
 
 /* Las instrucciones para la IA */
@@ -46,32 +41,22 @@ function parseList(r) {
   } catch (e) { return null; }
 }
 
-/* Agrupar por material: total + detalle por sitio */
-function groupsOf(entries) {
-  const map = {};
-  entries.forEach(e => {
-    const k = norm(e.item);
-    if (!map[k]) map[k] = { key: k, item: e.item, entries: [] };
-    map[k].entries.push(e);
-  });
-  return Object.values(map).map(g => {
-    const nums = g.entries.map(e => e.qty).filter(q => typeof q === 'number' && isFinite(q));
-    const st = g.entries.every(e => e.status === 'arrived') ? 'arrived' : g.entries.every(e => e.status !== 'pending') ? 'ordered' : 'pending';
-    return { ...g, total: nums.reduce((a, b) => a + b, 0), allQty: nums.length === g.entries.length, unit: (g.entries.find(e => e.unit) || {}).unit || '', status: st };
-  }).sort((a, b) => a.item.localeCompare(b.item));
-}
-const qtyTxt = g => (g.total ? (g.allQty ? g.total : g.total + '+') + ' × ' : '');
-
 /* Texto profesional para mandar al jefe */
 function shareText(groups, lang, locale) {
   const now = new Date(), hr = now.getHours();
   let date;
   try { date = now.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { date = now.toDateString(); }
   const T = lang === 'en'
-    ? { title: 'Material request', hi: hr < 12 ? 'Good morning.' : 'Good afternoon.', intro: 'Please find below the materials needed:', for: 'for', bye: 'Please let me know once the order is confirmed. Thank you.' }
-    : { title: 'Solicitud de materiales', hi: hr < 12 ? 'Buenos días.' : 'Buenas tardes.', intro: 'Les comparto los materiales que se necesitan:', for: 'para', bye: 'Quedo atento a la confirmación del pedido. Gracias.' };
+    ? { title: 'Material request', hi: hr < 12 ? 'Good morning.' : 'Good afternoon.', intro: 'Please find below the materials needed:', for: 'for', bye: 'Please let me know once the order is confirmed. Thank you.',
+        urg: '🔴 URGENT — needed as soon as possible:', rest: 'Other materials:' }
+    : { title: 'Solicitud de materiales', hi: hr < 12 ? 'Buenos días.' : 'Buenas tardes.', intro: 'Les comparto los materiales que se necesitan:', for: 'para', bye: 'Quedo atento a la confirmación del pedido. Gracias.',
+        urg: '🔴 URGENTE — se necesita lo antes posible:', rest: 'Otros materiales:' };
   const lines = [T.title + ' — ' + date, '', T.hi + ' ' + T.intro, ''];
-  groups.forEach(g => {
+  const urg = groups.filter(g => g.urgent), rest = groups.filter(g => !g.urgent);
+  groups = urg.concat(rest);
+  groups.forEach((g, gi) => {
+    if (urg.length && gi === 0) lines.push(T.urg);
+    if (urg.length && rest.length && gi === urg.length) lines.push('', T.rest);
     lines.push('• ' + qtyTxt(g) + g.item + (g.unit ? ' (' + g.unit + ')' : ''));
     if (g.entries.length > 1 || g.entries[0].site) {
       g.entries.forEach(e => lines.push('   – ' + (e.qty ? e.qty + ' ' : '') + (e.site ? T.for + ' ' + e.site : '')));
@@ -130,7 +115,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
         const oldMap = {};
         old.forEach(e => { oldMap[k(e)] = e; });
         const scanned = new Set(list.map(n => n.id));
-        const merged = fresh.map(e => { const o = oldMap[k(e)]; return o ? { ...e, id: o.id, status: o.status, qty: o.edited ? o.qty : e.qty, item: o.edited ? o.item : e.item, edited: o.edited } : e; });
+        const merged = fresh.map(e => { const o = oldMap[k(e)]; return o ? { ...e, id: o.id, status: o.status, urgent: o.urgent, qty: o.edited ? o.qty : e.qty, item: o.edited ? o.item : e.item, edited: o.edited } : e; });
         const keys = new Set(merged.map(k));
         // lo que pusiste a mano, lo de notas que no se revisaron, y lo ya pedido o recibido se queda
         const keep = old.filter(e => !keys.has(k(e)) && (e.src === 'manual' || e.status !== 'pending' || !scanned.has(e.noteId)));
@@ -146,9 +131,14 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
     setEntries(es => es.map(e => (norm(e.item) === g.key ? { ...e, status: next } : e)));
     toast(next === 'ordered' ? '🛒 ' + tr('mtOrdered') : next === 'arrived' ? '✅ ' + tr('mtArrived') : '○ ' + tr('mtPending'));
   }
+  function toggleUrgent(g) {
+    const v = !g.urgent;
+    setEntries(es => es.map(e => (norm(e.item) === g.key ? { ...e, urgent: v } : e)));
+    toast(v ? '🔴 ' + tr('mtUrgent') : '⚪ ' + tr('mtNormal'));
+  }
   function openEdit(g) {
-    setEdit(g ? { key: g.key, item: g.item, entries: g.entries.map(e => ({ ...e, qtyTxt: e.qty == null ? '' : String(e.qty) })) }
-      : { key: null, item: '', entries: [{ id: newId(), item: '', qty: null, qtyTxt: '', unit: '', site: '', noteId: null, src: 'manual', status: 'pending' }] });
+    setEdit(g ? { key: g.key, item: g.item, urgent: !!g.urgent, entries: g.entries.map(e => ({ ...e, qtyTxt: e.qty == null ? '' : String(e.qty) })) }
+      : { key: null, item: '', urgent: false, entries: [{ id: newId(), item: '', qty: null, qtyTxt: '', unit: '', site: '', noteId: null, src: 'manual', status: 'pending' }] });
   }
   function saveEdit() {
     const ed = edit; setEdit(null);
@@ -157,7 +147,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
     const updated = ed.entries.map(e => {
       const q = parseFloat(String(e.qtyTxt).replace(',', '.'));
       return { id: e.id, item: ed.item.trim(), qty: isFinite(q) ? q : null, unit: e.unit || '', site: (e.site || '').trim(), noteId: e.noteId || null,
-        src: e.src || 'manual', status: e.status || 'pending', edited: true };
+        src: e.src || 'manual', status: e.status || 'pending', edited: true, urgent: !!ed.urgent };
     });
     setEntries(es => [...es.filter(e => !(ed.key && norm(e.item) === ed.key) && !keepIds.has(e.id)), ...updated]);
   }
@@ -180,7 +170,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
     if (!gs.length) return;
     let html = '';
     gs.forEach(g => {
-      html += `<div><b>${esc(qtyTxt(g) + g.item)}</b>${g.status === 'arrived' ? ' ✅' : g.status === 'ordered' ? ' 🛒' : ''}</div><ul>`;
+      html += `<div><b>${g.urgent ? '🔴 ' : ''}${esc(qtyTxt(g) + g.item)}</b>${g.status === 'arrived' ? ' ✅' : g.status === 'ordered' ? ' 🛒' : ''}</div><ul>`;
       g.entries.forEach(e => { html += `<li>${e.qty ? esc(e.qty) + ' · ' : ''}${esc(e.site || '')}</li>`; });
       html += '</ul>';
     });
@@ -249,7 +239,7 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
           )}
 
           {shown.map(g => (
-            <View key={g.key} style={{ marginTop: 12, borderWidth: 1, borderColor: C.border, borderRadius: 18, padding: 14, opacity: g.status === 'arrived' ? 0.6 : 1 }}>
+            <View key={g.key} style={{ marginTop: 12, borderWidth: g.urgent ? 1.5 : 1, borderColor: g.urgent && g.status !== 'arrived' ? '#ff453a' : C.border, borderRadius: 18, padding: 14, opacity: g.status === 'arrived' ? 0.6 : 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <TouchableOpacity onPress={() => cycle(g)} hitSlop={10} activeOpacity={0.6}>
                   <MaterialCommunityIcons name={stIcon(g.status)} size={26} color={C.text} />
@@ -258,6 +248,10 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                   <Text style={{ color: C.text, fontSize: 17, fontWeight: '800', textDecorationLine: g.status === 'arrived' ? 'line-through' : 'none' }}>
                     {qtyTxt(g)}{g.item}{g.unit ? ' (' + g.unit + ')' : ''}
                   </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => toggleUrgent(g)} hitSlop={8} activeOpacity={0.7}
+                  style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: g.urgent ? '#ff453a' : C.border, backgroundColor: g.urgent ? 'rgba(255,69,58,0.15)' : 'transparent' }}>
+                  <Text style={{ color: g.urgent ? '#ff6b61' : C.muted, fontSize: 12, fontWeight: '800' }}>{g.urgent ? '🔴 ' + tr('mtUrgent') : '⚪ ' + tr('mtNormal')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => openEdit(g)} hitSlop={10}><Feather name="edit-2" size={16} color={C.muted} /></TouchableOpacity>
               </View>
@@ -322,6 +316,15 @@ export default function Materials({ visible, onClose, notes, plainOf, onOpen, on
                 <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 10 }}>{edit.key ? tr('mtEdit') : tr('mtAdd')}</Text>
                 <Text style={{ color: C.muted, fontSize: 12, marginBottom: 6 }}>{tr('mtItem')}</Text>
                 {field(edit.item, v => setEdit(x => ({ ...x, item: v })), tr('mtItemPh'))}
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  {[[false, '⚪ ' + tr('mtNormal')], [true, '🔴 ' + tr('mtUrgent')]].map(([v, lb]) => (
+                    <TouchableOpacity key={String(v)} onPress={() => setEdit(x => ({ ...x, urgent: v }))} activeOpacity={0.7}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 14, borderWidth: 1, alignItems: 'center',
+                        borderColor: edit.urgent === v ? (v ? '#ff453a' : C.text) : C.border, backgroundColor: edit.urgent === v ? (v ? 'rgba(255,69,58,0.15)' : C.text) : 'transparent' }}>
+                      <Text style={{ color: edit.urgent === v ? (v ? '#ff6b61' : C.inv) : C.text, fontSize: 14, fontWeight: '700' }}>{lb}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
                 <Text style={{ color: C.muted, fontSize: 12, marginTop: 14, marginBottom: 6 }}>{tr('mtWhere')}</Text>
                 {edit.entries.map((e, i) => (
                   <View key={e.id} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 }}>

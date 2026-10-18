@@ -4344,6 +4344,54 @@ for (const code in MGT) {
   MGK.forEach((k, i) => { S[code][k] = MGT[code][i]; });
 }
 
+/* Textos nuevos: prioridad de materiales, materiales en el reporte y pendientes en la pantalla principal */
+const HMK = ['mtUrgent', 'mtNormal', 'mtUrgentHead', 'rpIncMat', 'rpMatHead', 'hmTodo', 'hmSeeAll', 'hmMore', 'hmMat', 'hmMatUrg'];
+const HMT = {
+  es: ['Urgente', 'Normal', 'URGENTE', 'Lista de materiales', 'Lista de materiales', 'Pendientes', 'Ver todos', '+{n} más', '{n} materiales por pedir', '{n} urgentes'],
+  en: ['Urgent', 'Normal', 'URGENT', 'Materials list', 'Materials list', 'To-do', 'See all', '+{n} more', '{n} materials to order', '{n} urgent'],
+  pt: ['Urgente', 'Normal', 'URGENTE', 'Lista de materiais', 'Lista de materiais', 'Pendências', 'Ver todas', '+{n} mais', '{n} materiais para pedir', '{n} urgentes'],
+  fr: ['Urgent', 'Normal', 'URGENT', 'Liste de matériel', 'Liste de matériel', 'À faire', 'Tout voir', '+{n} de plus', '{n} matériels à commander', '{n} urgents'],
+  de: ['Dringend', 'Normal', 'DRINGEND', 'Materialliste', 'Materialliste', 'Zu erledigen', 'Alle ansehen', '+{n} weitere', '{n} Materialien zu bestellen', '{n} dringend'],
+  it: ['Urgente', 'Normale', 'URGENTE', 'Lista materiali', 'Lista materiali', 'Da fare', 'Vedi tutti', '+{n} altri', '{n} materiali da ordinare', '{n} urgenti'],
+  ca: ['Urgent', 'Normal', 'URGENT', 'Llista de materials', 'Llista de materials', 'Pendents', 'Veure-ho tot', '+{n} més', '{n} materials per demanar', '{n} urgents'],
+  nl: ['Dringend', 'Normaal', 'DRINGEND', 'Materiaallijst', 'Materiaallijst', 'Te doen', 'Alles bekijken', '+{n} meer', '{n} materialen te bestellen', '{n} dringend'],
+  sv: ['Brådskande', 'Normal', 'BRÅDSKANDE', 'Materiallista', 'Materiallista', 'Att göra', 'Visa alla', '+{n} till', '{n} material att beställa', '{n} brådskande'],
+  nb: ['Haster', 'Normal', 'HASTER', 'Materialliste', 'Materialliste', 'Gjøremål', 'Se alle', '+{n} til', '{n} materialer å bestille', '{n} haster'],
+  da: ['Haster', 'Normal', 'HASTER', 'Materialeliste', 'Materialeliste', 'Opgaver', 'Se alle', '+{n} mere', '{n} materialer at bestille', '{n} haster'],
+  fi: ['Kiireellinen', 'Normaali', 'KIIREELLINEN', 'Materiaalilista', 'Materiaalilista', 'Tehtävät', 'Näytä kaikki', '+{n} lisää', '{n} tilattavaa materiaalia', '{n} kiireellistä'],
+  pl: ['Pilne', 'Normalne', 'PILNE', 'Lista materiałów', 'Lista materiałów', 'Do zrobienia', 'Zobacz wszystko', '+{n} więcej', '{n} materiałów do zamówienia', '{n} pilnych'],
+  cs: ['Naléhavé', 'Normální', 'NALÉHAVÉ', 'Seznam materiálu', 'Seznam materiálu', 'Úkoly', 'Zobrazit vše', '+{n} další', '{n} materiálů k objednání', '{n} naléhavých'],
+  sk: ['Naliehavé', 'Normálne', 'NALIEHAVÉ', 'Zoznam materiálu', 'Zoznam materiálu', 'Úlohy', 'Zobraziť všetko', '+{n} ďalšie', '{n} materiálov na objednanie', '{n} naliehavých'],
+  hu: ['Sürgős', 'Normál', 'SÜRGŐS', 'Anyaglista', 'Anyaglista', 'Teendők', 'Összes', '+{n} további', '{n} rendelendő anyag', '{n} sürgős'],
+  ro: ['Urgent', 'Normal', 'URGENT', 'Listă de materiale', 'Listă de materiale', 'De făcut', 'Vezi tot', '+{n} în plus', '{n} materiale de comandat', '{n} urgente'],
+  hr: ['Hitno', 'Normalno', 'HITNO', 'Popis materijala', 'Popis materijala', 'Zadaci', 'Prikaži sve', '+{n} više', '{n} materijala za naručiti', '{n} hitnih'],
+  el: ['Επείγον', 'Κανονικό', 'ΕΠΕΙΓΟΝ', 'Λίστα υλικών', 'Λίστα υλικών', 'Εκκρεμότητες', 'Όλα', '+{n} ακόμη', '{n} υλικά για παραγγελία', '{n} επείγοντα'],
+  bg: ['Спешно', 'Нормално', 'СПЕШНО', 'Списък с материали', 'Списък с материали', 'Задачи', 'Виж всички', '+{n} още', '{n} материала за поръчка', '{n} спешни'],
+  ru: ['Срочно', 'Обычно', 'СРОЧНО', 'Список материалов', 'Список материалов', 'Задачи', 'Все', '+{n} ещё', '{n} материалов к заказу', '{n} срочных'],
+  uk: ['Терміново', 'Звичайно', 'ТЕРМІНОВО', 'Список матеріалів', 'Список матеріалів', 'Завдання', 'Усі', '+{n} ще', '{n} матеріалів до замовлення', '{n} термінових'],
+  tr: ['Acil', 'Normal', 'ACİL', 'Malzeme listesi', 'Malzeme listesi', 'Yapılacaklar', 'Tümünü gör', '+{n} daha', 'Sipariş edilecek {n} malzeme', '{n} acil'],
+  ar: ['عاجل', 'عادي', 'عاجل', 'قائمة المواد', 'قائمة المواد', 'المهام', 'عرض الكل', '+{n} أخرى', '{n} مواد للطلب', '{n} عاجلة'],
+  he: ['דחוף', 'רגיל', 'דחוף', 'רשימת חומרים', 'רשימת חומרים', 'משימות', 'הצג הכול', '+{n} נוספים', '{n} חומרים להזמנה', '{n} דחופים'],
+  fa: ['فوری', 'عادی', 'فوری', 'فهرست مصالح', 'فهرست مصالح', 'کارها', 'دیدن همه', '+{n} مورد دیگر', '{n} قلم برای سفارش', '{n} فوری'],
+  ur: ['فوری', 'عام', 'فوری', 'سامان کی فہرست', 'سامان کی فہرست', 'باقی کام', 'سب دیکھیں', '+{n} مزید', '{n} سامان منگوانا ہے', '{n} فوری'],
+  hi: ['ज़रूरी', 'सामान्य', 'ज़रूरी', 'सामग्री सूची', 'सामग्री सूची', 'बाकी काम', 'सब देखें', '+{n} और', '{n} सामग्री मंगानी है', '{n} ज़रूरी'],
+  bn: ['জরুরি', 'সাধারণ', 'জরুরি', 'উপকরণের তালিকা', 'উপকরণের তালিকা', 'বাকি কাজ', 'সব দেখুন', '+আরও {n}', '{n}টি উপকরণ অর্ডার করতে হবে', '{n}টি জরুরি'],
+  id: ['Mendesak', 'Normal', 'MENDESAK', 'Daftar material', 'Daftar material', 'Tugas', 'Lihat semua', '+{n} lagi', '{n} material untuk dipesan', '{n} mendesak'],
+  ms: ['Segera', 'Biasa', 'SEGERA', 'Senarai bahan', 'Senarai bahan', 'Tugasan', 'Lihat semua', '+{n} lagi', '{n} bahan untuk dipesan', '{n} segera'],
+  fil: ['Urgent', 'Normal', 'URGENT', 'Listahan ng materyales', 'Listahan ng materyales', 'Mga gagawin', 'Tingnan lahat', '+{n} pa', '{n} materyales na oorderin', '{n} urgent'],
+  vi: ['Gấp', 'Bình thường', 'GẤP', 'Danh sách vật tư', 'Danh sách vật tư', 'Việc cần làm', 'Xem tất cả', '+{n} nữa', '{n} vật tư cần đặt', '{n} gấp'],
+  th: ['ด่วน', 'ปกติ', 'ด่วน', 'รายการวัสดุ', 'รายการวัสดุ', 'งานค้าง', 'ดูทั้งหมด', '+อีก {n}', 'วัสดุที่ต้องสั่ง {n} รายการ', 'ด่วน {n}'],
+  ja: ['至急', '通常', '至急', '資材リスト', '資材リスト', 'やること', 'すべて見る', '+あと{n}件', '注文する資材 {n}件', '至急 {n}件'],
+  ko: ['긴급', '보통', '긴급', '자재 목록', '자재 목록', '할 일', '모두 보기', '+{n}개 더', '주문할 자재 {n}개', '긴급 {n}개'],
+  sw: ['Haraka', 'Kawaida', 'HARAKA', 'Orodha ya vifaa', 'Orodha ya vifaa', 'Kazi zilizobaki', 'Ona zote', '+{n} zaidi', 'Vifaa {n} vya kuagiza', '{n} za haraka'],
+  'zh-Hans': ['紧急', '普通', '紧急', '材料清单', '材料清单', '待办', '查看全部', '+还有 {n} 项', '{n} 项材料待订购', '{n} 项紧急'],
+  'zh-Hant': ['緊急', '普通', '緊急', '材料清單', '材料清單', '待辦', '查看全部', '+還有 {n} 項', '{n} 項材料待訂購', '{n} 項緊急'],
+};
+for (const code in HMT) {
+  if (HMT[code].length !== HMK.length) throw new Error('hm ' + code);
+  HMK.forEach((k, i) => { S[code][k] = HMT[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

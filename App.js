@@ -15,7 +15,8 @@ import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
 import Vault, { exportVaultRaw, importVaultRaw } from './boveda';
 import DailyReport from './reporte';
-import Pending, { countPending } from './pendientes';
+import Pending, { countPending, pendingOf, markDoneHtml } from './pendientes';
+import { groupsOf as matGroupsOf, loadMaterials } from './matlista';
 import Materials from './materiales';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
 import RemindSheet, { setupNotifications, scheduleAt, cancelAt, canNotify, fmtWhen } from './recordatorios';
@@ -1221,6 +1222,8 @@ function NotesApp() {
   const [reportOpen, setReportOpen] = useState(false);     // 📊 reporte del día
   const [pendOpen, setPendOpen] = useState(false);         // ✅ todos los pendientes
   const [matOpen, setMatOpen] = useState(false);           // 📦 lista de materiales
+  const [todoOpen, setTodoOpen] = useState(true);          // ✅ pendientes en la pantalla principal (abierto / cerrado)
+  const [matSum, setMatSum] = useState({ n: 0, urg: 0 });  // 📦 cuántos materiales faltan por pedir
   const [guideOpen, setGuideOpen] = useState(false);       // 📖 guía de la app
   const [guideNew, setGuideNew] = useState(false);         // hay algo nuevo en la guía
   useEffect(() => { guideSeen().then(v => setGuideNew(v < GUIDE_VERSION)); }, []);
@@ -1231,6 +1234,14 @@ function NotesApp() {
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
   const aiChain = useRef(Promise.resolve()), aiLast = useRef(0);   // pedidos a la IA de uno en uno
+  useEffect(() => { AsyncStorage.getItem('homeTodoOpen').then(v => { if (v === '0') setTodoOpen(false); }).catch(() => {}); }, []);
+  useEffect(() => {
+    if (matOpen) return;                                   // al cerrar la lista de materiales se actualiza el resumen
+    loadMaterials(AsyncStorage).then(es => {
+      const gs = matGroupsOf(es.filter(e => e.status === 'pending'));
+      setMatSum({ n: gs.length, urg: gs.filter(g => g.urgent).length });
+    });
+  }, [matOpen]);
   const calcState = useRef({});                     // lo que la calculadora recuerda
   const colorPrefs = useRef({});                    // colores recientes y favoritos
   const calcWeb = useRef(null), calcFrame = useRef(null);
@@ -2567,6 +2578,24 @@ function NotesApp() {
     trash: notes.length - live.length,
   };
   const folderCount = id => live.filter(n => n.folderId === id).length;
+  // ✅ Lo pendiente de todas las notas, en vivo (se recalcula cada vez que cambia una nota)
+  const homeTodos = useMemo(() => {
+    const out = [];
+    notes.filter(n => !n.deleted && !n.locked).sort((a, b) => (b.updated || 0) - (a.updated || 0))
+      .forEach(n => pendingOf(n).forEach(it => out.push({ n, it })));
+    return out;
+  }, [notes]);
+  function homeDone(n, it) {
+    confirmAsk(tr('ckDoneQ'), tr('ckDoneMsg'), tr('ckDoneYes'), () => {
+      const fresh = notesRef.current.find(x => x.id === n.id);
+      if (!fresh) return;
+      const now = pendingOf(fresh);
+      const hit = now.find(x => x.ui === it.ui && x.li === it.li && x.text === it.text) || now.find(x => x.text === it.text);
+      if (!hit) return;
+      patch(fresh.id, { content: markDoneHtml(fresh.content, hit.ui, hit.li) });
+      showToast('✓ ' + tr('ckDoneTip'));
+    });
+  }
   const folderSize = id => fmtBytes(live.filter(n => n.folderId === id).reduce((a, n) => a + noteBytes(n), 0));
   const totalSize = fmtBytes(live.reduce((a, n) => a + noteBytes(n), 0));
   const allTags = useMemo(() => {
@@ -3314,6 +3343,55 @@ function NotesApp() {
               </View>
               <Text style={s.heroCount}>{tr('nNotes', { n: visible.length })}</Text>
             </View>
+            {/* ✅ Pendientes en vivo (y 📦 materiales por pedir) */}
+            {view === 'all' && !selMode && !query && (homeTodos.length > 0 || matSum.n > 0) && (
+              <Glass t={c} radius={20} style={{ marginBottom: 14 }} inner={{ paddingVertical: 12, paddingHorizontal: 14 }}>
+                {homeTodos.length > 0 && (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity activeOpacity={0.7} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                        onPress={() => { const v = !todoOpen; setTodoOpen(v); AsyncStorage.setItem('homeTodoOpen', v ? '1' : '0').catch(() => {}); }}>
+                        <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }}>✅ {tr('hmTodo')}</Text>
+                        <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ color: c.inv, fontSize: 13, fontWeight: '800' }}>{homeTodos.length}</Text>
+                        </View>
+                        <Feather name={todoOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setPendOpen(true)} hitSlop={8}>
+                        <Text style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmSeeAll')} ›</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {todoOpen && homeTodos.slice(0, 5).map(({ n, it }) => (
+                      <View key={n.id + ':' + it.ui + ':' + it.li} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+                        <TouchableOpacity onPress={() => homeDone(n, it)} hitSlop={10} style={{ paddingTop: 1 }}>
+                          <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={22} color={c.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => openNote(n)} activeOpacity={0.7} style={{ flex: 1 }}>
+                          <Text style={{ color: c.text, fontSize: 15 }} numberOfLines={2}>{it.text}</Text>
+                          <Text style={{ color: titleColorOf(n) || c.muted, fontSize: 12, fontWeight: '700', marginTop: 1 }} numberOfLines={1}>
+                            {(n.title || '').trim() || tr('untitled')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {todoOpen && homeTodos.length > 5 && (
+                      <TouchableOpacity onPress={() => setPendOpen(true)} style={{ marginTop: 10, marginLeft: 32 }}>
+                        <Text style={{ color: c.muted, fontSize: 14, fontWeight: '700' }}>{tr('hmMore', { n: homeTodos.length - 5 })}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+                {matSum.n > 0 && (
+                  <TouchableOpacity onPress={() => setMatOpen(true)} activeOpacity={0.7}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: homeTodos.length ? 12 : 0, paddingTop: homeTodos.length ? 10 : 0,
+                      borderTopWidth: homeTodos.length ? 1 : 0, borderTopColor: c.border }}>
+                    <Text style={{ color: c.text, fontSize: 15, fontWeight: '700', flex: 1 }}>📦 {tr('hmMat', { n: matSum.n })}</Text>
+                    {matSum.urg > 0 && <Text style={{ color: '#ff6b61', fontSize: 13, fontWeight: '800' }}>🔴 {tr('hmMatUrg', { n: matSum.urg })}</Text>}
+                    <Feather name="chevron-right" size={16} color={c.muted} />
+                  </TouchableOpacity>
+                )}
+              </Glass>
+            )}
             {view === 'trash' && counts.trash > 0 && !selMode && (
               <View style={s.trashBtns}>
                 <TouchableOpacity onPress={restoreAllTrash} activeOpacity={0.75} style={{ flex: 1 }}>

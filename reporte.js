@@ -14,6 +14,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator, StatusBar } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { langLabel } from './idiomas';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { groupsOf, loadMaterials, qtyTxt } from './matlista';
 
 const DAY = 24 * 60 * 60 * 1000;
 const startOfDay = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -140,12 +142,13 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   const [day, setDay] = useState(() => startOfDay(Date.now()));
   const [off, setOff] = useState({});           // notas que quitaste del reporte
   const [lang, setLang] = useState(null);       // un código de idioma, o 'both' (español + inglés)
-  const [inc, setInc] = useState({ text: true, imgwrap: true, audwrap: true, vidwrap: true, link: true });   // qué incluir
+  const [inc, setInc] = useState({ text: true, mat: true, imgwrap: true, audwrap: true, vidwrap: true, link: true });   // qué incluir
+  const [mats, setMats] = useState([]);         // 📦 la lista de materiales guardada
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => { if (visible) { setDay(startOfDay(Date.now())); setOff({}); setErr(''); setLang(null); } }, [visible]);
+  useEffect(() => { if (visible) { setDay(startOfDay(Date.now())); setOff({}); setErr(''); setLang(null); loadMaterials(AsyncStorage).then(setMats); } }, [visible]);
 
   const base = String(langCode || 'es');
   // Español e inglés siempre están; si la app está en otro idioma, ese también
@@ -166,9 +169,13 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
     chosen.forEach(n => attachmentsOf(n).forEach(x => { k[x.kind] = (k[x.kind] || 0) + 1; }));
     return k;
   }, [chosen.map(n => n.id + ':' + n.updated).join(',')]);
-  const KINDS = [['text', 'type', 'rpIncText'], ['imgwrap', 'image', 'rpIncPhotos'], ['audwrap', 'mic', 'rpIncVoice'], ['vidwrap', 'film', 'rpIncVideos'], ['link', 'link', 'rpIncLinks']];
+  // 📦 Materiales de las notas elegidas (y los que agregaste a mano) que todavía no llegan
+  const chosenIds = new Set(chosen.map(n => n.id));
+  const matGroups = groupsOf(mats.filter(e => e.status !== 'arrived' && (e.noteId ? chosenIds.has(e.noteId) : e.src === 'manual')));
+  counts.mat = matGroups.length;
+  const KINDS = [['text', 'type', 'rpIncText'], ['mat', 'package', 'rpIncMat'], ['imgwrap', 'image', 'rpIncPhotos'], ['audwrap', 'mic', 'rpIncVoice'], ['vidwrap', 'film', 'rpIncVideos'], ['link', 'link', 'rpIncLinks']];
   const allInc = KINDS.every(([k]) => inc[k]);
-  const anyInc = KINDS.some(([k]) => k !== 'text' && inc[k]);     // algún adjunto
+  const anyInc = KINDS.some(([k]) => k !== 'text' && k !== 'mat' && inc[k]);     // algún adjunto
   const nothing = !KINDS.some(([k]) => inc[k]);
 
   const fmtDay = ms => {
@@ -216,6 +223,18 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
         }
       }
       if (!alive.current) return;
+      // 📦 Lista de materiales (🔴 urgentes primero)
+      if (inc.mat && matGroups.length) {
+        const MH = { es: 'Lista de materiales', en: 'Materials list' };
+        const head = pick === 'both' ? `${MH[both[0].slice(0, 2)] || tr('rpMatHead')} / ${MH[both[1].slice(0, 2)] || 'Materials list'}`
+          : MH[String(pick).slice(0, 2)] || tr('rpMatHead');
+        const forW = { es: 'para', en: 'for' }[String(pick === 'both' ? both[0] : pick).slice(0, 2)] || '·';
+        html += `<div><br></div><div>— — —</div><div><b>📦 ${esc(head)}</b></div><ul class="checklist">` +
+          matGroups.map(g => {
+            const sites = g.entries.filter(e => e.site || e.qty != null).map(e => (e.qty != null ? e.qty + ' ' : '') + (e.site ? forW + ' ' + e.site : '')).join('; ');
+            return `<li>${g.urgent ? '🔴 ' : ''}<b>${esc(qtyTxt(g) + g.item + (g.unit ? ' (' + g.unit + ')' : ''))}</b>${sites ? ' — ' + esc(sites) : ''}${g.status === 'ordered' ? ' 🛒' : ''}</li>`;
+          }).join('') + '</ul>';
+      }
       if (anyInc) {
         let att = '';
         chosen.forEach(n => {
@@ -323,7 +342,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           {/* Qué incluir: cada cosa por separado, o todo de un solo toque */}
           <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 20, marginBottom: 8 }}>{tr('rpIncHead')}</Text>
           <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' }}>
-            <TouchableOpacity onPress={() => { const v = !allInc; setInc({ text: v, imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
+            <TouchableOpacity onPress={() => { const v = !allInc; setInc({ text: v, mat: v, imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
               {box(allInc)}
               <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', flex: 1 }}>{allInc ? tr('rpNoneInc') : tr('rpAll')}</Text>
