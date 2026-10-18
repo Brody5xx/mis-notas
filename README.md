@@ -20,6 +20,8 @@ Luego detén la app (**Stop**) y dale **Run**.
 - `reporte.js` — 📊 Reporte del día: junta las notas de un día y la IA arma un reporte de trabajo profesional (resumen, trabajo hecho, pendientes, materiales).
 - `pendientes.js` — ✅ Pendientes: todas las casillas sin marcar de todas las notas en un solo lugar.
 - `recordatorios.js` — ⏰ Recordatorios: avisos a una hora para una nota o un pendiente (expo-notifications).
+- `materiales.js` — 📦 Lista de materiales: la IA saca lo que hay que pedir de las notas (total + detalle por sitio, estados, compartir).
+- `ayuda.js` — 📖 Guía de la app. **Regla:** cada función nueva se explica aquí (sección en GUIDE, línea en NEWS y subir GUIDE_VERSION).
 - `translucido-plugin.js` — modo translúcido de Android (se usa al construir la app; `actualizar.sh` lo registra en `app.json`).
 - `actualizar.sh` — descarga la última versión a `artifacts/mobile`.
 - `archivos.txt` — lista de archivos que descarga `actualizar.sh`.

@@ -16,6 +16,8 @@ import { makeBackup, openBackup } from './respaldo';
 import Vault, { exportVaultRaw, importVaultRaw } from './boveda';
 import DailyReport from './reporte';
 import Pending, { countPending } from './pendientes';
+import Materials from './materiales';
+import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
 import RemindSheet, { setupNotifications, scheduleAt, cancelAt, canNotify, fmtWhen } from './recordatorios';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
@@ -1218,6 +1220,10 @@ function NotesApp() {
   const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
   const [reportOpen, setReportOpen] = useState(false);     // 📊 reporte del día
   const [pendOpen, setPendOpen] = useState(false);         // ✅ todos los pendientes
+  const [matOpen, setMatOpen] = useState(false);           // 📦 lista de materiales
+  const [guideOpen, setGuideOpen] = useState(false);       // 📖 guía de la app
+  const [guideNew, setGuideNew] = useState(false);         // hay algo nuevo en la guía
+  useEffect(() => { guideSeen().then(v => setGuideNew(v < GUIDE_VERSION)); }, []);
   const [reminders, setReminders] = useState([]);          // ⏰ recordatorios [{ id, noteId, text, at, notifId }]
   const [remTarget, setRemTarget] = useState(null);        // { noteId, text } al que se le pone recordatorio
   const [vaultOpen, setVaultOpen] = useState(false);        // la bóveda cifrada
@@ -3089,6 +3095,21 @@ function NotesApp() {
               <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
               <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
+            {/* 📖 Guía de la app: siempre primero, para que se note */}
+            <TouchableOpacity onPress={() => { setGuideOpen(true); setGuideNew(false); }} activeOpacity={0.8}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 12, borderRadius: 18, backgroundColor: c.text }}>
+              <Text style={{ fontSize: 22 }}>📖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.inv, fontSize: 16, fontWeight: '800' }}>{tr('gdTitle')}</Text>
+                <Text style={{ color: c.inv, opacity: 0.7, fontSize: 12, marginTop: 2 }}>{tr('gdMenuHint')}</Text>
+              </View>
+              {guideNew && (
+                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.inv }}>
+                  <Text style={{ color: c.text, fontSize: 11, fontWeight: '800' }}>{tr('gdNew')}</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={18} color={c.inv} />
+            </TouchableOpacity>
             {[['all', 'file-text'], ['fav', 'star'], ['trash', 'trash-2']].map(([key, icon]) => (
               <TouchableOpacity key={key} onPress={() => { setView(key); closeMenu(); }} activeOpacity={0.7}>
                 {view === key ? (
@@ -3190,6 +3211,13 @@ function NotesApp() {
                   <Text style={{ color: c.inv, fontWeight: '800', fontSize: 12 }}>{pendCount}</Text>
                 </View>
               )}
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setMatOpen(true)}>
+              <MaterialCommunityIcons name="package-variant-closed" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.navText}>{tr('mtTitle')}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('mtMenuHint')}</Text>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setReportOpen(true)}>
               <MaterialCommunityIcons name="file-chart-outline" size={19} color={c.muted} style={s.navIcon} />
@@ -3471,6 +3499,10 @@ function NotesApp() {
         noteTitle={remTarget ? ((notes.find(x => x.id === remTarget.noteId) || {}).title || '') : ''}
         list={remTarget ? reminders.filter(r => r.noteId === remTarget.noteId && (r.text || '') === (remTarget.text || '')) : []}
         onSave={addReminder} onDelete={removeReminder} s={s} t={c} tr={tr} Glass={Glass} locale={LOCALE} />
+      <Guide visible={guideOpen} onClose={() => setGuideOpen(false)} s={s} t={c} tr={tr} Glass={Glass} langCode={langCode} />
+      <Materials visible={matOpen} onClose={() => setMatOpen(false)} notes={notes} plainOf={toPlain}
+        onOpen={n => { setMatOpen(false); setMenuOpen(false); setTimeout(() => openNote(n), 350); }}
+        onCreateNote={createReport} titleSegments={titleSegments} s={s} t={c} tr={tr} Glass={Glass} langCode={langCode} locale={LOCALE} />
       <DailyReport visible={reportOpen} onClose={() => setReportOpen(false)} notes={notes} plainOf={toPlain} onCreate={createReport}
         s={s} t={c} tr={tr} Glass={Glass} langCode={langCode} locale={LOCALE} />
       {sortSheet}

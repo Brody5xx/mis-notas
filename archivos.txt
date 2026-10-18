@@ -14,3 +14,5 @@ avisos.native.js
 avisos.web.js
 galeria.native.js
 galeria.web.js
+materiales.js
+ayuda.js

@@ -23,7 +23,7 @@ const LN = c => c === 'es' ? 'Spanish' : c === 'en' ? 'English' : (langLabel(c) 
 /* Pregunta a la IA (el mismo servicio gratis que usa "Reescribir con IA") */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), ms); })]).finally(() => clearTimeout(t)); };
-async function askAI(system, text) {
+export async function askAI(system, text) {
   const WAITS = [0, 5000, 10000, 16000];
   for (let k = 0; k < WAITS.length; k++) {
     if (WAITS[k]) await sleep(WAITS[k]);
@@ -124,7 +124,7 @@ function attachmentsOf(n) {
   return out;
 }
 /* Color del título de la nota (el mismo que tiene en la lista) */
-function titleColorOf(n) {
+export function titleColorOf(n) {
   if (n.titleColor) return n.titleColor;
   const m = /color:\s*([^;"']+)/i.exec(String(n.titleHtml || ''));
   return m ? m[1].trim() : null;
