@@ -1470,7 +1470,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var ckBox = document.createElement('div'); ckBox.id = 'ckAsk';
   ckBox.innerHTML = '<div class="box"><h3></h3><p></p><div class="it"></div><div class="row"><button class="no"></button><button class="yes"></button></div></div>';
   document.body.appendChild(ckBox);
-  var ckPending = null;
+  var ckPending = null, ckOpenedAt = 0, ckClosedAt = 0, ckDownOnBack = false;
   function ckAsk(li){
     var willDo = !li.classList.contains('done');
     ckPending = li;
@@ -1480,13 +1480,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ckBox.querySelector('.no').textContent = ${J('cancel')};
     ckBox.querySelector('.yes').textContent = willDo ? ${J('ckDoneYes')} : ${J('ckUndoYes')};
     ckBox.classList.add('show');
+    ckOpenedAt = Date.now();
   }
-  ckBox.addEventListener('pointerdown', function(e){ e.stopPropagation(); }, true);
+  ckBox.addEventListener('pointerdown', function(e){ e.stopPropagation(); ckDownOnBack = e.target === ckBox; }, true);
   ckBox.addEventListener('click', function(e){
     e.preventDefault(); e.stopPropagation();
+    if (Date.now() - ckOpenedAt < 350) return;          // un toque "fantasma" justo al abrir no cuenta
     var b = e.target.closest ? e.target.closest('button') : null;
-    if (!b && e.target !== ckBox) return;
-    var li = ckPending; ckPending = null; ckBox.classList.remove('show');
+    if (!b && !(e.target === ckBox && ckDownOnBack)) return;   // tocar afuera solo cierra si empezó afuera
+    var li = ckPending; ckPending = null; ckBox.classList.remove('show'); ckClosedAt = Date.now();
     if (!b || !b.classList.contains('yes') || !li || !li.parentElement) return;
     var wasDone = li.classList.contains('done');
     if (wasDone) ckMoveBack(li); else ckMoveDown(li);
@@ -1499,7 +1501,14 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!li) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (!(li.textContent || '').replace(/​/g, '').trim()) { li.classList.toggle('done'); ckRefresh(li.parentElement); changedNow(); return; }  // casilla vacía: sin preguntar
-    ckAsk(li);
+    if (ckPending || ckBox.classList.contains('show') || Date.now() - ckClosedAt < 500) return;   // no abrir el aviso dos veces
+    ckPending = li;
+    // Guardar el teclado: el aviso sale cuando el teclado ya bajó (así no se cancela solo)
+    var kbOpen = document.activeElement === ed || document.activeElement === ttl;
+    [ed, ttl].forEach(function(x){ x.setAttribute('inputmode', 'none'); });
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (_) {}
+    try { window.getSelection().removeAllRanges(); } catch (_) {}
+    setTimeout(function(){ ckAsk(li); }, kbOpen ? 320 : 0);
   }, true);
   ed.addEventListener('mousedown', function(e){ if (checkboxHit(e)) e.preventDefault(); }, true);
   // Al presionar Enter en un checklist, la casilla nueva sale sin marcar

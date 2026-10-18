@@ -4150,6 +4150,55 @@ for (const code in CKT) {
   CKK.forEach((k, i) => { S[code][k] = CKT[code][i]; });
 }
 
+/* 📊 Reporte del día: qué adjuntos incluir
+   [Incluir en el reporte, Marcar todo, Desmarcar todo, Fotos, Notas de voz, Videos, Links] */
+const INK = ['rpIncHead', 'rpAll', 'rpNoneInc', 'rpIncPhotos', 'rpIncVoice', 'rpIncVideos', 'rpIncLinks'];
+const INT = {
+  es: ['Incluir en el reporte', 'Marcar todo', 'Desmarcar todo', 'Fotos', 'Notas de voz', 'Videos', 'Links'],
+  en: ['Include in the report', 'Select all', 'Unselect all', 'Photos', 'Voice notes', 'Videos', 'Links'],
+  pt: ['Incluir no relatório', 'Marcar tudo', 'Desmarcar tudo', 'Fotos', 'Notas de voz', 'Vídeos', 'Links'],
+  fr: ['Inclure dans le rapport', 'Tout cocher', 'Tout décocher', 'Photos', 'Notes vocales', 'Vidéos', 'Liens'],
+  de: ['Im Bericht einfügen', 'Alle auswählen', 'Alle abwählen', 'Fotos', 'Sprachnotizen', 'Videos', 'Links'],
+  it: ['Includi nel rapporto', 'Seleziona tutto', 'Deseleziona tutto', 'Foto', 'Note vocali', 'Video', 'Link'],
+  ca: ['Incloure a l’informe', 'Marcar-ho tot', 'Desmarcar-ho tot', 'Fotos', 'Notes de veu', 'Vídeos', 'Enllaços'],
+  nl: ['Opnemen in het rapport', 'Alles selecteren', 'Alles deselecteren', "Foto's", 'Spraaknotities', "Video's", 'Links'],
+  sv: ['Ta med i rapporten', 'Markera alla', 'Avmarkera alla', 'Foton', 'Röstanteckningar', 'Videor', 'Länkar'],
+  nb: ['Ta med i rapporten', 'Velg alle', 'Fjern alle', 'Bilder', 'Talenotater', 'Videoer', 'Lenker'],
+  da: ['Medtag i rapporten', 'Vælg alle', 'Fravælg alle', 'Billeder', 'Talenoter', 'Videoer', 'Links'],
+  fi: ['Ota mukaan raporttiin', 'Valitse kaikki', 'Poista valinnat', 'Kuvat', 'Ääniviestit', 'Videot', 'Linkit'],
+  pl: ['Dołącz do raportu', 'Zaznacz wszystko', 'Odznacz wszystko', 'Zdjęcia', 'Notatki głosowe', 'Filmy', 'Linki'],
+  cs: ['Zahrnout do zprávy', 'Vybrat vše', 'Zrušit výběr', 'Fotky', 'Hlasové poznámky', 'Videa', 'Odkazy'],
+  sk: ['Zahrnúť do správy', 'Vybrať všetko', 'Zrušiť výber', 'Fotky', 'Hlasové poznámky', 'Videá', 'Odkazy'],
+  hu: ['Hozzáadás a jelentéshez', 'Mind kijelölése', 'Kijelölés törlése', 'Fotók', 'Hangjegyzetek', 'Videók', 'Linkek'],
+  ro: ['Include în raport', 'Bifează tot', 'Debifează tot', 'Fotografii', 'Mesaje vocale', 'Videoclipuri', 'Linkuri'],
+  hr: ['Uključi u izvještaj', 'Označi sve', 'Poništi sve', 'Fotografije', 'Glasovne bilješke', 'Videozapisi', 'Poveznice'],
+  el: ['Συμπερίληψη στην αναφορά', 'Επιλογή όλων', 'Αποεπιλογή όλων', 'Φωτογραφίες', 'Φωνητικές σημειώσεις', 'Βίντεο', 'Σύνδεσμοι'],
+  bg: ['Включи в отчета', 'Избери всички', 'Махни всички', 'Снимки', 'Гласови бележки', 'Видео', 'Връзки'],
+  ru: ['Добавить в отчёт', 'Выбрать всё', 'Снять всё', 'Фото', 'Голосовые заметки', 'Видео', 'Ссылки'],
+  uk: ['Додати до звіту', 'Вибрати все', 'Зняти все', 'Фото', 'Голосові нотатки', 'Відео', 'Посилання'],
+  tr: ['Rapora ekle', 'Tümünü seç', 'Tümünü kaldır', 'Fotoğraflar', 'Sesli notlar', 'Videolar', 'Bağlantılar'],
+  ar: ['تضمين في التقرير', 'تحديد الكل', 'إلغاء تحديد الكل', 'الصور', 'الملاحظات الصوتية', 'الفيديوهات', 'الروابط'],
+  he: ['לכלול בדוח', 'בחר הכול', 'בטל הכול', 'תמונות', 'הקלטות קוליות', 'סרטונים', 'קישורים'],
+  fa: ['افزودن به گزارش', 'انتخاب همه', 'لغو همه', 'عکس‌ها', 'پیام‌های صوتی', 'ویدیوها', 'پیوندها'],
+  ur: ['رپورٹ میں شامل کریں', 'سب منتخب کریں', 'سب ہٹائیں', 'تصاویر', 'وائس نوٹس', 'ویڈیوز', 'لنکس'],
+  hi: ['रिपोर्ट में जोड़ें', 'सब चुनें', 'सब हटाएँ', 'फ़ोटो', 'वॉइस नोट', 'वीडियो', 'लिंक'],
+  bn: ['রিপোর্টে যোগ করুন', 'সব বাছাই', 'সব বাদ', 'ছবি', 'ভয়েস নোট', 'ভিডিও', 'লিংক'],
+  id: ['Sertakan di laporan', 'Pilih semua', 'Batalkan semua', 'Foto', 'Pesan suara', 'Video', 'Tautan'],
+  ms: ['Sertakan dalam laporan', 'Pilih semua', 'Nyahpilih semua', 'Foto', 'Nota suara', 'Video', 'Pautan'],
+  fil: ['Isama sa ulat', 'Piliin lahat', 'Alisin lahat', 'Mga larawan', 'Voice note', 'Mga video', 'Mga link'],
+  vi: ['Đưa vào báo cáo', 'Chọn tất cả', 'Bỏ chọn tất cả', 'Ảnh', 'Ghi âm', 'Video', 'Liên kết'],
+  th: ['ใส่ในรายงาน', 'เลือกทั้งหมด', 'ยกเลิกทั้งหมด', 'รูปภาพ', 'ข้อความเสียง', 'วิดีโอ', 'ลิงก์'],
+  ja: ['報告書に含める', 'すべて選択', 'すべて解除', '写真', 'ボイスメモ', '動画', 'リンク'],
+  ko: ['보고서에 포함', '모두 선택', '모두 해제', '사진', '음성 메모', '동영상', '링크'],
+  sw: ['Weka kwenye ripoti', 'Chagua zote', 'Ondoa zote', 'Picha', 'Jumbe za sauti', 'Video', 'Viungo'],
+  'zh-Hans': ['加入报告', '全选', '全部取消', '照片', '语音', '视频', '链接'],
+  'zh-Hant': ['加入報告', '全選', '全部取消', '照片', '語音', '影片', '連結'],
+};
+for (const code in INT) {
+  if (INT[code].length !== INK.length) throw new Error('inc ' + code);
+  INK.forEach((k, i) => { S[code][k] = INT[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

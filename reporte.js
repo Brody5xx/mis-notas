@@ -140,7 +140,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   const [day, setDay] = useState(() => startOfDay(Date.now()));
   const [off, setOff] = useState({});           // notas que quitaste del reporte
   const [lang, setLang] = useState(null);       // un código de idioma, o 'both' (español + inglés)
-  const [photos, setPhotos] = useState(true);   // incluir fotos, audios, videos y links
+  const [inc, setInc] = useState({ imgwrap: true, audwrap: true, vidwrap: true, link: true });   // qué adjuntos incluir
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const alive = useRef(true);
@@ -161,6 +161,14 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
     .sort((a, b) => (a.updated || 0) - (b.updated || 0)), [notes, day]);
   const usable = dayNotes.filter(n => !n.locked && (plainOf(n).trim() || (n.title || '').trim()));
   const chosen = usable.filter(n => !off[n.id]);
+  const counts = useMemo(() => {
+    const k = { imgwrap: 0, audwrap: 0, vidwrap: 0, link: 0 };
+    chosen.forEach(n => attachmentsOf(n).forEach(x => { k[x.kind] = (k[x.kind] || 0) + 1; }));
+    return k;
+  }, [chosen.map(n => n.id + ':' + n.updated).join(',')]);
+  const KINDS = [['imgwrap', 'image', 'rpIncPhotos'], ['audwrap', 'mic', 'rpIncVoice'], ['vidwrap', 'film', 'rpIncVideos'], ['link', 'link', 'rpIncLinks']];
+  const allInc = KINDS.every(([k]) => inc[k]);
+  const anyInc = KINDS.some(([k]) => inc[k]);
 
   const fmtDay = ms => {
     try { return new Date(ms).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); }
@@ -186,10 +194,10 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
 
       let html = `<div style="color:#8e8e93">📅 ${esc(fmtDay(day))} · ${esc(tr('rpNotes', { n: chosen.length }))}</div><div><br></div>` + reportHtml(r1);
       if (r2) html += `<div><br></div><div>— — —</div><div><b>${esc(langLabel(both[1]))}</b></div><div><br></div>` + reportHtml(r2);
-      if (photos) {
+      if (anyInc) {
         let att = '';
         chosen.forEach(n => {
-          const list = attachmentsOf(n);
+          const list = attachmentsOf(n).filter(x => inc[x.kind]);
           if (!list.length) return;
           att += `<div><br></div><div><b>📎 ${titleHtmlOf(n, tr('note'))}</b></div>`;
           let links = '';
@@ -290,12 +298,24 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
             {chip('both', '🇪🇸 + 🇺🇸 ' + tr('rpBoth'))}
           </View>
 
-          {/* Fotos */}
-          <TouchableOpacity onPress={() => setPhotos(p => !p)} activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }}>
-            {box(photos)}
-            <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{tr('rpAttach')}</Text>
-          </TouchableOpacity>
+          {/* Qué incluir: cada cosa por separado, o todo de un solo toque */}
+          <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 20, marginBottom: 8 }}>{tr('rpIncHead')}</Text>
+          <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' }}>
+            <TouchableOpacity onPress={() => { const v = !allInc; setInc({ imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
+              {box(allInc)}
+              <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', flex: 1 }}>{allInc ? tr('rpNoneInc') : tr('rpAll')}</Text>
+            </TouchableOpacity>
+            {KINDS.map(([k, ic, lb]) => (
+              <TouchableOpacity key={k} onPress={() => setInc(o => ({ ...o, [k]: !o[k] }))} activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, paddingLeft: 24 }}>
+                {box(inc[k])}
+                <Feather name={ic} size={17} color={C.muted} />
+                <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{tr(lb)}</Text>
+                <Text style={{ color: C.muted, fontSize: 14 }}>{counts[k] || 0}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {!!err && <Text style={{ color: '#ff6b6b', fontSize: 14, marginTop: 16 }}>{err}</Text>}
         </ScrollView>
