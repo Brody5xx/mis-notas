@@ -480,46 +480,68 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
     const m = (it.file.mime || '').split('/')[1] || (it.type === 'video' ? 'mp4' : 'jpg');
     return '.' + m.replace('jpeg', 'jpg').replace('quicktime', 'mov').replace(/[^\w]/g, '');
   }
-  async function tmpUriFor() {
-    const it = media.item;
-    if (media.kind !== 'photo' && /\.[a-z0-9]{2,5}$/i.test(media.uri)) return media.uri;
+  /* Escribe una copia temporal (con su extensión) del archivo de la bóveda */
+  async function tmpUriFor(it) {
     const f = new FS.File(FS.Paths.cache, 'r_' + it.id + '_' + (it.file.name || 'archivo').replace(/[^\w.\-]+/g, '_') + extOf(it));
     try { if (f.exists) f.delete(); } catch (e) {}
     try { f.create(); } catch (e) {}
-    f.write(media.kind === 'photo' ? b64Decode(media.uri.split(',')[1]) : await readBlob(it.id));
+    f.write(await readBlob(it.id));
     tmpFiles.current.push(f);
     return f.uri;
   }
+  /* En el navegador: descargar el archivo */
+  async function downloadWeb(it) {
+    setBusy(tr('vaultOpening'));
+    try {
+      const url = URL.createObjectURL(new Blob([await readBlob(it.id)], { type: it.file.mime || 'application/octet-stream' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = (it.file.name || 'archivo') + extOf(it);
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 60000);
+    } catch (e) { toast(tr('exportFail')); }
+    setBusy('');
+  }
   /* Devolver una foto o video a la galería del teléfono */
-  async function restoreToGallery() {
-    if (!media) return;
-    if (Platform.OS === 'web' || !ML) { shareMedia(); return; }
+  async function restoreToGallery(it) {
+    if (Platform.OS === 'web' || !ML) { downloadWeb(it); return; }
     setBusy(tr('vSaving'));
     try {
       const p = await ML.requestPermissionsAsync(true);
       if (!p.granted) { setBusy(''); toast(tr('vNoPerm')); return; }
-      await ML.saveToLibraryAsync(await tmpUriFor());
+      await ML.saveToLibraryAsync(await tmpUriFor(it));
       toast(tr('vToGalleryDone'));
     } catch (e) { toast(tr('exportFail')); }
     setBusy('');
   }
   /* Guardar una copia en la carpeta que elijas */
-  async function saveToFolder() {
-    if (!media) return;
-    if (Platform.OS === 'web' || !FS || !FS.Directory || typeof FS.Directory.pickDirectoryAsync !== 'function') { shareMedia(); return; }
+  async function saveToFolder(it) {
+    if (Platform.OS === 'web') { downloadWeb(it); return; }
+    if (!FS || !FS.Directory || typeof FS.Directory.pickDirectoryAsync !== 'function') {
+      try { await shareFile(await tmpUriFor(it), it.file.mime || 'application/octet-stream', it.file.name || 'archivo'); } catch (e) {}
+      return;
+    }
     let dir;
     try { dir = await FS.Directory.pickDirectoryAsync(); } catch (e) { return; }   // canceló
     if (!dir) return;
     setBusy(tr('vSaving'));
     try {
-      const it = media.item;
-      const bytes = media.kind === 'photo' ? b64Decode(media.uri.split(',')[1]) : await readBlob(it.id);
       const f = dir.createFile((it.file.name || 'archivo') + extOf(it), it.file.mime || 'application/octet-stream');
-      f.write(bytes);
+      f.write(await readBlob(it.id));
       toast(tr('vToFolderDone'));
     } catch (e) { toast(tr('exportFail')); }
     setBusy('');
   }
+  /* Los botones "A la galería" / "A una carpeta" (o "Descargar" en el navegador) */
+  const restoreRow = (it, style, dark) => (
+    <View style={[{ flexDirection: 'row', gap: 10 }, style]}>
+      {Platform.OS === 'web'
+        ? pillBtn('download', tr('download'), () => downloadWeb(it), dark)
+        : <>
+            {it.type !== 'file' && pillBtn('image', tr('vToGallery'), () => restoreToGallery(it), dark)}
+            {pillBtn('folder', tr('vToFolder'), () => saveToFolder(it), dark)}
+          </>}
+    </View>
+  );
   async function shareMedia() {
     if (!media) return;
     const it = media.item;
@@ -567,12 +589,12 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       {right}
     </View>
   );
-  const pillBtn = (icon, label, onPress) => (
+  const pillBtn = (icon, label, onPress, dark) => (
     <TouchableOpacity key={label} onPress={onPress} disabled={!!busy} activeOpacity={0.7}
       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13,
-        borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.08)', opacity: busy ? 0.5 : 1 }}>
-      <Feather name={icon} size={17} color="#fff" />
-      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
+        borderRadius: 24, borderWidth: 1, borderColor: dark ? 'rgba(255,255,255,0.35)' : C.border, opacity: busy ? 0.5 : 1 }}>
+      <Feather name={icon} size={17} color={dark ? '#fff' : C.text} />
+      <Text style={{ color: dark ? '#fff' : C.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
   const iconBtn = (name, onPress, color) => (
@@ -640,6 +662,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
               <Feather name="eye" size={20} color={C.text} />
             </TouchableOpacity>
           )}
+          {isMedia && e.id && restoreRow(e, { marginBottom: 8, marginTop: 4 })}
           {FIELDS[e.type].map(k => (
             <View key={k} style={{ marginTop: 12 }}>
               <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label[k]}</Text>
@@ -705,10 +728,7 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
         {header(it.title, iconBtn('arrow-left', close), iconBtn('share-2', shareMedia))}
         <View style={{ flex: 1 }}>{body}</View>
         {media.kind === 'file' && <View style={{ paddingHorizontal: 20 }}>{bigBtn(tr('vOpenFile'), shareMedia)}</View>}
-        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 22 }}>
-          {media.kind !== 'file' && Platform.OS !== 'web' && pillBtn('image', tr('vToGallery'), restoreToGallery)}
-          {pillBtn(Platform.OS === 'web' ? 'download' : 'folder', Platform.OS === 'web' ? tr('download') : tr('vToFolder'), Platform.OS === 'web' ? shareMedia : saveToFolder)}
-        </View>
+        {restoreRow(it, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 22 }, true)}
       </View>
     );
   }
