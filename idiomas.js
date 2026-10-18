@@ -4199,6 +4199,55 @@ for (const code in INT) {
   INK.forEach((k, i) => { S[code][k] = INT[code][i]; });
 }
 
+/* 📊 Reporte del día: casilla de texto + respaldo si la IA responde mal
+   [Texto (el reporte escrito), Notas del día (tal como las escribiste)] */
+const TXK = ['rpIncText', 'rpFallback'];
+const TXT2 = {
+  es: ['Texto (el reporte escrito)', 'Notas del día (tal como las escribiste)'],
+  en: ['Text (the written report)', "Today's notes (as you wrote them)"],
+  pt: ['Texto (o relatório escrito)', 'Notas do dia (como você escreveu)'],
+  fr: ['Texte (le rapport rédigé)', 'Notes du jour (telles que vous les avez écrites)'],
+  de: ['Text (der geschriebene Bericht)', 'Notizen des Tages (so wie du sie geschrieben hast)'],
+  it: ['Testo (il rapporto scritto)', 'Note del giorno (come le hai scritte)'],
+  ca: ['Text (l’informe escrit)', 'Notes del dia (tal com les vas escriure)'],
+  nl: ['Tekst (het geschreven rapport)', 'Notities van de dag (zoals je ze schreef)'],
+  sv: ['Text (den skrivna rapporten)', 'Dagens anteckningar (som du skrev dem)'],
+  nb: ['Tekst (den skrevne rapporten)', 'Dagens notater (slik du skrev dem)'],
+  da: ['Tekst (den skrevne rapport)', 'Dagens noter (som du skrev dem)'],
+  fi: ['Teksti (kirjoitettu raportti)', 'Päivän muistiinpanot (sellaisinaan)'],
+  pl: ['Tekst (napisany raport)', 'Notatki z dnia (tak, jak je napisałeś)'],
+  cs: ['Text (napsaná zpráva)', 'Poznámky ze dne (tak, jak jsi je napsal)'],
+  sk: ['Text (napísaná správa)', 'Poznámky z dňa (tak, ako si ich napísal)'],
+  hu: ['Szöveg (a megírt jelentés)', 'A nap jegyzetei (ahogy leírtad)'],
+  ro: ['Text (raportul scris)', 'Notițele zilei (așa cum le-ai scris)'],
+  hr: ['Tekst (napisani izvještaj)', 'Bilješke dana (kako si ih napisao)'],
+  el: ['Κείμενο (η γραπτή αναφορά)', 'Σημειώσεις της ημέρας (όπως τις έγραψες)'],
+  bg: ['Текст (написаният отчет)', 'Бележките от деня (както си ги написал)'],
+  ru: ['Текст (написанный отчёт)', 'Заметки за день (как вы их написали)'],
+  uk: ['Текст (написаний звіт)', 'Нотатки за день (як ви їх написали)'],
+  tr: ['Metin (yazılı rapor)', 'Günün notları (yazdığın gibi)'],
+  ar: ['النص (التقرير المكتوب)', 'ملاحظات اليوم (كما كتبتها)'],
+  he: ['טקסט (הדוח הכתוב)', 'הפתקים של היום (כמו שכתבת)'],
+  fa: ['متن (گزارش نوشته‌شده)', 'یادداشت‌های امروز (همان‌طور که نوشتی)'],
+  ur: ['متن (لکھی ہوئی رپورٹ)', 'آج کے نوٹس (جیسے آپ نے لکھے)'],
+  hi: ['टेक्स्ट (लिखी हुई रिपोर्ट)', 'आज के नोट्स (जैसे आपने लिखे)'],
+  bn: ['লেখা (লিখিত রিপোর্ট)', 'আজকের নোট (যেভাবে লিখেছেন)'],
+  id: ['Teks (laporan tertulis)', 'Catatan hari ini (seperti yang kamu tulis)'],
+  ms: ['Teks (laporan bertulis)', 'Nota hari ini (seperti yang ditulis)'],
+  fil: ['Teksto (ang nakasulat na ulat)', 'Mga tala ngayon (gaya ng isinulat mo)'],
+  vi: ['Văn bản (báo cáo đã viết)', 'Ghi chú hôm nay (như bạn đã viết)'],
+  th: ['ข้อความ (รายงานที่เขียนแล้ว)', 'โน้ตของวันนี้ (ตามที่คุณเขียน)'],
+  ja: ['テキスト(作成した報告書)', '今日のメモ(書いたまま)'],
+  ko: ['텍스트(작성된 보고서)', '오늘의 메모(작성한 그대로)'],
+  sw: ['Maandishi (ripoti iliyoandikwa)', 'Madokezo ya leo (kama ulivyoandika)'],
+  'zh-Hans': ['文字(写好的报告)', '今天的笔记(原样)'],
+  'zh-Hant': ['文字(寫好的報告)', '今天的筆記(原樣)'],
+};
+for (const code in TXT2) {
+  if (TXT2[code].length !== TXK.length) throw new Error('tx ' + code);
+  TXK.forEach((k, i) => { S[code][k] = TXT2[code][i]; });
+}
+
 
 /* ============================================================
    VARIANTES POR PAÍS

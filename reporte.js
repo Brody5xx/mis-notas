@@ -140,7 +140,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   const [day, setDay] = useState(() => startOfDay(Date.now()));
   const [off, setOff] = useState({});           // notas que quitaste del reporte
   const [lang, setLang] = useState(null);       // un código de idioma, o 'both' (español + inglés)
-  const [inc, setInc] = useState({ imgwrap: true, audwrap: true, vidwrap: true, link: true });   // qué adjuntos incluir
+  const [inc, setInc] = useState({ text: true, imgwrap: true, audwrap: true, vidwrap: true, link: true });   // qué incluir
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const alive = useRef(true);
@@ -162,13 +162,14 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   const usable = dayNotes.filter(n => !n.locked && (plainOf(n).trim() || (n.title || '').trim()));
   const chosen = usable.filter(n => !off[n.id]);
   const counts = useMemo(() => {
-    const k = { imgwrap: 0, audwrap: 0, vidwrap: 0, link: 0 };
+    const k = { text: chosen.filter(n => plainOf(n).trim()).length, imgwrap: 0, audwrap: 0, vidwrap: 0, link: 0 };
     chosen.forEach(n => attachmentsOf(n).forEach(x => { k[x.kind] = (k[x.kind] || 0) + 1; }));
     return k;
   }, [chosen.map(n => n.id + ':' + n.updated).join(',')]);
-  const KINDS = [['imgwrap', 'image', 'rpIncPhotos'], ['audwrap', 'mic', 'rpIncVoice'], ['vidwrap', 'film', 'rpIncVideos'], ['link', 'link', 'rpIncLinks']];
+  const KINDS = [['text', 'type', 'rpIncText'], ['imgwrap', 'image', 'rpIncPhotos'], ['audwrap', 'mic', 'rpIncVoice'], ['vidwrap', 'film', 'rpIncVideos'], ['link', 'link', 'rpIncLinks']];
   const allInc = KINDS.every(([k]) => inc[k]);
-  const anyInc = KINDS.some(([k]) => inc[k]);
+  const anyInc = KINDS.some(([k]) => k !== 'text' && inc[k]);     // algún adjunto
+  const nothing = !KINDS.some(([k]) => inc[k]);
 
   const fmtDay = ms => {
     try { return new Date(ms).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); }
@@ -178,22 +179,43 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   const dayName = day === today ? tr('rpToday') : day === today - DAY ? tr('rpYesterday') : '';
 
   async function make() {
-    if (!chosen.length || busy) return;
+    if (!chosen.length || busy || nothing) return;
     setBusy(true); setErr('');
     try {
       const input = chosen.map((n, i) => {
         const body = plainOf(n).slice(0, 6000);
         return `### Note ${i + 1}: ${(n.title || '').trim() || '(no title)'}\nEdited: ${fmtTime(n.updated)}\n${body}`;
       }).join('\n\n').slice(0, 40000);
-      const L1 = pick === 'both' ? both[0] : pick;
-      const r1 = await askAI(systemFor(L1), input);
-      if (!r1) throw new Error('ai');
-      let r2 = '';
-      if (pick === 'both') r2 = await askAI(systemFor(both[1]), input);
+      // Una respuesta sirve solo si trae las secciones (a veces la IA responde algo cortado, como un "#")
+      const good = r => {
+        const heads = String(r || '').split('\n').filter(l => /^\s*(#{1,4}\s*\S|\*\*[^*]+\*\*:?\s*$)/.test(l)).length;
+        return String(r || '').replace(/[#*\s-]/g, '').length >= 60 && heads >= 3;
+      };
+      const askGood = async L => {
+        for (let k = 0; k < 3; k++) { const r = await askAI(systemFor(L), input); if (good(r)) return r; }
+        return '';
+      };
+      let html = `<div style="color:#8e8e93">📅 ${esc(fmtDay(day))} · ${esc(tr('rpNotes', { n: chosen.length }))}</div><div><br></div>`;
+      if (inc.text) {
+        const L1 = pick === 'both' ? both[0] : pick;
+        const r1 = await askGood(L1);
+        const r2 = r1 && pick === 'both' ? await askGood(both[1]) : '';
+        if (!alive.current) return;
+        if (r1) {
+          html += reportHtml(r1);
+          if (r2) html += `<div><br></div><div>— — —</div><div><b>${esc(langLabel(both[1]))}</b></div><div><br></div>` + reportHtml(r2);
+        } else {
+          // La IA no respondió bien: el texto de tus notas va tal cual, para que nunca falte
+          html += `<div><b>${esc(tr('rpFallback'))}</b></div>`;
+          chosen.forEach(n => {
+            const body = plainOf(n).trim();
+            if (!body) return;
+            html += `<div><br></div><div><b>${titleHtmlOf(n, tr('note'))}</b></div>` +
+              body.split('\n').map(l => l.trim() ? `<div>${esc(l)}</div>` : '<div><br></div>').join('');
+          });
+        }
+      }
       if (!alive.current) return;
-
-      let html = `<div style="color:#8e8e93">📅 ${esc(fmtDay(day))} · ${esc(tr('rpNotes', { n: chosen.length }))}</div><div><br></div>` + reportHtml(r1);
-      if (r2) html += `<div><br></div><div>— — —</div><div><b>${esc(langLabel(both[1]))}</b></div><div><br></div>` + reportHtml(r2);
       if (anyInc) {
         let att = '';
         chosen.forEach(n => {
@@ -208,7 +230,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           });
           if (links) att += `<ul>${links}</ul>`;
         });
-        if (att) html += `<div><br></div><div>— — —</div><div><b>${esc(tr('rpAttachHead'))}</b></div>` + att;
+        if (att) html += (inc.text ? `<div><br></div><div>— — —</div><div><b>${esc(tr('rpAttachHead'))}</b></div>` : `<div><b>${esc(tr('rpAttachHead'))}</b></div>`) + att;
       }
       onCreate({ title: `${tr('rpTitle')} — ${fmtDay(day)}`, content: html });
       setBusy(false);
@@ -301,7 +323,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           {/* Qué incluir: cada cosa por separado, o todo de un solo toque */}
           <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 20, marginBottom: 8 }}>{tr('rpIncHead')}</Text>
           <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' }}>
-            <TouchableOpacity onPress={() => { const v = !allInc; setInc({ imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
+            <TouchableOpacity onPress={() => { const v = !allInc; setInc({ text: v, imgwrap: v, audwrap: v, vidwrap: v, link: v }); }} activeOpacity={0.7}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
               {box(allInc)}
               <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', flex: 1 }}>{allInc ? tr('rpNoneInc') : tr('rpAll')}</Text>
@@ -322,8 +344,8 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
 
         {/* Botón de crear */}
         <View style={{ position: 'absolute', left: 18, right: 18, bottom: 28 }}>
-          <TouchableOpacity onPress={make} disabled={!chosen.length || busy} activeOpacity={0.8}
-            style={[s.wallBtn, { backgroundColor: C.text, flexDirection: 'row', justifyContent: 'center', gap: 10, opacity: !chosen.length ? 0.4 : 1 }]}>
+          <TouchableOpacity onPress={make} disabled={!chosen.length || busy || nothing} activeOpacity={0.8}
+            style={[s.wallBtn, { backgroundColor: C.text, flexDirection: 'row', justifyContent: 'center', gap: 10, opacity: !chosen.length || nothing ? 0.4 : 1 }]}>
             {busy ? <ActivityIndicator color={C.inv} /> : <MaterialCommunityIcons name="file-document-edit-outline" size={20} color={C.inv} />}
             <Text style={[s.wallBtnText, { color: C.inv }]}>
               {busy ? tr('rpWorking') : chosen.length ? `${tr('rpMake')} · ${tr('rpNotes', { n: chosen.length })}` : tr('rpMake')}
