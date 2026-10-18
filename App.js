@@ -18,6 +18,7 @@ import DailyReport from './reporte';
 import Pending, { countPending, pendingOf, markDoneHtml } from './pendientes';
 import { groupsOf as matGroupsOf, loadMaterials } from './matlista';
 import Materials from './materiales';
+import { ICON_URI } from './icono';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
 import RemindSheet, { setupNotifications, scheduleAt, cancelAt, canNotify, fmtWhen } from './recordatorios';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
@@ -1234,6 +1235,7 @@ function NotesApp() {
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
   const exportFrame = useRef(null);
   const aiChain = useRef(Promise.resolve()), aiLast = useRef(0);   // pedidos a la IA de uno en uno
+  useEffect(() => { if (Platform.OS === 'web') { try { document.title = 'Best Notes'; } catch (e) {} } }, []);
   useEffect(() => { AsyncStorage.getItem('homeTodoOpen').then(v => { if (v === '0') setTodoOpen(false); }).catch(() => {}); }, []);
   useEffect(() => {
     if (matOpen) return;                                   // al cerrar la lista de materiales se actualiza el resumen
@@ -3121,6 +3123,7 @@ function NotesApp() {
              contentContainerStyle={s.sidebarInner} showsVerticalScrollIndicator indicatorStyle="white" persistentScrollbar={false} nestedScrollEnabled>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18, paddingLeft: 6 }}>
               <BackBtn onPress={() => closeMenu()} t={c} />
+              <Image source={{ uri: ICON_URI }} style={{ width: 32, height: 32, borderRadius: 9, marginLeft: 10 }} />
               <Text style={[s.sideTitle, { marginBottom: 0, paddingHorizontal: 10, flex: 1 }]} numberOfLines={1}>{tr('appName')}</Text>
               <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
@@ -3278,6 +3281,15 @@ function NotesApp() {
               <Text style={s.navText}>{tr('language')}</Text>
               <Text style={s.navCount} numberOfLines={1}>{langName}</Text>
             </TouchableOpacity>
+            {/* Sobre la app */}
+            <View style={s.sep} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 10 }}>
+              <Image source={{ uri: ICON_URI }} style={{ width: 44, height: 44, borderRadius: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.text, fontSize: 16, fontWeight: '800' }}>Best Notes</Text>
+                <Text style={{ color: c.muted, fontSize: 12.5, marginTop: 2 }}>Developer: Luisell Peña Rodríguez</Text>
+              </View>
+            </View>
            </ScrollView>
           </Glass>
             {/* destello de "apagado": el panel se vuelve una línea de luz */}

@@ -4391,6 +4391,8 @@ for (const code in HMT) {
   if (HMT[code].length !== HMK.length) throw new Error('hm ' + code);
   HMK.forEach((k, i) => { S[code][k] = HMT[code][i]; });
 }
+/* El nombre de la app es el mismo en todos los idiomas */
+for (const code in S) S[code].appName = 'Best Notes';
 
 
 /* ============================================================

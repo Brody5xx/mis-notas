@@ -20,6 +20,7 @@ LISTA=$(curl -fsSL "$BASE/archivos.txt?t=$T") || { echo "No pude conectar con Gi
 
 OK=0; MAL=0
 for f in $LISTA; do
+  mkdir -p "$(dirname "$f")"
   if curl -fsSL "$BASE/$f?t=$T" -o "$f.tmp"; then
     mv "$f.tmp" "$f"; echo "  ✓ $f"; OK=$((OK+1))
   else
@@ -116,6 +117,35 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
       console.log("  ✓ app.json (recordatorios registrados)");
     }
   ' || echo "  ✗ No pude registrar los recordatorios en app.json"
+fi
+
+# Nombre e ícono de la app: Best Notes (se revisa cada vez; solo escribe si algo cambió)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    const antes = JSON.stringify(j);
+    e.name = "Best Notes";
+    e.icon = "./assets/bestnotes/icon.png";
+    e.android = e.android || {};
+    e.android.adaptiveIcon = Object.assign({}, e.android.adaptiveIcon, {
+      foregroundImage: "./assets/bestnotes/adaptive-foreground.png",
+      backgroundImage: "./assets/bestnotes/adaptive-background.png",
+      backgroundColor: "#16161c"
+    });
+    delete e.android.adaptiveIcon.monochromeImage;
+    e.ios = e.ios || {};
+    e.ios.icon = "./assets/bestnotes/icon.png";
+    e.web = e.web || {};
+    e.web.favicon = "./assets/bestnotes/favicon.png";
+    e.web.name = "Best Notes";
+    e.web.shortName = "Best Notes";
+    if (JSON.stringify(j) !== antes) {
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (nombre Best Notes e ícono nuevo)");
+    }
+  ' || echo "  ✗ No pude poner el nombre y el ícono en app.json"
 fi
 
 echo ""

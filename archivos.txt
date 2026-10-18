@@ -17,3 +17,8 @@ galeria.web.js
 materiales.js
 ayuda.js
 matlista.js
+icono.js
+assets/bestnotes/icon.png
+assets/bestnotes/adaptive-foreground.png
+assets/bestnotes/adaptive-background.png
+assets/bestnotes/favicon.png
