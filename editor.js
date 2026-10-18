@@ -186,6 +186,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #anchorBar button.on{background:#fff;color:#111}
   .imgwrap.sel[data-anchor]::after{content:'📌';position:absolute;top:-10px;left:-10px;font-size:18px;pointer-events:none}
   .imgwrap img{width:100%;height:auto;display:block;background:transparent}
+  .imgwrap svg.stamp{position:absolute;left:0;bottom:0;width:100%;height:auto;pointer-events:none;display:block}
   /* Foto elegida: borde azul hielo con brillo + 2 luces blancas que giran alrededor */
   @property --spin{syntax:'<angle>';inherits:false;initial-value:0deg}
   #rsz{position:absolute;display:none;pointer-events:none;border:2px solid #5ccfff;border-radius:6px;z-index:3;
@@ -555,6 +556,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
  <div class="drow">
   <button class="db" data-img="crop"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></button>
   <button class="db" data-img="edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> ${H('imgEdit')}</button>
+  <button class="db" data-img="stamp"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg> ${H('stampBtn')}</button>
   <button class="db" data-img="reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
   <button class="db" data-img="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
   <button class="db" data-img="close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -1588,9 +1590,27 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ctx.drawImage(im, 0, 0, cv.width, cv.height);
     return canvasToData(cv, ctx, q);
   }
-  function insertImage(src){
-    var html = '<div class="imgwrap" contenteditable="false" data-scale="100" style="width:' + (100 * BASE) +
-               '%"><img src="' + src + '"></div><div><br></div>';
+  /* 📅📍 Sello de fecha, hora y sitio (el título de la nota) en la esquina de la foto.
+     Es un dibujo encima de la foto: crece con ella, sale en el PDF / imagen / página, y se quita con el botón "Sello". */
+  function stampOn(){ try { return localStorage.getItem('misnotas_stamp') !== '0'; } catch (_) { return true; } }
+  function stampSvg(taken){
+    var d = new Date(+taken || Date.now()), when;
+    try { when = d.toLocaleString(LOC, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    catch (_) { when = d.toLocaleString(); }
+    var site = plainTitle();
+    var txt = '📅 ' + when + (site ? '  ·  📍 ' + site : '');
+    var x = function(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var gid = 'sg' + Math.random().toString(36).slice(2, 7);
+    return '<svg class="stamp" viewBox="0 0 1000 110" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></linearGradient></defs>' +
+      '<rect x="0" y="0" width="1000" height="110" fill="url(#' + gid + ')"/>' +
+      '<text x="975" y="82" text-anchor="end" font-family="-apple-system,Roboto,Segoe UI,sans-serif" font-size="38" font-weight="700" fill="#fff" ' +
+      'stroke="#000" stroke-width="1.2" paint-order="stroke"' + (txt.length > 52 ? ' textLength="950" lengthAdjust="spacingAndGlyphs"' : '') + '>' + x(txt) + '</text></svg>';
+  }
+  function insertImage(src, taken){
+    taken = +taken || Date.now();
+    var html = '<div class="imgwrap" contenteditable="false" data-scale="100" data-taken="' + taken + '" style="width:' + (100 * BASE) +
+               '%"><img src="' + src + '">' + (stampOn() ? stampSvg(taken) : '') + '</div><div><br></div>';
     quietFocus();
     if (saved && ed.contains(saved.startContainer)) {
       var s = window.getSelection();
@@ -1608,10 +1628,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!f) return;
     if (/^video[/]/.test(f.type || '') || /[.](mp4|mov|m4v|3gp|webm|mkv)$/i.test(f.name || '')) { insertVideo(f); return; }
     showTip(${J('addingPhoto')});
-    var r = new FileReader();
+    var r = new FileReader(), taken = f.lastModified || Date.now();
     r.onload = function(){
       var im = new Image();
-      im.onload = function(){ insertImage(shrink(im, 1280, 0.8)); };
+      im.onload = function(){ insertImage(shrink(im, 1280, 0.8), taken); };
       im.onerror = function(){ showTip(${J('photoOpenFail')}); };
       im.src = r.result;
     };
@@ -1751,6 +1771,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
     if (a === 'crop') { openCrop(selImg.querySelector('img')); return; }
     if (a === 'edit') { openImgEdit(selImg.querySelector('img'), 'view'); return; }
+    if (a === 'stamp') {
+      var st = selImg.querySelector('svg.stamp');
+      if (st) { st.parentNode.removeChild(st); try { localStorage.setItem('misnotas_stamp', '0'); } catch (_) {} showTip(${J('stampOff')}); }
+      else { selImg.insertAdjacentHTML('beforeend', stampSvg(selImg.dataset.taken)); try { localStorage.setItem('misnotas_stamp', '1'); } catch (_) {} showTip(${J('stampOnTip')}); }
+      changedNow(); return;
+    }
     if (a === 'reset') { setScale(selImg, 100); setRot(selImg, 0); placeRsz(); changedNow(); showTip(${J('sizeNormal')}); }
 
   });
@@ -4088,7 +4114,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   var PAGE_CSS = 'body{margin:0;background:#1c1c1e;color:#f2f2f2;font:17px/1.55 -apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}' +
     'main{max-width:760px;margin:0 auto;padding:22px 16px 40px}h1.nt{font-size:28px;line-height:1.2;margin:6px 0 4px}.dt{color:#9a9a9f;font-size:13px;margin-bottom:18px}' +
-    '.imgwrap{display:inline-block;max-width:100%}.imgwrap img{display:block;width:100%;height:auto;border-radius:12px}' +
+    '.imgwrap{display:inline-block;max-width:100%;position:relative}.imgwrap img{display:block;width:100%;height:auto;border-radius:12px}.imgwrap svg.stamp{position:absolute;left:0;bottom:0;width:100%;height:auto;border-radius:0 0 12px 12px}' +
     '.vidwrap,.audwrap{margin:14px 0;clear:both}video{display:block;width:100%;max-height:80vh;border-radius:14px;background:#000}audio{width:100%}' +
     'ul.checklist{list-style:none;padding-left:4px}ul.checklist li::before{content:"☐ "}ul.checklist li.done::before{content:"☑ "}ul.checklist li.done{opacity:.6;text-decoration:line-through}' +
     'hr.sep{border:none;border-top:1px solid #3a3a3c;margin:30px 0}footer{color:#6e6e73;font-size:12px;text-align:center;margin-top:34px}a{color:#6ab0ff}';

@@ -8,3 +8,5 @@ compartir.web.js
 respaldo.js
 boveda.js
 reporte.js
+pendientes.js
+recordatorios.js

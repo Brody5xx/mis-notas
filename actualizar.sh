@@ -91,6 +91,33 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
   ' || echo "  ✗ No pude registrar los permisos de la galería en app.json"
 fi
 
+# Paquete para los recordatorios (avisos a una hora) — solo la primera vez
+if [ -f package.json ] && ! grep -q '"expo-notifications"' package.json; then
+  echo "  … instalando expo-notifications (para los recordatorios). Espera un momento..."
+  if npx --yes expo install expo-notifications >/tmp/expo-notifications.log 2>&1; then
+    echo "  ✓ expo-notifications instalado"
+  else
+    echo "  ✗ No pude instalar expo-notifications. Escribe en el Shell:  npx expo install expo-notifications"
+  fi
+fi
+# Registrar los recordatorios en app.json (solo una vez)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    e.plugins = e.plugins || [];
+    const ya = e.plugins.some(p => (Array.isArray(p) ? p[0] : p) === "expo-notifications");
+    if (!ya) {
+      e.plugins.push(["expo-notifications", { color: "#ffffff" }]);
+      e.android = e.android || {};
+      e.android.permissions = Array.from(new Set([...(e.android.permissions || []), "POST_NOTIFICATIONS", "SCHEDULE_EXACT_ALARM"]));
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (recordatorios registrados)");
+    }
+  ' || echo "  ✗ No pude registrar los recordatorios en app.json"
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."

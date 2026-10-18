@@ -15,6 +15,8 @@ import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
 import Vault, { exportVaultRaw, importVaultRaw } from './boveda';
 import DailyReport from './reporte';
+import Pending, { countPending } from './pendientes';
+import RemindSheet, { setupNotifications, scheduleAt, cancelAt, canNotify, fmtWhen } from './recordatorios';
 import { LANG_GROUPS, langLabel, groupOf, makeT, detectLang, localeOf } from './idiomas';
 
 /* Idioma actual (se cambia con applyLang). tr('clave') devuelve el texto traducido. */
@@ -1215,6 +1217,9 @@ function NotesApp() {
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
   const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
   const [reportOpen, setReportOpen] = useState(false);     // 📊 reporte del día
+  const [pendOpen, setPendOpen] = useState(false);         // ✅ todos los pendientes
+  const [reminders, setReminders] = useState([]);          // ⏰ recordatorios [{ id, noteId, text, at, notifId }]
+  const [remTarget, setRemTarget] = useState(null);        // { noteId, text } al que se le pone recordatorio
   const [vaultOpen, setVaultOpen] = useState(false);        // la bóveda cifrada
   const [exportJob, setExportJob] = useState(null); // archivo (PDF / imagen) que se está creando
   const [webFile, setWebFile] = useState(null);     // vista web: archivo listo para compartir/descargar
@@ -1345,6 +1350,72 @@ function NotesApp() {
     // Nota con dibujo: primero elegir un fondo (se puede omitir con "Listo")
     if (kind === 'draw') setTimeout(() => openWall(n.id), 1100);
   }
+
+  /* ⏰ Recordatorios: cargar, guardar, avisar */
+  const remRef = useRef(reminders);
+  remRef.current = reminders;
+  const remLoaded = useRef(false);
+  useEffect(() => {
+    AsyncStorage.getItem('misnotas_reminders').then(v => {
+      try {
+        const list = JSON.parse(v || '[]').filter(r => r && r.at > Date.now() - 24 * 3600000);
+        setReminders(list);
+      } catch (e) {}
+      remLoaded.current = true;
+    });
+    let off = () => {};
+    setupNotifications(noteId => {
+      const n = notesRef.current.find(x => x.id === noteId && !x.deleted);
+      if (n) { setMenuOpen(false); setPendOpen(false); setTimeout(() => openNote(n), 300); }
+    }).then(f => { off = f; });
+    return () => off();
+  }, []);
+  useEffect(() => {
+    if (remLoaded.current) AsyncStorage.setItem('misnotas_reminders', JSON.stringify(reminders)).catch(() => {});
+  }, [reminders]);
+  // En el navegador no hay avisos del sistema: se avisa mientras la app está abierta
+  useEffect(() => {
+    if (canNotify()) return;
+    const id = setInterval(() => {
+      const due = remRef.current.filter(r => !r.fired && r.at <= Date.now());
+      if (!due.length) return;
+      due.forEach(r => {
+        const n = notesRef.current.find(x => x.id === r.noteId);
+        const msg = '⏰ ' + ((n && n.title) || tr('note')) + (r.text ? ' — ' + r.text : '');
+        showToast(msg);
+        try { if (typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted') new Notification(msg); } catch (e) {}
+      });
+      setReminders(rs => rs.map(r => (due.some(d => d.id === r.id) ? { ...r, fired: true } : r)));
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
+  async function addReminder(at) {
+    const tg = remTarget;
+    if (!tg) return;
+    const n = notesRef.current.find(x => x.id === tg.noteId);
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let notifId = null;
+    try {
+      notifId = await scheduleAt({
+        title: '⏰ ' + ((n && n.title && n.title.trim()) || tr('note')),
+        body: tg.text || (n ? toPlain(n).split('\n').find(x => x.trim()) || '' : '').slice(0, 140) || tr('rmTitle'),
+        at, data: { noteId: tg.noteId, rid: id },
+      });
+    } catch (e) { showToast(tr('rmNoPerm')); return; }
+    if (!canNotify()) { try { if (typeof window !== 'undefined' && window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {} }
+    setReminders(rs => [...rs, { id, noteId: tg.noteId, text: tg.text || '', at, notifId }]);
+    setRemTarget(null);
+    showToast('⏰ ' + tr('rmSaved', { when: fmtWhen(at, LOCALE) }));
+  }
+  function removeReminder(r) {
+    cancelAt(r.notifId);
+    setReminders(rs => rs.filter(x => x.id !== r.id));
+    showToast(tr('rmDeleted'));
+  }
+  const remFor = id => reminders.filter(r => r.noteId === id && r.at > Date.now());
+
+  /* ✅ Cuántos pendientes hay en todas las notas */
+  const pendCount = useMemo(() => countPending(notes), [notes]);
 
   /* 📊 El reporte del día se guarda como una nota nueva y se abre */
   function createReport({ title, content }) {
@@ -2842,6 +2913,9 @@ function NotesApp() {
             <MaterialCommunityIcons name={current.fav ? 'star' : 'star-outline'} size={20} color={c.text} style={{ marginRight: 14 }} />
             <Text style={s.rowText}>{current.fav ? tr('favRemove') : tr('favAdd')}</Text>
           </TouchableOpacity>
+          <Row icon="bell" label={tr('rmTitle') + (remFor(current.id).length ? ' · ' + fmtWhen(remFor(current.id).sort((a, b) => a.at - b.at)[0].at, LOCALE) : '')} s={s} t={c}
+            onPress={() => { setOptsOpen(false); setTimeout(() => setRemTarget({ noteId: current.id, text: '' }), 250); }}
+            right={<Feather name="chevron-right" size={18} color={c.muted} />} />
           <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
           <Row icon="clipboard" label={tr('tplTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('tplOpen'), 250); }} />
           <Row icon="mic" label={tr('recAudio')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('recStart'), 250); }} />
@@ -3105,6 +3179,18 @@ function NotesApp() {
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
               <Text style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setPendOpen(true)}>
+              <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.navText}>{tr('pdTitle')}</Text>
+                <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('pdMenuHint')}</Text>
+              </View>
+              {pendCount > 0 && (
+                <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: c.inv, fontWeight: '800', fontSize: 12 }}>{pendCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => setReportOpen(true)}>
               <MaterialCommunityIcons name="file-chart-outline" size={19} color={c.muted} style={s.navIcon} />
               <View style={{ flex: 1 }}>
@@ -3280,6 +3366,7 @@ function NotesApp() {
                     {item.locked && <Feather name="lock" size={13} color={c.muted} />}
                     {!!(item.ink && item.ink.length) && <Feather name="edit-2" size={13} color={c.muted} />}
                     {item.fav && <MaterialCommunityIcons name="star" size={14} color={c.muted} />}
+                    {remFor(item.id).length > 0 && <MaterialCommunityIcons name="bell-ring-outline" size={14} color={c.muted} />}
                   </View>
                 </View>
                 {item.locked ? (
@@ -3376,6 +3463,14 @@ function NotesApp() {
       <TransferModal visible={transferOpen} onClose={() => setTransferOpen(false)}
         onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} />
       <Vault visible={vaultOpen} onClose={() => setVaultOpen(false)} s={s} t={c} tr={tr} Glass={Glass} />
+      <Pending visible={pendOpen} onClose={() => setPendOpen(false)} notes={notes} onPatch={(id, ch) => patch(id, ch)}
+        onOpen={n => { setPendOpen(false); setMenuOpen(false); setTimeout(() => openNote(n), 350); }}
+        onRemind={(n, text) => setRemTarget({ noteId: n.id, text })} reminders={reminders}
+        titleSegments={titleSegments} s={s} t={c} tr={tr} Glass={Glass} />
+      <RemindSheet visible={!!remTarget} onClose={() => setRemTarget(null)} target={remTarget}
+        noteTitle={remTarget ? ((notes.find(x => x.id === remTarget.noteId) || {}).title || '') : ''}
+        list={remTarget ? reminders.filter(r => r.noteId === remTarget.noteId && (r.text || '') === (remTarget.text || '')) : []}
+        onSave={addReminder} onDelete={removeReminder} s={s} t={c} tr={tr} Glass={Glass} locale={LOCALE} />
       <DailyReport visible={reportOpen} onClose={() => setReportOpen(false)} notes={notes} plainOf={toPlain} onCreate={createReport}
         s={s} t={c} tr={tr} Glass={Glass} langCode={langCode} locale={LOCALE} />
       {sortSheet}
