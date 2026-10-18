@@ -89,29 +89,71 @@ function reportHtml(text) {
   return out;
 }
 
-/* Fotos de una nota (src de cada <img> de las fotos, no de audios ni videos) */
-function photosOf(n) {
+/* Todo lo que tiene una nota además del texto, tal cual (con su posición, giro, tamaño y ediciones):
+   fotos, notas de voz, videos y links — en el mismo orden en que están en la nota */
+function blockAt(h, i) {                          // el <div ...> completo que empieza en i (con sus divs de adentro)
+  const re = /<\/?div\b[^>]*>/gi;
+  re.lastIndex = i;
+  let depth = 0, m;
+  while ((m = re.exec(h))) {
+    if (m[0][1] === '/') { depth--; if (depth === 0) return h.slice(i, re.lastIndex); }
+    else depth++;
+  }
+  return null;
+}
+function attachmentsOf(n) {
   const h = String((n && n.content) || ''), out = [];
-  const re = /<div class="imgwrap[^"]*"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"/g;
+  const re = /<div class="(imgwrap|audwrap|vidwrap)[^"]*"/g;
   let m;
-  while ((m = re.exec(h)) && out.length < 4) out.push(m[1]);
+  while ((m = re.exec(h))) {
+    const blk = blockAt(h, m.index);
+    if (!blk) continue;
+    out.push({ at: m.index, kind: m[1], html: blk });
+    re.lastIndex = m.index + blk.length;
+  }
+  const seen = {};
+  const lr = /<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  while ((m = lr.exec(h))) {
+    const url = m[1];
+    if (seen[url] || /^(data:|blob:|javascript:)/i.test(url)) continue;
+    seen[url] = 1;
+    const txt = m[2].replace(/<[^>]+>/g, '').trim() || url;
+    out.push({ at: m.index, kind: 'link', html: `<li><a href="${url}">${esc(txt)}</a></li>` });
+  }
+  out.sort((x, y) => x.at - y.at);
   return out;
+}
+/* Color del título de la nota (el mismo que tiene en la lista) */
+function titleColorOf(n) {
+  if (n.titleColor) return n.titleColor;
+  const m = /color:\s*([^;"']+)/i.exec(String(n.titleHtml || ''));
+  return m ? m[1].trim() : null;
+}
+function titleHtmlOf(n, fallback) {
+  if (n.titleHtml && n.titleHtml.replace(/<[^>]+>/g, '').trim()) return n.titleHtml;
+  const t = esc((n.title || '').trim() || fallback);
+  return n.titleColor ? `<span style="color:${n.titleColor}">${t}</span>` : t;
 }
 
 export default function DailyReport({ visible, onClose, notes, plainOf, onCreate, s, t, tr, Glass, langCode, locale }) {
   const C = t;
   const [day, setDay] = useState(() => startOfDay(Date.now()));
   const [off, setOff] = useState({});           // notas que quitaste del reporte
-  const [lang, setLang] = useState('app');      // 'app' | 'en' | 'both'
-  const [photos, setPhotos] = useState(true);
+  const [lang, setLang] = useState(null);       // un código de idioma, o 'both' (español + inglés)
+  const [photos, setPhotos] = useState(true);   // incluir fotos, audios, videos y links
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => { if (visible) { setDay(startOfDay(Date.now())); setOff({}); setErr(''); } }, [visible]);
+  useEffect(() => { if (visible) { setDay(startOfDay(Date.now())); setOff({}); setErr(''); setLang(null); } }, [visible]);
 
   const base = String(langCode || 'es');
-  const second = base.slice(0, 2) === 'en' ? 'es' : 'en';
+  // Español e inglés siempre están; si la app está en otro idioma, ese también
+  const esCode = base.slice(0, 2) === 'es' ? base : 'es';
+  const enCode = base.slice(0, 2) === 'en' ? base : 'en';
+  const other = base.slice(0, 2) !== 'es' && base.slice(0, 2) !== 'en' ? base : null;
+  const pick = lang || base;
+  const both = base.slice(0, 2) === 'en' ? [enCode, esCode] : [esCode, enCode];
   const today = startOfDay(Date.now());
 
   const dayNotes = useMemo(() => (notes || [])
@@ -135,22 +177,30 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
         const body = plainOf(n).slice(0, 6000);
         return `### Note ${i + 1}: ${(n.title || '').trim() || '(no title)'}\nEdited: ${fmtTime(n.updated)}\n${body}`;
       }).join('\n\n').slice(0, 40000);
-      const L1 = lang === 'en' ? 'en' : base;
+      const L1 = pick === 'both' ? both[0] : pick;
       const r1 = await askAI(systemFor(L1), input);
       if (!r1) throw new Error('ai');
       let r2 = '';
-      if (lang === 'both') r2 = await askAI(systemFor(second), input);
+      if (pick === 'both') r2 = await askAI(systemFor(both[1]), input);
       if (!alive.current) return;
 
       let html = `<div style="color:#8e8e93">📅 ${esc(fmtDay(day))} · ${esc(tr('rpNotes', { n: chosen.length }))}</div><div><br></div>` + reportHtml(r1);
-      if (r2) html += `<div><br></div><div>— — —</div><div><b>${esc(langLabel(second))}</b></div><div><br></div>` + reportHtml(r2);
+      if (r2) html += `<div><br></div><div>— — —</div><div><b>${esc(langLabel(both[1]))}</b></div><div><br></div>` + reportHtml(r2);
       if (photos) {
-        const ph = [];
-        chosen.forEach(n => photosOf(n).forEach(src => { if (ph.length < 12) ph.push({ src, cap: (n.title || '').trim() }); }));
-        if (ph.length) {
-          html += `<div><br></div><div><b>📷 ${esc(tr('rpPhotosHead'))}</b></div>`;
-          ph.forEach(p => { html += (p.cap ? `<div style="color:#8e8e93">${esc(p.cap)}</div>` : '') + `<div class="imgwrap"><img src="${p.src}"></div><div><br></div>`; });
-        }
+        let att = '';
+        chosen.forEach(n => {
+          const list = attachmentsOf(n);
+          if (!list.length) return;
+          att += `<div><br></div><div><b>📎 ${titleHtmlOf(n, tr('note'))}</b></div>`;
+          let links = '';
+          list.forEach(x => {
+            if (x.kind === 'link') { links += x.html; return; }
+            if (links) { att += `<ul>${links}</ul>`; links = ''; }
+            att += x.html + '<div><br></div>';
+          });
+          if (links) att += `<ul>${links}</ul>`;
+        });
+        if (att) html += `<div><br></div><div>— — —</div><div><b>${esc(tr('rpAttachHead'))}</b></div>` + att;
       }
       onCreate({ title: `${tr('rpTitle')} — ${fmtDay(day)}`, content: html });
       setBusy(false);
@@ -162,7 +212,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
   }
 
   const chip = (k, label) => {
-    const on = lang === k;
+    const on = pick === k;
     return (
       <TouchableOpacity key={k} onPress={() => setLang(k)} activeOpacity={0.7}
         style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18, borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
@@ -222,7 +272,7 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
                     borderWidth: 1, borderColor: C.border, marginBottom: 8, opacity: locked || empty ? 0.45 : 1 }}>
                   {box(on)}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{(n.title || '').trim() || tr('note')}</Text>
+                    <Text style={{ color: titleColorOf(n) || C.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{(n.title || '').trim() || tr('note')}</Text>
                     {!!sub && <Text style={{ color: C.muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{sub}</Text>}
                   </View>
                   <Text style={{ color: C.muted, fontSize: 12 }}>{fmtTime(n.updated)}</Text>
@@ -234,16 +284,17 @@ export default function DailyReport({ visible, onClose, notes, plainOf, onCreate
           {/* Idioma */}
           <Text style={{ color: C.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 18, marginBottom: 8 }}>{tr('rpLang')}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {chip('app', langLabel(base))}
-            {base.slice(0, 2) !== 'en' && chip('en', langLabel('en'))}
-            {chip('both', tr('rpBoth'))}
+            {chip(esCode, langLabel(esCode))}
+            {chip(enCode, langLabel(enCode))}
+            {!!other && chip(other, langLabel(other))}
+            {chip('both', '🇪🇸 + 🇺🇸 ' + tr('rpBoth'))}
           </View>
 
           {/* Fotos */}
           <TouchableOpacity onPress={() => setPhotos(p => !p)} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }}>
             {box(photos)}
-            <Text style={{ color: C.text, fontSize: 15 }}>{tr('rpPhotos')}</Text>
+            <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{tr('rpAttach')}</Text>
           </TouchableOpacity>
 
           {!!err && <Text style={{ color: '#ff6b6b', fontSize: 14, marginTop: 16 }}>{err}</Text>}

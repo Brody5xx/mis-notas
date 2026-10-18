@@ -48,6 +48,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   #ed ul.checklist>li.done::before{content:'✓';opacity:1;background:${c.text};color:${c.inv};border-color:${c.text};
        font-size:13px;font-weight:900;line-height:14px;text-align:center}
   #ed ul.checklist>li.done{text-decoration:line-through;opacity:.55}
+  #ed ul.checklist>li.donefirst{margin-top:34px}
+  #ed ul.checklist>li.donefirst::after{content:attr(data-head);position:absolute;left:0;top:-28px;font-size:13px;font-weight:700;
+       letter-spacing:.3px;text-decoration:none;color:${c.text};white-space:nowrap;pointer-events:none}
+  #ckAsk{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}
+  #ckAsk.show{display:flex}
+  #ckAsk .box{width:min(320px,86vw);border-radius:22px;padding:20px 18px 14px;background:${c.strong || 'rgba(38,38,38,.95)'};
+       border:1px solid ${c.border};-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color:${c.text};font-family:inherit}
+  #ckAsk h3{margin:0 0 6px;font-size:18px}
+  #ckAsk p{margin:0 0 6px;font-size:14px;line-height:1.4;opacity:.8}
+  #ckAsk .it{margin:8px 0 14px;padding:10px 12px;border-radius:12px;border:1px solid ${c.border};font-size:14px;max-height:90px;overflow:hidden}
+  #ckAsk .row{display:flex;gap:10px}
+  #ckAsk button{flex:1;padding:12px 8px;border-radius:16px;font-size:15px;font-weight:700;border:1px solid ${c.border};
+       background:transparent;color:${c.text}}
+  #ckAsk button.yes{background:${c.text};color:${c.inv};border-color:${c.text}}
   #ed{outline:none;padding:12px 20px 230px;min-height:80vh;font-size:17px;line-height:1.5;word-wrap:break-word}
   #ed:empty:before{content:${C('edPh')};color:${c.muted}}
   ::selection{background:rgba(255,255,255,0.28)}
@@ -1395,13 +1409,97 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var r = li.getBoundingClientRect();
     return (e.clientX - r.left) < 30 ? li : null;
   }
+  /* ✅ Lo hecho baja a "Completados" (como Google Keep) y lo pendiente queda arriba, limpio.
+     Cada casilla recuerda detrás de cuál estaba (data-prev); al desmarcarla vuelve a ese mismo lugar.
+     Antes de marcar o desmarcar se pregunta, para que no haya errores. */
+  var ckSeq = 0;
+  function ckId(li){
+    if (!li.dataset.ck || (li.parentElement && li.parentElement.querySelectorAll('li[data-ck="' + li.dataset.ck + '"]').length > 1))
+      li.dataset.ck = Date.now().toString(36) + (ckSeq++).toString(36) + Math.random().toString(36).slice(2, 5);
+    return li.dataset.ck;
+  }
+  function ckItems(ul){ return Array.prototype.filter.call(ul.children, function(x){ return x.tagName === 'LI'; }); }
+  function ckRefresh(ul){
+    var all = ckItems(ul), done = all.filter(function(x){ return x.classList.contains('done'); });
+    all.forEach(function(x){ x.classList.remove('donefirst'); x.removeAttribute('data-head'); });
+    if (!done.length) return;
+    var undone = all.length - done.length;
+    if (!undone && done.length) { /* todo hecho: igual se muestra el título */ }
+    done[0].classList.add('donefirst');
+    done[0].setAttribute('data-head', '✓ ' + ${J('ckDoneHead')}.split('{n}').join(String(done.length)));
+  }
+  function ckMoveDown(li){
+    var ul = li.parentElement, all = ckItems(ul), i = all.indexOf(li), prev = null;
+    for (var k = i - 1; k >= 0; k--) { if (!all[k].classList.contains('done')) { prev = all[k]; break; } }
+    li.dataset.prev = prev ? ckId(prev) : '^';
+    li.classList.add('done');
+    ul.appendChild(li);                          // al final de "Completados"
+    ckRefresh(ul);
+  }
+  function ckMoveBack(li){
+    var ul = li.parentElement;
+    li.classList.remove('done');
+    var target = li.dataset.prev, guard = 0, anchor = null;
+    while (target && target !== '^' && guard++ < 200) {
+      var p = ul.querySelector('li[data-ck="' + target + '"]');
+      if (!p || p === li) { target = null; break; }
+      if (!p.classList.contains('done')) { anchor = p; break; }
+      target = p.dataset.prev;                    // ese también está hecho: seguir buscando hacia atrás
+    }
+    var firstDone = ckItems(ul).filter(function(x){ return x !== li && x.classList.contains('done'); })[0] || null;
+    if (anchor) ul.insertBefore(li, anchor.nextSibling);
+    else if (target === '^' || li.dataset.prev === '^') ul.insertBefore(li, ul.firstChild);
+    else ul.insertBefore(li, firstDone);           // no se encontró: al final de lo pendiente
+    // si quedó debajo de algo hecho (no debería), subirlo antes de "Completados"
+    var all = ckItems(ul), fd = all.filter(function(x){ return x.classList.contains('done'); })[0];
+    if (fd && all.indexOf(li) > all.indexOf(fd)) ul.insertBefore(li, fd);
+    delete li.dataset.prev;
+    ckRefresh(ul);
+  }
+  // Al abrir la nota: lo que ya estaba marcado baja a "Completados", recordando su lugar
+  function ckTidy(){
+    Array.prototype.forEach.call(ed.querySelectorAll('ul.checklist'), function(ul){
+      var all = ckItems(ul), seenDone = false, needs = false;
+      all.forEach(function(x){ if (x.classList.contains('done')) seenDone = true; else if (seenDone) needs = true; });
+      if (needs && editable) all.forEach(function(x){ if (x.classList.contains('done') && !x.dataset.prev) ckMoveDown(x); else if (x.classList.contains('done')) ul.appendChild(x); });
+      ckRefresh(ul);
+    });
+  }
+  ckTidy();
+  // La ventanita de "¿Estás seguro?"
+  var ckBox = document.createElement('div'); ckBox.id = 'ckAsk';
+  ckBox.innerHTML = '<div class="box"><h3></h3><p></p><div class="it"></div><div class="row"><button class="no"></button><button class="yes"></button></div></div>';
+  document.body.appendChild(ckBox);
+  var ckPending = null;
+  function ckAsk(li){
+    var willDo = !li.classList.contains('done');
+    ckPending = li;
+    ckBox.querySelector('h3').textContent = willDo ? ${J('ckDoneQ')} : ${J('ckUndoQ')};
+    ckBox.querySelector('p').textContent = willDo ? ${J('ckDoneMsg')} : ${J('ckUndoMsg')};
+    ckBox.querySelector('.it').textContent = (li.textContent || '').replace(/​/g, '').trim() || '—';
+    ckBox.querySelector('.no').textContent = ${J('cancel')};
+    ckBox.querySelector('.yes').textContent = willDo ? ${J('ckDoneYes')} : ${J('ckUndoYes')};
+    ckBox.classList.add('show');
+  }
+  ckBox.addEventListener('pointerdown', function(e){ e.stopPropagation(); }, true);
+  ckBox.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b && e.target !== ckBox) return;
+    var li = ckPending; ckPending = null; ckBox.classList.remove('show');
+    if (!b || !b.classList.contains('yes') || !li || !li.parentElement) return;
+    var wasDone = li.classList.contains('done');
+    if (wasDone) ckMoveBack(li); else ckMoveDown(li);
+    showTip(wasDone ? '↩ ' + ${J('ckUndoTip')} : '✓ ' + ${J('ckDoneTip')});
+    changedNow();
+  });
   ed.addEventListener('pointerdown', function(e){
     if (!editable || drawing) return;
     var li = checkboxHit(e);
     if (!li) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    li.classList.toggle('done');
-    changedNow();
+    if (!(li.textContent || '').replace(/​/g, '').trim()) { li.classList.toggle('done'); ckRefresh(li.parentElement); changedNow(); return; }  // casilla vacía: sin preguntar
+    ckAsk(li);
   }, true);
   ed.addEventListener('mousedown', function(e){ if (checkboxHit(e)) e.preventDefault(); }, true);
   // Al presionar Enter en un checklist, la casilla nueva sale sin marcar
@@ -1413,6 +1511,16 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       var li = n && (n.nodeType === 1 ? n : n.parentElement);
       li = li && li.closest ? li.closest('li') : null;
       if (li && li.classList.contains('done') && !li.textContent.replace(/\u200B/g, '').trim()) li.classList.remove('done');
+      if (li && li.parentElement && li.parentElement.classList.contains('checklist')) {
+        delete li.dataset.prev; li.classList.remove('donefirst'); li.removeAttribute('data-head');
+        if (li.dataset.ck) li.dataset.ck = '';
+        var ul = li.parentElement, its = ckItems(ul), fd = its.filter(function(x){ return x.classList.contains('done'); })[0];
+        if (!li.classList.contains('done') && fd && its.indexOf(li) > its.indexOf(fd)) {
+          ul.insertBefore(li, fd);
+          var r = document.createRange(); r.selectNodeContents(li); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+        }
+        ckRefresh(ul);
+      }
     }, 0);
   });
   ed.addEventListener('click', function(e){ if (checkboxHit(e)) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
