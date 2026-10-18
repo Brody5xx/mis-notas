@@ -62,6 +62,35 @@ if [ -f package.json ] && ! grep -q '"expo-sharing"' package.json; then
   fi
 fi
 
+# Paquete para la galería (Bóveda: borrar el original / devolverlo a la galería) — solo la primera vez
+if [ -f package.json ] && ! grep -q '"expo-media-library"' package.json; then
+  echo "  … instalando expo-media-library (para la galería de la Bóveda). Espera un momento..."
+  if npx --yes expo install expo-media-library >/tmp/expo-media-library.log 2>&1; then
+    echo "  ✓ expo-media-library instalado"
+  else
+    echo "  ✗ No pude instalar expo-media-library. Escribe en el Shell:  npx expo install expo-media-library"
+  fi
+fi
+# Registrar los permisos de la galería en app.json (solo una vez)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    e.plugins = e.plugins || [];
+    const ya = e.plugins.some(p => (Array.isArray(p) ? p[0] : p) === "expo-media-library");
+    if (!ya) {
+      e.plugins.push(["expo-media-library", {
+        photosPermission: "La Bóveda necesita la galería para borrar o devolver tus fotos y videos.",
+        savePhotosPermission: "La Bóveda necesita guardar fotos y videos en tu galería.",
+        isAccessMediaLocationEnabled: false
+      }]);
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (permisos de la galería registrados)");
+    }
+  ' || echo "  ✗ No pude registrar los permisos de la galería en app.json"
+fi
+
 echo ""
 if [ "$MAL" -eq 0 ]; then
   echo "¡Listo! $OK archivos actualizados. Ahora abre la app."

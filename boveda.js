@@ -20,9 +20,10 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { shareFile } from './compartir';
 import { vaultKeys, seal, unseal, randomBytes, b64Encode, b64Decode, utf8Encode, utf8Decode } from './respaldo';
 
-let FS = null;
+let FS = null, ML = null;
 if (Platform.OS !== 'web') {
   try { FS = require('expo-file-system'); } catch (e) { FS = null; }
+  try { ML = require('expo-media-library'); } catch (e) { ML = null; }   // galería del teléfono
 }
 
 const MAX_MB = 150;                       // tamaño máximo de un archivo o video
@@ -347,8 +348,11 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       await saveIndex(list);
       setItems(list);
       toast && toast(tr('vSaved'));
+      setBusy('');
+      return true;
     } catch (e) { toast && toast(tr('exportFail')); }
     setBusy('');
+    return false;
   }
   async function pickMedia(kind) {
     setAddOpen(false);
@@ -359,8 +363,42 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       setBusy(tr('vSaving'));
       const bytes = a.base64 ? b64Decode(a.base64) : await readUriBytes(a.uri);
       const name = a.fileName || (kind === 'video' ? 'video.mp4' : 'foto.jpg');
-      await addMedia(kind, { bytes, name, mime: a.mimeType || (kind === 'video' ? 'video/mp4' : 'image/jpeg') });
+      const ok = await addMedia(kind, { bytes, name, mime: a.mimeType || (kind === 'video' ? 'video/mp4' : 'image/jpeg') });
+      if (ok && ML && Platform.OS !== 'web') askDeleteOriginal(a, kind);
     } catch (e) { setBusy(''); toast && toast(tr('exportFail')); }
+  }
+
+  /* ---------- Borrar el original de la galería (después de guardarlo aquí) ---------- */
+  function askDeleteOriginal(a, kind) {
+    Alert.alert(tr('vDelOrigQ'), tr('vDelOrigMsg'), [
+      { text: tr('vKeepOrig'), style: 'cancel' },
+      { text: tr('vDelOrigYes'), style: 'destructive', onPress: () => deleteOriginal(a, kind) },
+    ]);
+  }
+  async function findAsset(a, kind) {
+    if (a.assetId) return a.assetId;
+    // Algunos teléfonos no dicen cuál era: se busca por nombre entre los más recientes
+    const want = (a.fileName || '').toLowerCase();
+    if (!want) return null;
+    let after;
+    for (let page = 0; page < 20; page++) {
+      const r = await ML.getAssetsAsync({ first: 200, after, mediaType: kind === 'video' ? 'video' : 'photo', sortBy: [[ML.SortBy.modificationTime, false]] });
+      const hit = r.assets.find(x => (x.filename || '').toLowerCase() === want);
+      if (hit) return hit.id;
+      if (!r.hasNextPage) break;
+      after = r.endCursor;
+    }
+    return null;
+  }
+  async function deleteOriginal(a, kind) {
+    try {
+      const p = await ML.requestPermissionsAsync(false);
+      if (!p.granted) { toast(tr('vNoPerm')); return; }
+      const id = await findAsset(a, kind);
+      if (!id) { toast(tr('exportFail')); return; }
+      const ok = await ML.deleteAssetsAsync([id]);   // Android muestra su propia confirmación
+      if (ok !== false) toast(tr('vDelOrigDone'));
+    } catch (e) { toast(tr('exportFail')); }
   }
   function pickAnyFile() {
     setAddOpen(false);
@@ -435,6 +473,53 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
     } catch (e) { toast && toast(tr('exportFail')); }
     setBusy('');
   }
+  /* Archivo temporal (con su extensión) de lo que se está viendo */
+  function extOf(it) {
+    const n = it.file.name || '';
+    if (/\.[a-z0-9]{2,5}$/i.test(n)) return '';
+    const m = (it.file.mime || '').split('/')[1] || (it.type === 'video' ? 'mp4' : 'jpg');
+    return '.' + m.replace('jpeg', 'jpg').replace('quicktime', 'mov').replace(/[^\w]/g, '');
+  }
+  async function tmpUriFor() {
+    const it = media.item;
+    if (media.kind !== 'photo' && /\.[a-z0-9]{2,5}$/i.test(media.uri)) return media.uri;
+    const f = new FS.File(FS.Paths.cache, 'r_' + it.id + '_' + (it.file.name || 'archivo').replace(/[^\w.\-]+/g, '_') + extOf(it));
+    try { if (f.exists) f.delete(); } catch (e) {}
+    try { f.create(); } catch (e) {}
+    f.write(media.kind === 'photo' ? b64Decode(media.uri.split(',')[1]) : await readBlob(it.id));
+    tmpFiles.current.push(f);
+    return f.uri;
+  }
+  /* Devolver una foto o video a la galería del teléfono */
+  async function restoreToGallery() {
+    if (!media) return;
+    if (Platform.OS === 'web' || !ML) { shareMedia(); return; }
+    setBusy(tr('vSaving'));
+    try {
+      const p = await ML.requestPermissionsAsync(true);
+      if (!p.granted) { setBusy(''); toast(tr('vNoPerm')); return; }
+      await ML.saveToLibraryAsync(await tmpUriFor());
+      toast(tr('vToGalleryDone'));
+    } catch (e) { toast(tr('exportFail')); }
+    setBusy('');
+  }
+  /* Guardar una copia en la carpeta que elijas */
+  async function saveToFolder() {
+    if (!media) return;
+    if (Platform.OS === 'web' || !FS || !FS.Directory || typeof FS.Directory.pickDirectoryAsync !== 'function') { shareMedia(); return; }
+    let dir;
+    try { dir = await FS.Directory.pickDirectoryAsync(); } catch (e) { return; }   // canceló
+    if (!dir) return;
+    setBusy(tr('vSaving'));
+    try {
+      const it = media.item;
+      const bytes = media.kind === 'photo' ? b64Decode(media.uri.split(',')[1]) : await readBlob(it.id);
+      const f = dir.createFile((it.file.name || 'archivo') + extOf(it), it.file.mime || 'application/octet-stream');
+      f.write(bytes);
+      toast(tr('vToFolderDone'));
+    } catch (e) { toast(tr('exportFail')); }
+    setBusy('');
+  }
   async function shareMedia() {
     if (!media) return;
     const it = media.item;
@@ -481,6 +566,14 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       <Text style={{ flex: 1, color: C.text, fontSize: 20, fontWeight: '800', marginLeft: 6 }} numberOfLines={1}>{title}</Text>
       {right}
     </View>
+  );
+  const pillBtn = (icon, label, onPress) => (
+    <TouchableOpacity key={label} onPress={onPress} disabled={!!busy} activeOpacity={0.7}
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13,
+        borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.08)', opacity: busy ? 0.5 : 1 }}>
+      <Feather name={icon} size={17} color="#fff" />
+      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
   );
   const iconBtn = (name, onPress, color) => (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={{ marginHorizontal: 3 }}>
@@ -611,7 +704,11 @@ export default function Vault({ visible, onClose, s, t, tr, Glass }) {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         {header(it.title, iconBtn('arrow-left', close), iconBtn('share-2', shareMedia))}
         <View style={{ flex: 1 }}>{body}</View>
-        {media.kind === 'file' && <View style={{ padding: 20 }}>{bigBtn(tr('vOpenFile'), shareMedia)}</View>}
+        {media.kind === 'file' && <View style={{ paddingHorizontal: 20 }}>{bigBtn(tr('vOpenFile'), shareMedia)}</View>}
+        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 22 }}>
+          {media.kind !== 'file' && Platform.OS !== 'web' && pillBtn('image', tr('vToGallery'), restoreToGallery)}
+          {pillBtn(Platform.OS === 'web' ? 'download' : 'folder', Platform.OS === 'web' ? tr('download') : tr('vToFolder'), Platform.OS === 'web' ? shareMedia : saveToFolder)}
+        </View>
       </View>
     );
   }
