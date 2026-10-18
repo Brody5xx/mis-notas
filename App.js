@@ -1187,6 +1187,7 @@ function NotesApp() {
       revP.setValue(0);
       setTimeout(() => {
         Animated.timing(revP, { toValue: 1, duration: 460, easing: Easing.bezier(0.65, 0, 0.25, 1), useNativeDriver: true }).start(finish);
+        setTimeout(() => { if (revBusy.current) { revP.setValue(1); finish(); } }, 1200);   // por si acaso: nunca se queda trabada
         startStars(o, true, 460);
       }, 60);
     }
@@ -1509,7 +1510,8 @@ function NotesApp() {
     } else {
       setTimeout(() => {
         Animated.timing(revP, { toValue: 0, duration: 440, easing: Easing.bezier(0.6, 0, 0.35, 1), useNativeDriver: true })
-          .start(() => closeEditorNow());
+          .start(() => { if (revBusy.current) closeEditorNow(); });
+        setTimeout(() => { if (revBusy.current) closeEditorNow(); }, 1200);
         startStars(o, false, 440);
       }, 60);
     }
@@ -3673,10 +3675,14 @@ function NotesApp() {
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
-          <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
-            borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
-            <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
-              <View style={nat ? { position: 'absolute', left: D / 2 - o.x, top: D / 2 - o.y, width, height: winH } : { flex: 1 }}>
+          {/* En Android/iPhone: la nota crece desde donde tocaste (sin vistas gigantes, que Android no puede dibujar) */}
+          <Animated.View style={nat ? { flex: 1, overflow: 'hidden',
+            borderRadius: 28,
+            opacity: revP.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
+            transformOrigin: [o.x, o.y, 0],
+            transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
+            <Animated.View style={{ flex: 1 }}>
+              <View style={{ flex: 1 }}>
                 {editorView}
               </View>
             </Animated.View>
