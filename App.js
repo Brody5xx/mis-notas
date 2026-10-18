@@ -1281,6 +1281,25 @@ function NotesApp() {
   /* Web: el editor se "calienta" en secreto (fuera de la pantalla) al arrancar y luego
      cada ratito mientras estás en la pantalla de inicio. Así, aunque dejes la app quieta un
      tiempo, la nota abre rápido (el navegador no "se duerme" ni olvida lo que ya preparó). */
+  /* Teléfono: mientras el editor se prepara (1–2 s), se ve al instante el título y el texto de la nota */
+  const [edReady, setEdReady] = useState(Platform.OS === 'web');
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    setEdReady(false);
+    if (!currentId) return;
+    const tm = setTimeout(() => setEdReady(true), 5000);   // por si acaso
+    return () => clearTimeout(tm);
+  }, [currentId, editorRev]);
+  const quickView = useMemo(() => {
+    const n = notes.find(x => x.id === currentId);
+    if (!n || Platform.OS === 'web') return null;
+    const raw = String(n.content || '').slice(0, 60000);
+    const txt = raw.replace(/<(audio|video|img|svg)[^>]*>[\s\S]*?<\/\1>|<img[^>]*>/gi, '')
+      .replace(/<br\s*\/?>|<\/(div|p|li|h\d)>/gi, '\n').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+      .replace(/\n{3,}/g, '\n\n').trim().slice(0, 2500);
+    return { title: n.title || '', text: txt };
+  }, [currentId, editorRev]);
   const warmBusy = useRef(false);
   const warmHtmlRef = useRef(null);
   const curRef = useRef(null);
@@ -2540,6 +2559,7 @@ function NotesApp() {
         const base = notesRef.current.find(x => x.id === m.id) || {};
         updateRecord({ ...base, id: m.id, title: m.title || '', content: m.html, html: true });
       }
+      if (m.type === 'ready') setEdReady(true);
       if (m.type === 'crop') setCropOpen(!!m.open);
       if (m.type === 'spellOpen') setSpellOn(!!m.open);
       if (m.type === 'spell') runSpell(m);
@@ -2961,13 +2981,14 @@ function NotesApp() {
                 style={{ border: 'none', width: '100%', height: '100%', backgroundColor: 'transparent' }}
               />
             ) : (
+              <>
               <WebView
                 textZoom={webTextZoom()}
                 ref={webRef}
                 originWhitelist={['*']}
                 source={{ html: editorHtml, baseUrl: EDITOR_BASE }}
                 onMessage={e => onEditorMessage(e.nativeEvent.data)}
-                style={{ flex: 1, backgroundColor: 'transparent' }}
+                style={{ flex: 1, backgroundColor: 'transparent', opacity: edReady ? 1 : 0 }}
                 containerStyle={{ backgroundColor: 'transparent' }}
                 allowFileAccess
                 mediaCapturePermissionGrantType="grant"
@@ -2976,6 +2997,15 @@ function NotesApp() {
                 keyboardDisplayRequiresUserAction={false}
                 hideKeyboardAccessoryView
               />
+              {!edReady && quickView && (
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: quickView.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 18 }} numberOfLines={2}>
+                    {quickView.title || tr('ttlPh')}
+                  </Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 17, lineHeight: 25 }}>{quickView.text}</Text>
+                </View>
+              )}
+              </>
             )}
           </View>
         </KeyboardAvoidingView>

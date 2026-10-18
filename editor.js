@@ -4206,5 +4206,6 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   if (JOB) setTimeout(runExport, 150);
   notifyUndo();
+  try { send({ type: 'ready' }); } catch (e) {}       // ya está listo: la app quita la vista previa rápida
 </script></body></html>`;
 }
