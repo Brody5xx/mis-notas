@@ -1,53 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <radialGradient id="inside" cx="0.5" cy="0.42" r="0.62">
-      <stop offset="0" stop-color="#2a2a3a"/><stop offset=".7" stop-color="#17171f"/><stop offset="1" stop-color="#101016"/>
-    </radialGradient>
-    <radialGradient id="tintA" cx="0.28" cy="0.25" r="0.55"><stop offset="0" stop-color="#ff5fae" stop-opacity=".35"/><stop offset="1" stop-color="#ff5fae" stop-opacity="0"/></radialGradient>
-    <radialGradient id="tintB" cx="0.75" cy="0.8" r="0.55"><stop offset="0" stop-color="#4f8cff" stop-opacity=".38"/><stop offset="1" stop-color="#4f8cff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16161c"/><stop offset="1" stop-color="#0b0b10"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="0.25" cy="0.22" r="0.55"><stop offset="0" stop-color="#ff4fa3" stop-opacity=".95"/><stop offset="1" stop-color="#ff4fa3" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g2" cx="0.82" cy="0.80" r="0.6"><stop offset="0" stop-color="#3d7bff" stop-opacity=".95"/><stop offset="1" stop-color="#3d7bff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g3" cx="0.85" cy="0.18" r="0.4"><stop offset="0" stop-color="#22e1ff" stop-opacity=".7"/><stop offset="1" stop-color="#22e1ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g4" cx="0.18" cy="0.85" r="0.4"><stop offset="0" stop-color="#9b5cff" stop-opacity=".75"/><stop offset="1" stop-color="#9b5cff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".34"/><stop offset=".55" stop-color="#ffffff" stop-opacity=".12"/><stop offset="1" stop-color="#ffffff" stop-opacity=".2"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd1ea"/><stop offset=".35" stop-color="#ffffff" stop-opacity=".55"/><stop offset=".65" stop-color="#ffffff" stop-opacity=".25"/><stop offset="1" stop-color="#9ec3ff"/>
+    </linearGradient>
     <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#ff7ac0"/><stop offset=".5" stop-color="#b08cff"/><stop offset="1" stop-color="#5aa8ff"/>
     </linearGradient>
-    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".30"/><stop offset=".55" stop-color="#ffffff" stop-opacity=".12"/><stop offset="1" stop-color="#ffffff" stop-opacity=".2"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffd1ea"/><stop offset=".35" stop-color="#ffffff" stop-opacity=".6"/><stop offset=".65" stop-color="#ffffff" stop-opacity=".25"/><stop offset="1" stop-color="#9ec3ff"/>
-    </linearGradient>
-    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="16"/></filter>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#000" flood-opacity=".5"/></filter>
+    <filter id="blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="40"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="26" stdDeviation="30" flood-color="#000" flood-opacity=".45"/></filter>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <clipPath id="disc"><circle cx="512" cy="512" r="496"/></clipPath>
-    <clipPath id="card"><rect x="282" y="232" width="460" height="560" rx="86"/></clipPath>
+    <clipPath id="disc"><circle cx="512" cy="520" r="350"/></clipPath>
+    <radialGradient id="tA" cx="0.33" cy="0.3" r="0.4"><stop offset="0" stop-color="#ff5fae" stop-opacity=".30"/><stop offset="1" stop-color="#ff5fae" stop-opacity="0"/></radialGradient>
+    <radialGradient id="tB" cx="0.68" cy="0.72" r="0.4"><stop offset="0" stop-color="#4f8cff" stop-opacity=".34"/><stop offset="1" stop-color="#4f8cff" stop-opacity="0"/></radialGradient>
+    <clipPath id="card"><rect x="262" y="226" width="500" height="590" rx="92"/></clipPath>
   </defs>
   <!-- BG_START -->
   <rect width="1024" height="1024" fill="#101016"/>
   <!-- BG_END -->
   <g id="art">
-    <!-- el círculo: es todo el ícono -->
-    <g clip-path="url(#disc)">
-      <rect width="1024" height="1024" fill="url(#inside)"/>
-      <rect width="1024" height="1024" fill="url(#tintA)"/>
-      <rect width="1024" height="1024" fill="url(#tintB)"/>
-    </g>
-    <circle cx="512" cy="512" r="470" fill="none" stroke="url(#ring)" stroke-width="30" opacity=".55" filter="url(#soft)"/>
-    <circle cx="512" cy="512" r="470" fill="none" stroke="url(#ring)" stroke-width="16"/>
-    <!-- la nota de vidrio -->
-    <g filter="url(#shadow)"><rect x="282" y="232" width="460" height="560" rx="86" fill="url(#glass)"/></g>
-    <g clip-path="url(#card)"><ellipse cx="400" cy="250" rx="280" ry="110" fill="#fff" opacity=".16" filter="url(#soft)"/></g>
-    <rect x="282" y="232" width="460" height="560" rx="86" fill="none" stroke="url(#rim)" stroke-width="7"/>
-    <rect x="352" y="330" width="230" height="38" rx="19" fill="#ffffff"/>
-    <rect x="352" y="414" width="320" height="24" rx="12" fill="#ffffff" opacity=".72"/>
-    <rect x="352" y="474" width="276" height="24" rx="12" fill="#ffffff" opacity=".72"/>
-    <rect x="352" y="534" width="304" height="24" rx="12" fill="#ffffff" opacity=".72"/>
-    <circle cx="382" cy="660" r="32" fill="#ffffff"/>
-    <path d="M366 660 l11 12 l23 -25" fill="none" stroke="#4a55ff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="432" y="648" width="190" height="24" rx="12" fill="#ffffff" opacity=".72"/>
-    <!-- estrellitas -->
-    <g fill="#ffffff" filter="url(#glow)">
-      <path d="M752 198 C758 236 768 246 806 252 C768 258 758 268 752 306 C746 268 736 258 698 252 C736 246 746 236 752 198 Z"/>
-      <path d="M816 330 C819 348 824 353 842 356 C824 359 819 364 816 382 C813 364 808 359 790 356 C808 353 813 348 816 330 Z" opacity=".9"/>
-      <path d="M232 744 C235 764 241 770 261 773 C241 776 235 782 232 802 C229 782 223 776 203 773 C223 770 229 764 232 744 Z" opacity=".85"/>
-    </g>
+  <g clip-path="url(#disc)">
+    <rect width="1024" height="1024" fill="#16161f"/>
+    <rect width="1024" height="1024" fill="url(#tA)"/>
+    <rect width="1024" height="1024" fill="url(#tB)"/>
+  </g>
+  <!-- el círculo líquido (la animación al abrir una nota) -->
+  <circle cx="512" cy="520" r="350" fill="none" stroke="url(#ring)" stroke-width="18" opacity=".4" filter="url(#soft)"/>
+  <circle cx="512" cy="520" r="350" fill="none" stroke="url(#ring)" stroke-width="8" opacity=".85"/>
+  <!-- la tarjeta de vidrio (la nota) -->
+  <g filter="url(#shadow)">
+    <rect x="262" y="226" width="500" height="590" rx="92" fill="url(#glass)"/>
+  </g>
+  <g clip-path="url(#card)">
+    <rect x="262" y="226" width="500" height="590" fill="#ffffff" opacity=".04"/>
+    <ellipse cx="380" cy="250" rx="300" ry="120" fill="#fff" opacity=".18" filter="url(#soft)"/>
+  </g>
+  <rect x="262" y="226" width="500" height="590" rx="92" fill="none" stroke="url(#rim)" stroke-width="7"/>
+  <!-- renglones y una casilla marcada -->
+  <rect x="338" y="330" width="250" height="40" rx="20" fill="#ffffff"/>
+  <rect x="338" y="420" width="348" height="26" rx="13" fill="#ffffff" opacity=".7"/>
+  <rect x="338" y="484" width="300" height="26" rx="13" fill="#ffffff" opacity=".7"/>
+  <rect x="338" y="548" width="330" height="26" rx="13" fill="#ffffff" opacity=".7"/>
+  <circle cx="370" cy="680" r="34" fill="#ffffff"/>
+  <path d="M353 680 l12 13 l24 -27" fill="none" stroke="#3d4cff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="424" y="667" width="200" height="26" rx="13" fill="#ffffff" opacity=".7"/>
+  <!-- estrellitas -->
+  <g fill="#ffffff" filter="url(#glow)">
+    <path d="M770 196 C776 236 786 246 826 252 C786 258 776 268 770 308 C764 268 754 258 714 252 C754 246 764 236 770 196 Z"/>
+    <path d="M846 330 C849 349 854 354 873 357 C854 360 849 365 846 384 C843 365 838 360 819 357 C838 354 843 349 846 330 Z" opacity=".9"/>
+    <path d="M200 760 C203 781 209 787 230 790 C209 793 203 799 200 820 C197 799 191 793 170 790 C191 787 197 781 200 760 Z" opacity=".85"/>
+  </g>
   </g>
 </svg>
