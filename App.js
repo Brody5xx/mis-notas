@@ -3135,9 +3135,9 @@ function NotesApp() {
               {/* El nombre en dos renglones: siempre se ve completo sin hacer el panel más ancho */}
               <View style={{ flex: 1, paddingHorizontal: 10 }}>
                 <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
-                  style={{ color: c.text, fontSize: 19, fontWeight: '300', letterSpacing: 4, lineHeight: 22 }}>BEST</Text>
+                  style={{ color: c.text, fontSize: 19, fontWeight: '800', letterSpacing: 3, lineHeight: 22 }}>BEST</Text>
                 <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
-                  style={{ color: c.muted, fontSize: 15, fontWeight: '300', letterSpacing: 5, lineHeight: 18 }}>NOTES</Text>
+                  style={{ color: c.muted, fontSize: 15, fontWeight: '700', letterSpacing: 4, lineHeight: 18 }}>NOTES</Text>
               </View>
               <DoneBtn onPress={() => closeMenu()} t={c} />
             </View>
