@@ -1774,9 +1774,45 @@ function NotesApp() {
   /* ---------- Transferir notas (archivo de respaldo) ---------- */
   /* Los audios y videos se guardan aparte (en el almacén del navegador). Para pasar las notas a otro
      teléfono o a la app instalada, se meten dentro de la nota; al abrirla allá se vuelven a guardar aparte. */
+  /* 📱 En el teléfono los audios/videos viven dentro del almacén del editor (no lo ve la app directo).
+     Un "editor" invisible los saca y los manda a la app, uno por uno. */
+  const [mediaJob, setMediaJob] = useState(null);
+  const mediaRes = useRef(null);
+  function fetchMediaNative(aids) {
+    return new Promise(resolve => {
+      const got = {};
+      const key = Date.now();
+      const tm = setTimeout(() => { mediaRes.current = null; setMediaJob(null); resolve(got); }, 120000);
+      mediaRes.current = (m) => {
+        if (m.type === 'media' && m.aid && m.data) got[m.aid] = m.data;
+        if (m.type === 'mediaDone') { clearTimeout(tm); mediaRes.current = null; setMediaJob(null); resolve(got); }
+      };
+      const html = '<!DOCTYPE html><html><body><script>(function(){var A=' + JSON.stringify(aids) + ';' +
+        'function post(o){window.ReactNativeWebView.postMessage(JSON.stringify(o));}' +
+        'var rq;try{rq=indexedDB.open("misnotas_audios",1);}catch(e){post({type:"mediaDone",err:String(e)});return;}' +
+        'rq.onupgradeneeded=function(){rq.result.createObjectStore("a");};' +
+        'rq.onerror=function(){post({type:"mediaDone",err:"open"});};' +
+        'rq.onsuccess=function(){var db=rq.result,i=0;function next(){if(i>=A.length){post({type:"mediaDone"});return;}var aid=A[i++];' +
+        'try{var g=db.transaction("a").objectStore("a").get(aid);g.onsuccess=function(){var b=g.result;if(!b){next();return;}' +
+        'var fr=new FileReader();fr.onload=function(){post({type:"media",aid:aid,data:String(fr.result)});setTimeout(next,30);};fr.onerror=function(){next();};fr.readAsDataURL(b);};' +
+        'g.onerror=function(){next();};}catch(e){next();}}next();};})();</scr' + 'ipt></body></html>';
+      setMediaJob({ key, html });
+    });
+  }
   async function withMediaInside(list) {
-    if (Platform.OS !== 'web' || typeof indexedDB === 'undefined') return list;
     if (!list.some(n => /data-aid="/.test(String(n.content || '')))) return list;
+    if (Platform.OS !== 'web') {
+      const aids = [];
+      list.forEach(n => (String(n.content || '').match(/data-aid="([^"]+)"/g) || []).forEach(x => { const a = x.slice(10, -1); if (!aids.includes(a)) aids.push(a); }));
+      const got = await fetchMediaNative(aids);
+      return list.map(n => {
+        let h = String(n.content || '');
+        if (!/data-aid="/.test(h)) return n;
+        Object.keys(got).forEach(aid => { h = h.split('data-aid="' + aid + '"').join('src="' + got[aid] + '"'); });
+        return { ...n, content: h };
+      });
+    }
+    if (typeof indexedDB === 'undefined') return list;
     let db;
     try {
       db = await new Promise((ok, no) => {
@@ -3759,6 +3795,12 @@ function NotesApp() {
               </View>
             </Animated.View>
           </Animated.View>
+        </View>
+      )}
+      {mediaJob && Platform.OS !== 'web' && (
+        <View key={mediaJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01 }}>
+          <WebView originWhitelist={['*']} source={{ html: mediaJob.html, baseUrl: EDITOR_BASE }} style={{ width: 2, height: 2 }}
+            onMessage={e => { try { const m = JSON.parse(e.nativeEvent.data); mediaRes.current && mediaRes.current(m); } catch (er) {} }} />
         </View>
       )}
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
