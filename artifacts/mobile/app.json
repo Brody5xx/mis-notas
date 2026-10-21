@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Best Notes",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/bestnotes/icon.png",
+    "scheme": "mobile",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "icon": "./assets/bestnotes/icon.png",
+      "bundleIdentifier": "com.luisell.bestnotes"
+    },
+    "android": {
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/bestnotes/adaptive-foreground.png",
+        "backgroundImage": "./assets/bestnotes/adaptive-background.png",
+        "backgroundColor": "#101016"
+      },
+      "package": "com.luisell.bestnotes"
+    },
+    "web": {
+      "favicon": "./assets/bestnotes/favicon.png",
+      "name": "Best Notes",
+      "shortName": "Best Notes"
+    },
+    "plugins": [
+      "./translucido-plugin.js",
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "La Bóveda necesita la galería para borrar o devolver tus fotos y videos.",
+          "savePhotosPermission": "La Bóveda necesita guardar fotos y videos en tu galería.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "db19c560-3953-4919-a70c-c631d3a8c4fd"
+      }
+    }
+  }
+}
