@@ -4438,6 +4438,18 @@ for (const code in DEVT) S[code].devBy = DEVT[code];
 for (const code in S) S[code].appName = 'Best Notes';
 
 
+/* Textos nuevos: formato de hora (12 h / 24 h) y enviar por mensaje de texto */
+const HRK = ['hourFmt', 'h12', 'h24', 'shareSms'];
+const HRT = {
+  es: ['Formato de hora', '🕐 Hora en 12 h (AM/PM)', '🕐 Hora en 24 h', 'Mensaje de texto (SMS)'],
+  en: ['Time format', '🕐 12-hour time (AM/PM)', '🕐 24-hour time', 'Text message (SMS)'],
+  pt: ['Formato da hora', '🕐 Hora em 12 h (AM/PM)', '🕐 Hora em 24 h', 'Mensagem de texto (SMS)'],
+  fr: ["Format de l'heure", '🕐 Heure sur 12 h (AM/PM)', '🕐 Heure sur 24 h', 'Message texte (SMS)'],
+  it: ['Formato ora', '🕐 Ora in 12 h (AM/PM)', '🕐 Ora in 24 h', 'Messaggio di testo (SMS)'],
+  de: ['Zeitformat', '🕐 12-Stunden-Format (AM/PM)', '🕐 24-Stunden-Format', 'Textnachricht (SMS)'],
+};
+for (const code in HRT) { S[code] = S[code] || {}; HRK.forEach((k, i) => { S[code][k] = HRT[code][i]; }); }
+
 /* ============================================================
    VARIANTES POR PAÍS
    Algunos idiomas se hablan en varios países. Cada variante usa los

@@ -6,7 +6,8 @@
    · En el teléfono usa expo-notifications.
    · En el navegador solo avisa si la app está abierta.
    ============================================================ */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getHour12 } from './hora';
 import { View, Text, TouchableOpacity, Modal, ScrollView, Platform } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -83,8 +84,15 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
   const [min, setMin] = useState(0);
   const [pm, setPm] = useState(false);
   const [custom, setCustom] = useState(false);
+  const [hh, setHh] = useState(8);                     // hora en formato 24 h
+  useEffect(() => { setPm(hh >= 12); setH12(hh % 12 === 0 ? 12 : hh % 12); }, [hh]);
+  const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).getTime(); });
+  const is24 = getHour12() === false || (getHour12() === null && /13/.test(new Date(2020, 0, 1, 13).toLocaleTimeString(locale, { hour: 'numeric' })));
 
-  useEffect(() => { if (visible) { setDay(sod(Date.now() + DAY)); setH12(8); setMin(0); setPm(false); setCustom(false); } }, [visible]);
+  useEffect(() => { if (visible) {
+    setDay(sod(Date.now() + DAY)); setH12(8); setMin(0); setPm(false); setCustom(false); setHh(8);
+    const d = new Date(Date.now() + DAY); setMonth(new Date(d.getFullYear(), d.getMonth(), 1).getTime());
+  } }, [visible]);
 
   const now = Date.now();
   const at = (dayMs, h24, m) => { const d = new Date(dayMs); d.setHours(h24, m, 0, 0); return d.getTime(); };
@@ -108,17 +116,80 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
   })();
   const pad = x => (x < 10 ? '0' : '') + x;
 
-  const stepper = (val, set, list2, fmt) => (
-    <View style={{ alignItems: 'center', gap: 6 }}>
-      <TouchableOpacity onPress={() => set(list2[(list2.indexOf(val) + 1) % list2.length])} hitSlop={8} style={{ padding: 6 }}>
-        <Feather name="chevron-up" size={24} color={C.text} />
-      </TouchableOpacity>
-      <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 34, fontWeight: '800', minWidth: 58, textAlign: 'center' }}>{fmt(val)}</Text>
-      <TouchableOpacity onPress={() => set(list2[(list2.indexOf(val) - 1 + list2.length) % list2.length])} hitSlop={8} style={{ padding: 6 }}>
-        <Feather name="chevron-down" size={24} color={C.text} />
-      </TouchableOpacity>
-    </View>
-  );
+  /* Flechitas: un toque = 1; si la dejas presionada, sigue sola cada vez más rápido */
+  const rep = useRef(null);
+  const stopRep = () => { if (rep.current) { clearTimeout(rep.current); rep.current = null; } };
+  useEffect(() => stopRep, []);
+  const startRep = (fn) => {
+    stopRep(); let n = 0;
+    const go = () => { fn(); n++; rep.current = setTimeout(go, n < 6 ? 170 : 70); };
+    rep.current = setTimeout(go, 380);
+  };
+  const stepper = (val, set, lo, hi, fmt) => {
+    const up = () => set(v => (v >= hi ? lo : v + 1));
+    const dn = () => set(v => (v <= lo ? hi : v - 1));
+    return (
+      <View style={{ alignItems: 'center', gap: 6 }}>
+        <TouchableOpacity onPress={up} onPressIn={() => startRep(up)} onPressOut={stopRep} hitSlop={8} style={{ padding: 6 }}>
+          <Feather name="chevron-up" size={26} color={C.text} />
+        </TouchableOpacity>
+        <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 34, fontWeight: '800', minWidth: 58, textAlign: 'center' }}>{fmt(val)}</Text>
+        <TouchableOpacity onPress={dn} onPressIn={() => startRep(dn)} onPressOut={stopRep} hitSlop={8} style={{ padding: 6 }}>
+          <Feather name="chevron-down" size={26} color={C.text} />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+  /* 🗓️ Calendario del mes: sin límite, puedes ir a cualquier mes y año */
+  const cal = (() => {
+    const m0 = new Date(month), y = m0.getFullYear(), mo = m0.getMonth();
+    const first = new Date(y, mo, 1).getDay();             // 0 = domingo
+    const nDays = new Date(y, mo + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < first; i++) cells.push(null);
+    for (let d = 1; d <= nDays; d++) cells.push(new Date(y, mo, d).getTime());
+    while (cells.length % 7) cells.push(null);
+    let title = '';
+    try { title = m0.toLocaleDateString(locale, { month: 'long', year: 'numeric' }); } catch (e) { title = (mo + 1) + '/' + y; }
+    const wk = [];
+    for (let i = 0; i < 7; i++) { try { wk.push(new Date(2023, 0, 1 + i).toLocaleDateString(locale, { weekday: 'narrow' })); } catch (e) { wk.push('DLMMJVS'[i]); } }
+    const today = sod(Date.now());
+    const canBack = new Date(y, mo, 1).getTime() > new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    const W = '14.2857%';
+    return (
+      <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+          <TouchableOpacity disabled={!canBack} onPress={() => setMonth(new Date(y, mo - 1, 1).getTime())} hitSlop={10} style={{ padding: 6, opacity: canBack ? 1 : 0.25 }}>
+            <Feather name="chevron-left" size={22} color={C.text} />
+          </TouchableOpacity>
+          <Text maxFontSizeMultiplier={1.3} style={{ flex: 1, textAlign: 'center', color: C.text, fontSize: 16, fontWeight: '800', textTransform: 'capitalize' }}>{title}</Text>
+          <TouchableOpacity onPress={() => setMonth(new Date(y, mo + 1, 1).getTime())} hitSlop={10} style={{ padding: 6 }}>
+            <Feather name="chevron-right" size={22} color={C.text} />
+          </TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row' }}>
+          {wk.map((w, i) => <Text key={i} maxFontSizeMultiplier={1.2} style={{ width: W, textAlign: 'center', color: C.muted, fontSize: 12, fontWeight: '700' }}>{w}</Text>)}
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
+          {cells.map((d, i) => {
+            if (!d) return <View key={'e' + i} style={{ width: W, height: 40 }} />;
+            const past = d < today, on = d === day, isToday = d === today;
+            return (
+              <TouchableOpacity key={d} disabled={past} onPress={() => setDay(d)} activeOpacity={0.7}
+                style={{ width: W, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: on ? C.text : 'transparent', borderWidth: isToday && !on ? 1 : 0, borderColor: C.text }}>
+                  <Text maxFontSizeMultiplier={1.2} style={{ color: on ? C.inv : past ? C.muted : C.text, opacity: past ? 0.35 : 1, fontSize: 15, fontWeight: on ? '800' : '600' }}>
+                    {new Date(d).getDate()}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  })();
   const chip = (key, label, on, onPress) => (
     <TouchableOpacity key={key} onPress={onPress} activeOpacity={0.7}
       style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: on ? C.text : C.border, backgroundColor: on ? C.text : 'transparent' }}>
@@ -172,17 +243,19 @@ export default function RemindSheet({ visible, onClose, target, noteTitle, list,
             {/* Escoger día y hora */}
             {custom && (
               <View style={{ marginTop: 16 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 20 }}>
-                  {days.map(d => chip('d' + d, dayLabel(d), d === day, () => setDay(d)))}
-                </ScrollView>
+                {cal}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 16 }}>
-                  {stepper(h12, setH12, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], x => String(x))}
+                  {is24
+                    ? stepper(hh, setHh, 0, 23, pad)
+                    : stepper(h12, setH12, 1, 12, x => String(x))}
                   <Text maxFontSizeMultiplier={1.3} style={{ color: C.text, fontSize: 34, fontWeight: '800' }}>:</Text>
-                  {stepper(min, setMin, [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], pad)}
-                  <View style={{ gap: 8, marginLeft: 8 }}>
-                    {chip('am', 'AM', !pm, () => setPm(false))}
-                    {chip('pm', 'PM', pm, () => setPm(true))}
-                  </View>
+                  {stepper(min, setMin, 0, 59, pad)}
+                  {!is24 && (
+                    <View style={{ gap: 8, marginLeft: 8 }}>
+                      {chip('am', 'AM', !pm, () => setPm(false))}
+                      {chip('pm', 'PM', pm, () => setPm(true))}
+                    </View>
+                  )}
                 </View>
                 <Text maxFontSizeMultiplier={1.3} style={{ color: pickOk ? C.text : '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 12 }}>
                   {pickOk ? fmtWhen(pickAt, locale) : tr('rmPast')}

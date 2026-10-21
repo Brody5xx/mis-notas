@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
-  Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share,
+  Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share, Linking,
   KeyboardAvoidingView, Platform, useWindowDimensions, Dimensions, AppState, ActivityIndicator, Animated, Easing,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +19,7 @@ import Pending, { countPending, pendingOf, markDoneHtml } from './pendientes';
 import { groupsOf as matGroupsOf, loadMaterials } from './matlista';
 import Materials from './materiales';
 import { ICON_URI } from './icono';
+import { setHour12, getHour12 } from './hora';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useInsets, webTextZoom } from './pantalla';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
@@ -1300,6 +1301,18 @@ function NotesApp() {
       .replace(/\n{3,}/g, '\n\n').trim().slice(0, 2500);
     return { title: n.title || '', text: txt };
   }, [currentId, editorRev]);
+  /* 🕐 Formato de hora: 12 h (AM/PM) o 24 h — se guarda y lo usa toda la app */
+  const [hourFmt, setHourFmt] = useState(null);
+  useEffect(() => {
+    AsyncStorage.getItem('hourFmt').then(v => { if (v === '12' || v === '24') { setHour12(v === '12'); setHourFmt(v); } }).catch(() => {});
+  }, []);
+  const hourNow = hourFmt || (/13/.test(new Date(2020, 0, 1, 13).toLocaleTimeString(LOCALE, { hour: 'numeric' })) ? '24' : '12');
+  function toggleHourFmt() {
+    const v = hourNow === '12' ? '24' : '12';
+    setHour12(v === '12'); setHourFmt(v);
+    AsyncStorage.setItem('hourFmt', v).catch(() => {});
+    showToast(v === '12' ? tr('h12') : tr('h24'));
+  }
   const warmBusy = useRef(false);
   const warmHtmlRef = useRef(null);
   const curRef = useRef(null);
@@ -1857,11 +1870,16 @@ function NotesApp() {
   }
 
   /* ---------- Compartir ---------- */
-  async function shareText(list) {
+  async function shareText(list, sms) {
     const text = list.map(n => {
       const t = (n.title || '').trim() || tr('untitled');
       return n.locked && !unlocked[n.id] ? `${t}\n(${tr('lockedNote')})` : `${t}\n${toPlain(n)}`.trim();
     }).join('\n\n────────\n\n');
+    if (sms) {   // 💬 mensaje de texto normal (la app de Mensajes del teléfono)
+      const url = (Platform.OS === 'ios' ? 'sms:&body=' : 'sms:?body=') + encodeURIComponent(text);
+      try { await Linking.openURL(url); } catch (e) { showToast(tr('shareFail')); }
+      return;
+    }
     try {
       await Share.share({ message: text, title: list.length === 1 ? (list[0].title || tr('note')) : tr('myNotes') });
     } catch (e) {
@@ -1876,7 +1894,7 @@ function NotesApp() {
       const list = notesRef.current.filter(n => ids.includes(n.id));
       if (!list.length) return;
       if (selMode) clearSelection();
-      if (kind === 'text') { shareText(list); return; }
+      if (kind === 'text' || kind === 'sms') { shareText(list, kind === 'sms'); return; }
       const items = [];
       for (const n of list) {
         const locked = !!n.locked && !unlocked[n.id];
@@ -2507,6 +2525,7 @@ function NotesApp() {
           <Row icon="image" label={tr('shareImg')} s={s} t={c} onPress={() => exportNotes('img', shareFor)} />
         )}
         <Row icon="align-left" label={tr('shareText')} s={s} t={c} onPress={() => exportNotes('text', shareFor)} />
+        {Platform.OS !== 'web' && <Row icon="message-circle" label={tr('shareSms')} s={s} t={c} onPress={() => exportNotes('sms', shareFor)} />}
       </Sheet>
       {exportJob && (Platform.OS === 'web' ? (
         <iframe key={exportJob.key} ref={exportFrame} srcDoc={exportJob.html} title="export"
@@ -3382,6 +3401,16 @@ function NotesApp() {
               <Feather name="globe" size={19} color={c.muted} style={s.navIcon} />
               <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('language')}</Text>
               <Text maxFontSizeMultiplier={1.3} style={s.navCount} numberOfLines={1}>{langName}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={toggleHourFmt}>
+              <Feather name="clock" size={19} color={c.muted} style={s.navIcon} />
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('hourFmt')}</Text>
+              <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: c.border, borderRadius: 12, overflow: 'hidden' }}>
+                {['12', '24'].map(v => (
+                  <Text key={v} maxFontSizeMultiplier={1.2} style={{ paddingHorizontal: 9, paddingVertical: 4, fontSize: 13, fontWeight: '700',
+                    color: hourNow === v ? c.inv : c.muted, backgroundColor: hourNow === v ? c.text : 'transparent' }}>{v} h</Text>
+                ))}
+              </View>
             </TouchableOpacity>
             {/* Sobre la app */}
             <View style={s.sep} />

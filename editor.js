@@ -1,3 +1,4 @@
+import { hourScript, getHour12 } from './hora';
 
 /* ============================================================
    editor.js — el editor de notas (texto, fotos, recorte y dibujo)
@@ -636,6 +637,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 </div>
 
 <script>
+  ${hourScript(getHour12())}
   function $(id){ return document.getElementById(id); }
   var noteId = ${JSON.stringify(id)};
   var editable = ${editable ? 'true' : 'false'};
@@ -3063,6 +3065,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
             'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
       .filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } })[0] || null;
   }
+  function vidPlayable(blob){                               // ¿el video se puede abrir y ver?
+    return new Promise(function(ok){
+      var v = document.createElement('video'), u = URL.createObjectURL(blob), done = false;
+      var fin = function(r){ if (done) return; done = true; try { v.removeAttribute('src'); v.load(); } catch (e) {} URL.revokeObjectURL(u); ok(r); };
+      v.muted = true; v.preload = 'auto';
+      v.onloadeddata = function(){ fin(!!(v.videoWidth && v.videoHeight)); };
+      v.onerror = function(){ fin(false); };
+      setTimeout(function(){ fin(false); }, 7000);
+      v.src = u;
+    });
+  }
   function vidShrink(w){
     var mime = vidShrinkMime();
     if (!mime) { showTip(${J('vidNoShrink')}); return; }
@@ -3125,10 +3138,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       });
     }).then(function(nb){
       if (!nb.size || nb.size >= oldSize) return null;       // si no quedó más pequeño, se queda el original
-      return audPut(nb).then(function(aid){
+      return vidPlayable(nb).then(function(okv){              // si el video nuevo no se puede ver, se queda el original
+        if (!okv) return null;
+        return audPut(nb).then(function(aid){
         v0.removeAttribute('src'); v0.setAttribute('data-aid', aid); v0._loading = false;
         w.setAttribute('data-size', nb.size);
         return nb.size;
+        });
       });
     }).then(function(ns){
       lbl.textContent = '🎬 ' + fmtBytes(ns || oldSize);
