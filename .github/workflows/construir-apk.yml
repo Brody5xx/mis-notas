@@ -39,7 +39,7 @@ jobs:
       - name: Poner la última versión de Best Notes
         run: |
           export HOME="$GITHUB_WORKSPACE"
-          curl -fsSL "https://raw.githubusercontent.com/Brody5xx/mis-notas/${GITHUB_SHA}/actualizar.sh" -o /tmp/actualizar.sh
+          curl -fsSL "https://raw.githubusercontent.com/Brody5xx/mis-notas/main/actualizar.sh?$(date +%s)" -o /tmp/actualizar.sh
           sh /tmp/actualizar.sh
       - name: Guardar los cambios (para que Expo los use)
         working-directory: workspace
