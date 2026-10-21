@@ -4439,14 +4439,14 @@ for (const code in S) S[code].appName = 'Best Notes';
 
 
 /* Textos nuevos: formato de hora (12 h / 24 h) y enviar por mensaje de texto */
-const HRK = ['hourFmt', 'h12', 'h24', 'shareSms'];
+const HRK = ['hourFmt', 'h12', 'h24', 'shareSms', 'vidMute', 'vidMuting', 'vidMuted'];
 const HRT = {
-  es: ['Formato de hora', '🕐 Hora en 12 h (AM/PM)', '🕐 Hora en 24 h', 'Mensaje de texto (SMS)'],
-  en: ['Time format', '🕐 12-hour time (AM/PM)', '🕐 24-hour time', 'Text message (SMS)'],
-  pt: ['Formato da hora', '🕐 Hora em 12 h (AM/PM)', '🕐 Hora em 24 h', 'Mensagem de texto (SMS)'],
-  fr: ["Format de l'heure", '🕐 Heure sur 12 h (AM/PM)', '🕐 Heure sur 24 h', 'Message texte (SMS)'],
-  it: ['Formato ora', '🕐 Ora in 12 h (AM/PM)', '🕐 Ora in 24 h', 'Messaggio di testo (SMS)'],
-  de: ['Zeitformat', '🕐 12-Stunden-Format (AM/PM)', '🕐 24-Stunden-Format', 'Textnachricht (SMS)'],
+  es: ['Formato de hora', '🕐 Hora en 12 h (AM/PM)', '🕐 Hora en 24 h', 'Mensaje de texto (SMS)', 'Quitar sonido', '🔇 Quitando sonido… {n}%', '🔇 Listo: el video ya no tiene sonido'],
+  en: ['Time format', '🕐 12-hour time (AM/PM)', '🕐 24-hour time', 'Text message (SMS)', 'Remove sound', '🔇 Removing sound… {n}%', '🔇 Done: the video has no sound now'],
+  pt: ['Formato da hora', '🕐 Hora em 12 h (AM/PM)', '🕐 Hora em 24 h', 'Mensagem de texto (SMS)', 'Tirar o som', '🔇 Tirando o som… {n}%', '🔇 Pronto: o vídeo está sem som'],
+  fr: ["Format de l'heure", '🕐 Heure sur 12 h (AM/PM)', '🕐 Heure sur 24 h', 'Message texte (SMS)', 'Retirer le son', '🔇 Retrait du son… {n}%', '🔇 Fait : la vidéo est sans son'],
+  it: ['Formato ora', '🕐 Ora in 12 h (AM/PM)', '🕐 Ora in 24 h', 'Messaggio di testo (SMS)', "Togli l'audio", "🔇 Tolgo l'audio… {n}%", '🔇 Fatto: il video è senza audio'],
+  de: ['Zeitformat', '🕐 12-Stunden-Format (AM/PM)', '🕐 24-Stunden-Format', 'Textnachricht (SMS)', 'Ton entfernen', '🔇 Ton wird entfernt… {n}%', '🔇 Fertig: das Video hat keinen Ton mehr'],
 };
 for (const code in HRT) { S[code] = S[code] || {}; HRK.forEach((k, i) => { S[code][k] = HRT[code][i]; }); }
 

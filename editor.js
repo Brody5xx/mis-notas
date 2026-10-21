@@ -370,7 +370,9 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .vidbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.08)}
   .vidbar .vidsz{flex:1;font-size:13px;color:${c.muted};font-variant-numeric:tabular-nums}
   .vidbar button{border:1px solid ${c.border};background:transparent;color:${c.text};border-radius:14px;padding:5px 12px;font-size:13px;font-weight:700;font-family:inherit;display:flex;align-items:center;gap:4px}
-  .vidbar .vidx{padding:5px 8px}
+  .vidbar .vidx,.vidbar .vidmu{padding:5px 8px}
+  .vidbar .vidsz{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vidbar{gap:8px}
   ${editable ? '' : '.vidbar button,.audwrap .audx{display:none !important}'}
   #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
   body.recording #dock,body.recording #rwChip{display:none !important}
@@ -3036,9 +3038,15 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<video controls playsinline preload="metadata"' + (aid ? ' data-aid="' + aid + '"' : ' src="' + src + '"') + '></video>' +
       '<div class="vidbar"><span class="vidsz">🎬 ' + fmtBytes(size) + '</span>' +
       '<button class="vidsh" type="button">' + VID_SHRINK_SVG + ' ' + rwEsc(${J('vidShrink')}) + '</button>' +
-      '<button class="vidx" type="button">' + DEL_SVG + '</button></div></div>';
+      VID_MUTE_BTN + '<button class="vidx" type="button">' + DEL_SVG + '</button></div></div>';
   }
+  var VID_MUTE_BTN = '<button class="vidmu" type="button" title="' + rwEsc(${J('vidMute')}) + '">🔇</button>';
   function vidHydrate(){
+    Array.prototype.forEach.call(ed.querySelectorAll('.vidwrap .vidbar'), function(bar){   // videos viejos: agregar el botón 🔇
+      if (bar.querySelector('.vidmu')) return;
+      var x = bar.querySelector('.vidx'); if (!x) return;
+      x.insertAdjacentHTML('beforebegin', VID_MUTE_BTN);
+    });
     Array.prototype.forEach.call(ed.querySelectorAll('.vidwrap video[data-aid]'), function(v){
       if (v.getAttribute('src') || v._loading) return;
       v._loading = true;
@@ -3076,7 +3084,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       v.src = u;
     });
   }
-  function vidShrink(w){
+  function vidShrink(w, mute){
     var mime = vidShrinkMime();
     if (!mime) { showTip(${J('vidNoShrink')}); return; }
     if (w._busy) return; w._busy = true;
@@ -3100,8 +3108,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
           cv.style.cssText = 'width:4px;height:4px'; box.appendChild(cv);
           var g = cv.getContext('2d'), stream = cv.captureStream(30);
-          var gotAudio = false;
-          try {                                   // el sonido directo del video (lo más seguro en Android)
+          var gotAudio = !!mute;                 // 🔇 sin sonido: no se le pone audio al video nuevo
+          if (!mute) try {                                   // el sonido directo del video (lo más seguro en Android)
             var vs = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
             if (vs) vs.getAudioTracks().forEach(function(t){ stream.addTrack(t); gotAudio = true; });
           } catch (e) {}
@@ -3121,7 +3129,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
           var draw = function(){
             if (done) return;
             try { g.drawImage(v, 0, 0, cw, ch); } catch (e) {}
-            lbl.textContent = ${J('vidShrinking')}.replace('{n}', Math.min(99, Math.round(v.currentTime / (v.duration || 1) * 100)));
+            lbl.textContent = (mute ? ${J('vidMuting')} : ${J('vidShrinking')}).replace('{n}', Math.min(99, Math.round(v.currentTime / (v.duration || 1) * 100)));
             if (rvfc) v.requestVideoFrameCallback(draw); else requestAnimationFrame(draw);
           };
           var finish = function(){
@@ -3137,7 +3145,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
         };
       });
     }).then(function(nb){
-      if (!nb.size || nb.size >= oldSize) return null;       // si no quedó más pequeño, se queda el original
+      if (!nb.size || (!mute && nb.size >= oldSize)) return null;   // si no quedó más pequeño, se queda el original
       return vidPlayable(nb).then(function(okv){              // si el video nuevo no se puede ver, se queda el original
         if (!okv) return null;
         return audPut(nb).then(function(aid){
@@ -3149,6 +3157,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }).then(function(ns){
       lbl.textContent = '🎬 ' + fmtBytes(ns || oldSize);
       if (ns) { vidHydrate(); changedNow(); }
+      if (mute) { if (ns) { w.setAttribute('data-muted', '1'); changedNow(); } showTip(ns ? ${J('vidMuted')} : ${J('vidNoShrink')}); return; }
       showTip(${J('vidShrunk')}.replace('{a}', fmtBytes(oldSize)).replace('{b}', fmtBytes(ns || oldSize)));
     }).catch(function(){
       lbl.textContent = '🎬 ' + fmtBytes(oldSize);
@@ -3162,6 +3171,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     var w = b.closest('.vidwrap'); if (!w || !editable) return;
     if (b.classList.contains('vidx')) { w.parentNode.removeChild(w); changedNow(); return; }
     if (b.classList.contains('vidsh')) vidShrink(w);
+    if (b.classList.contains('vidmu')) vidShrink(w, true);
   }, true);
   vidHydrate();
   ed.addEventListener('click', function(e){                 // 👔 Hacer profesional (debajo de la transcripción)
