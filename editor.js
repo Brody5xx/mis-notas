@@ -2922,6 +2922,27 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     AUDB.catch(function(){ AUDB = null; });
     return AUDB;
   }
+  /* El tipo del archivo a veces llega vacío (al pasar notas de un teléfono a otro) y Android no sabe
+     reproducirlo. Aquí se mira el comienzo del archivo y se le pone el tipo correcto. */
+  function mediaFix(b, isV){
+    if (!b) return Promise.resolve(b);
+    if (/^(video|audio)[/]/.test(b.type || '')) return Promise.resolve(b);
+    var guess = function(u){
+      var t = isV ? 'video/mp4' : 'audio/mp4';
+      if (u && u.length >= 12) {
+        if (u[0] === 0x1A && u[1] === 0x45 && u[2] === 0xDF && u[3] === 0xA3) t = isV ? 'video/webm' : 'audio/webm';
+        else if (u[4] === 0x66 && u[5] === 0x74 && u[6] === 0x79 && u[7] === 0x70) t = isV ? 'video/mp4' : 'audio/mp4';
+        else if (u[0] === 0x4F && u[1] === 0x67 && u[2] === 0x67 && u[3] === 0x53) t = 'audio/ogg';
+        else if ((u[0] === 0x49 && u[1] === 0x44 && u[2] === 0x33) || (u[0] === 0xFF && (u[1] & 0xE0) === 0xE0)) t = 'audio/mpeg';
+        else if (u[0] === 0x52 && u[1] === 0x49 && u[2] === 0x46 && u[3] === 0x46) t = 'audio/wav';
+      }
+      return new Blob([b], { type: t });
+    };
+    try {
+      if (b.slice(0, 12).arrayBuffer) return b.slice(0, 12).arrayBuffer().then(function(ab){ return guess(new Uint8Array(ab)); }, function(){ return guess(null); });
+    } catch (e) {}
+    return Promise.resolve(guess(null));
+  }
   function audPut(blob){
     var aid = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     return audDb().then(function(db){ return new Promise(function(ok, no){
@@ -2942,7 +2963,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function audSrc(au, cb){                                 // pone el sonido en el reproductor antes de usarlo
     if (au.getAttribute('src') || !au.dataset.aid) { cb(); return; }
-    audGet(au.dataset.aid).then(function(b){ if (!au.getAttribute('src')) au.src = URL.createObjectURL(b); cb(); }, function(){ cb(); });
+    audGet(au.dataset.aid).then(function(b){ return mediaFix(b, false); }).then(function(b){ if (!au.getAttribute('src')) au.src = URL.createObjectURL(b); cb(); }, function(){ cb(); });
   }
   function audBlock(src, dur, aid, size){
     return '<div class="audwrap" contenteditable="false" data-dur="' + Math.round(dur) + '"' + (size ? ' data-size="' + size + '"' : '') + '>' +
@@ -3017,10 +3038,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!olds.length || !editable) return;
     var left = olds.length, moved = 0;
     olds.forEach(function(a){
-      fetch(a.getAttribute('src')).then(function(r){ return r.blob(); }).then(audPut).then(function(aid){
+      fetch(a.getAttribute('src')).then(function(r){ return r.blob(); }).then(function(bb){ return mediaFix(bb, a.tagName === 'VIDEO'); }).then(audPut).then(function(aid){
         var keep = a.getAttribute('src');
         a.setAttribute('data-aid', aid); a.removeAttribute('src'); moved++;
-        audGet(aid).then(function(b){ if (!a.getAttribute('src')) a.src = URL.createObjectURL(b); }, function(){ a.src = keep; });
+        audGet(aid).then(function(b){ if (!a.getAttribute('src')) a.src = URL.createObjectURL(b) + (a.tagName === 'VIDEO' ? '#t=0.1' : ''); }, function(){ a.src = keep; });
       }).catch(function(){}).then(function(){ if (--left === 0 && moved) changedNow(); });
     });
   })();
@@ -3050,7 +3071,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     Array.prototype.forEach.call(ed.querySelectorAll('.vidwrap video[data-aid]'), function(v){
       if (v.getAttribute('src') || v._loading) return;
       v._loading = true;
-      audGet(v.getAttribute('data-aid')).then(function(b){ if (!v.getAttribute('src')) v.src = URL.createObjectURL(b) + '#t=0.1'; }, function(){}).then(function(){ v._loading = false; });
+      audGet(v.getAttribute('data-aid')).then(function(b){ return mediaFix(b, true); }).then(function(b){ if (!v.getAttribute('src')) v.src = URL.createObjectURL(b) + '#t=0.1'; }, function(){}).then(function(){ v._loading = false; });
     });
   }
   function insertVideo(f){
@@ -3090,7 +3111,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (w._busy) return; w._busy = true;
     var v0 = w.querySelector('video'), lbl = w.querySelector('.vidsz'), oldSize = +w.getAttribute('data-size') || 0;
     var ac = null;
-    var getBlob = v0.getAttribute('data-aid') ? audGet(v0.getAttribute('data-aid')) : fetch(v0.getAttribute('src')).then(function(r){ return r.blob(); });
+    var getBlob = (v0.getAttribute('data-aid') ? audGet(v0.getAttribute('data-aid')) : fetch(v0.getAttribute('src')).then(function(r){ return r.blob(); }))
+      .then(function(b){ return mediaFix(b, true); });
     getBlob.then(function(blob){
       if (!oldSize) oldSize = blob.size;
       return new Promise(function(ok, no){
@@ -4156,7 +4178,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   async function mediaSrc(el){
     var src = el.getAttribute('src') || '';
     if (/^blob:/.test(src)) src = '';
-    if (!src && el.getAttribute('data-aid')) { try { src = await blobToData(await audGet(el.getAttribute('data-aid'))); } catch (e) { el._why = String(e && e.message || e); } }
+    if (!src && el.getAttribute('data-aid')) { try { src = await blobToData(await mediaFix(await audGet(el.getAttribute('data-aid')), el.tagName === 'VIDEO')); } catch (e) { el._why = String(e && e.message || e); } }
     else if (!src) el._why = 'sin-id';
     return src;
   }

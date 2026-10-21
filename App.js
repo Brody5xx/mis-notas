@@ -1778,7 +1778,7 @@ function NotesApp() {
      Un "editor" invisible los saca y los manda a la app, uno por uno. */
   const [mediaJob, setMediaJob] = useState(null);
   const mediaRes = useRef(null);
-  function fetchMediaNative(aids) {
+  function fetchMediaNative(aids, vids) {
     return new Promise(resolve => {
       const got = {};
       const key = Date.now();
@@ -1787,14 +1787,19 @@ function NotesApp() {
         if (m.type === 'media' && m.aid && m.data) got[m.aid] = m.data;
         if (m.type === 'mediaDone') { clearTimeout(tm); mediaRes.current = null; setMediaJob(null); resolve(got); }
       };
-      const html = '<!DOCTYPE html><html><body><script>(function(){var A=' + JSON.stringify(aids) + ';' +
+      const html = '<!DOCTYPE html><html><body><script>(function(){var A=' + JSON.stringify(aids) + ',V=' + JSON.stringify(vids || {}) + ';' +
+        /* le pone el tipo correcto (video/mp4, video/webm, audio/...) mirando el comienzo del archivo */
+        'function fix(b,isV,cb){if(/^(video|audio)\\//.test(b.type||"")){cb(b);return;}var g=function(u){var t=isV?"video/mp4":"audio/mp4";' +
+        'if(u&&u.length>=12){if(u[0]==26&&u[1]==69&&u[2]==223&&u[3]==163)t=isV?"video/webm":"audio/webm";else if(u[0]==79&&u[1]==103&&u[2]==103&&u[3]==83)t="audio/ogg";' +
+        'else if((u[0]==73&&u[1]==68&&u[2]==51)||(u[0]==255&&(u[1]&224)==224))t="audio/mpeg";}cb(new Blob([b],{type:t}));};' +
+        'try{b.slice(0,12).arrayBuffer().then(function(ab){g(new Uint8Array(ab));},function(){g(null);});}catch(e){g(null);}}' +
         'function post(o){window.ReactNativeWebView.postMessage(JSON.stringify(o));}' +
         'var rq;try{rq=indexedDB.open("misnotas_audios",1);}catch(e){post({type:"mediaDone",err:String(e)});return;}' +
         'rq.onupgradeneeded=function(){rq.result.createObjectStore("a");};' +
         'rq.onerror=function(){post({type:"mediaDone",err:"open"});};' +
         'rq.onsuccess=function(){var db=rq.result,i=0;function next(){if(i>=A.length){post({type:"mediaDone"});return;}var aid=A[i++];' +
         'try{var g=db.transaction("a").objectStore("a").get(aid);g.onsuccess=function(){var b=g.result;if(!b){next();return;}' +
-        'var fr=new FileReader();fr.onload=function(){post({type:"media",aid:aid,data:String(fr.result)});setTimeout(next,30);};fr.onerror=function(){next();};fr.readAsDataURL(b);};' +
+        'fix(b,!!V[aid],function(b2){var fr=new FileReader();fr.onload=function(){post({type:"media",aid:aid,data:String(fr.result)});setTimeout(next,30);};fr.onerror=function(){next();};fr.readAsDataURL(b2);});};' +
         'g.onerror=function(){next();};}catch(e){next();}}next();};})();</scr' + 'ipt></body></html>';
       setMediaJob({ key, html });
     });
@@ -1804,7 +1809,9 @@ function NotesApp() {
     if (Platform.OS !== 'web') {
       const aids = [];
       list.forEach(n => (String(n.content || '').match(/data-aid="([^"]+)"/g) || []).forEach(x => { const a = x.slice(10, -1); if (!aids.includes(a)) aids.push(a); }));
-      const got = await fetchMediaNative(aids);
+      const vids = {};
+      list.forEach(n => (String(n.content || '').match(/<video[^>]*data-aid="([^"]+)"/g) || []).forEach(x => { const m = x.match(/data-aid="([^"]+)"/); if (m) vids[m[1]] = 1; }));
+      const got = await fetchMediaNative(aids, vids);
       return list.map(n => {
         let h = String(n.content || '');
         if (!/data-aid="/.test(h)) return n;
