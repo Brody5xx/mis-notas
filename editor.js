@@ -4306,7 +4306,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (sp) { if (sp.textContent.trim()) { var tn = document.createTextNode(sp.textContent + ' '); sp.parentNode.replaceChild(tn, sp); } else sp.parentNode.removeChild(sp); changedNow(); }
     dictAt = null;
   };
-  try { send({ type: 'ready' }); } catch (e) {}       // ya está listo: la app quita la vista previa rápida
+  /* "Listo" se avisa cuando ya se ve todo (fotos incluidas), así la app nunca muestra una pantalla a medias */
+  (function(){
+    var sent = false, go = function(){ if (sent) return; sent = true; requestAnimationFrame(function(){ requestAnimationFrame(function(){ try { send({ type: 'ready' }); } catch (e) {} }); }); };
+    var ims = Array.prototype.slice.call(document.querySelectorAll('#ed img')).slice(0, 6);
+    if (!ims.length) { go(); return; }
+    var left = ims.length, one = function(){ if (--left <= 0) go(); };
+    ims.forEach(function(im){
+      if (im.complete && im.naturalWidth) { one(); return; }
+      if (im.decode) im.decode().then(one, one); else { im.addEventListener('load', one); im.addEventListener('error', one); }
+    });
+    setTimeout(go, 900);
+  })();
   /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
   (function(Q){
     if (!Q || !window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;

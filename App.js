@@ -1345,6 +1345,14 @@ function NotesApp() {
   const zoomStart = useRef(null);
   const [ghost, setGhost] = useState(null);            // tarjeta fantasma de la animación { R, title, color }
   const ghostGo = useRef(null);
+  const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
+  const ghostWaiting = useRef(false);
+  function fadeGhost() {
+    if (!ghostWaiting.current) return;
+    ghostWaiting.current = false;
+    Animated.timing(gFade, { toValue: 0, duration: 170, easing: Easing.out(Easing.quad), useNativeDriver: true })
+      .start(() => { setGhost(g => (g && !g.closing ? null : g)); zoomBusy.current = false; });
+  }
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
   /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
   const [webOn, setWebOn] = useState(Platform.OS === 'web');
@@ -1364,14 +1372,11 @@ function NotesApp() {
     const tm = setTimeout(() => setEdReady(true), 5000);   // por si acaso
     return () => clearTimeout(tm);
   }, [currentId, editorRev]);
+  useEffect(() => { if (edReady && ghostWaiting.current) setTimeout(fadeGhost, 40); }, [edReady]);
   const quickView = useMemo(() => {
     const n = notes.find(x => x.id === currentId);
     if (!n || Platform.OS === 'web') return null;
-    const raw = String(n.content || '').slice(0, 60000);
-    const txt = raw.replace(/<(audio|video|img|svg)[^>]*>[\s\S]*?<\/\1>|<img[^>]*>/gi, '')
-      .replace(/<br\s*\/?>|<\/(div|p|li|h\d)>/gi, '\n').replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-      .replace(/\n{3,}/g, '\n\n').trim().slice(0, 2500);
+    const txt = (n.locked && !unlocked[n.id] ? '' : toPlain(n)).slice(0, 2500);   // (sin las letras raras de las fotos)
     return { title: n.title || '', text: txt };
   }, [currentId, editorRev]);
   /* 🕐 Formato de hora: 12 h (AM/PM) o 24 h — se guarda y lo usa toda la app */
@@ -1720,6 +1725,7 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
+    if (ghostWaiting.current) { ghostWaiting.current = false; setGhost(null); zoomBusy.current = false; }   // saliste muy rápido
     // Teléfono: la nota se encoge de vuelta a su tarjeta
     const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
     if (R && !zoomBusy.current) {
@@ -1731,7 +1737,8 @@ function NotesApp() {
         Animated.timing(zp, { toValue: 0, duration: 210, easing: Easing.in(Easing.cubic), useNativeDriver: true })
           .start(() => { setGhost(null); zoomBusy.current = false; });
       };
-      setGhost({ R, title: n.title || '', color: n.color || null, closing: true });
+      gFade.setValue(1); ghostWaiting.current = false;
+      setGhost({ R, title: '', text: '', color: n.color || null, closing: true });
       closeEditorNow();
       setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);
       return;
@@ -2518,11 +2525,16 @@ function NotesApp() {
         ghostGo.current = null;
         Animated.timing(zp, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true })
           .start(() => {
+            // la tarjeta ya llenó la pantalla mostrando la nota; detrás se pone el editor y,
+            // cuando ya se ve completo (con fotos), la tarjeta se desvanece: sin pantallas en blanco
+            ghostWaiting.current = true;
             setCurrentId(id);
-            setTimeout(() => { setGhost(null); zoomBusy.current = false; }, 60);
+            setTimeout(fadeGhost, 1600);                 // por si acaso
           });
       };
-      setGhost({ R, title: n.title || '', color: n.color || null });
+      gFade.setValue(1);
+      const plain = n.locked && !unlocked[n.id] ? '' : toPlain(n);
+      setGhost({ R, title: n.title || '', text: plain.slice(0, 1800), img: plain.trim() ? null : firstImg(n), color: n.color || null });
       setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);   // por si acaso
       return;
     }
@@ -4031,7 +4043,7 @@ function NotesApp() {
   const ghostStyle = gr ? {
     position: 'absolute', left: 0, top: 0, width, height: winH, borderRadius: 24, overflow: 'hidden',
     backgroundColor: c.grad[0], borderWidth: 1, borderColor: c.border,
-    opacity: ghost.closing ? zp.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0.3, 1, 1] }) : 1,
+    opacity: ghost.closing ? zp.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0.3, 1, 1] }) : gFade,
     transform: [
       { translateX: zp.interpolate({ inputRange: [0, 1], outputRange: [gr.x + gr.w / 2 - width / 2, 0] }) },
       { translateY: zp.interpolate({ inputRange: [0, 1], outputRange: [gr.y + gr.h / 2 - winH / 2, 0] }) },
@@ -4074,6 +4086,15 @@ function NotesApp() {
         <Animated.View pointerEvents="none" style={ghostStyle}
           onLayout={() => { if (ghostGo.current) requestAnimationFrame(() => ghostGo.current && ghostGo.current()); }}>
           {!!ghost.color && <View style={[StyleSheet.absoluteFill, { backgroundColor: ghost.color, opacity: 0.16 }]} />}
+          {!ghost.closing && (   /* lo mismo que vas a ver en la nota: título y texto */
+            <View style={{ paddingHorizontal: 26, paddingTop: Math.max(Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44, ins.top || 0) + 96 }}>
+              <Text maxFontSizeMultiplier={1.3} numberOfLines={3} style={{ color: ghost.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 20 }}>
+                {ghost.title || tr('ttlPh')}
+              </Text>
+              {!!ghost.text && <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 17, lineHeight: 26 }}>{ghost.text}</Text>}
+              {!!ghost.img && <Image source={{ uri: ghost.img }} style={{ width: '100%', height: 240, borderRadius: 14 }} resizeMode="cover" />}
+            </View>
+          )}
         </Animated.View>
       )}
       {mediaJob && Platform.OS !== 'web' && (
