@@ -31,19 +31,26 @@ jobs:
           java-version: 17
       - name: Instalar pnpm (la misma versión que Replit)
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
           V=$(node -e "try{console.log(require('./workspace/artifacts/mobile/eas.json').build.apk.pnpm||'')}catch(e){console.log('')}")
           npm i -g pnpm@${V:-10} eas-cli
       - name: Instalar las piezas
         working-directory: workspace
-        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
+          pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
       - name: Poner la última versión de Best Notes
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
           export HOME="$GITHUB_WORKSPACE"
           curl -fsSL "https://raw.githubusercontent.com/Brody5xx/mis-notas/main/actualizar.sh?$(date +%s)" -o /tmp/actualizar.sh
           sh /tmp/actualizar.sh
       - name: Guardar los cambios (para que Expo los use)
         working-directory: workspace
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
+          rm -f artifacts/mobile/package-lock.json artifacts/mobile/yarn.lock
+          pnpm install --no-frozen-lockfile
           git config user.name "Best Notes"; git config user.email "bestnotes@users.noreply.github.com"
           git add -A; git commit -qm "Best Notes al día" || true
       - name: Construir el APK
@@ -51,12 +58,22 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
           if [ -z "$EXPO_TOKEN" ]; then echo "Falta el secreto EXPO_TOKEN en GitHub (Settings > Secrets > Actions)"; exit 1; fi
           eas build -p android --profile apk --local --non-interactive --output "$GITHUB_WORKSPACE/best-notes.apk"
       - name: Publicar el APK para descargarlo
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/registro.txt") 2>&1
           gh release delete apk -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
           gh release create apk "$GITHUB_WORKSPACE/best-notes.apk" -R "$GITHUB_REPOSITORY" --target main \
             --title "Best Notes — última versión" --notes "Construido el $(date -u '+%Y-%m-%d %H:%M') UTC. Descarga best-notes.apk e instálalo encima."
+      - name: Guardar el registro si algo falla (para que Claude lo lea)
+        if: failure()
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p reg && cd reg && git init -q && git checkout -q -b registro
+          tail -c 200000 ../registro.txt > registro.txt 2>/dev/null || echo "sin registro" > registro.txt
+          git add -A && git -c user.name="Best Notes" -c user.email="bestnotes@users.noreply.github.com" commit -qm "registro"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" registro
