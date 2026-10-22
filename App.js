@@ -347,9 +347,20 @@ function checklistProgress(n) {
 }
 
 /* Texto simple de una nota (para vista previa y búsqueda) */
+/* ⚡ Lo que cuesta calcular (el texto de cada nota, su primera foto) se guarda: así la lista va más rápido */
+const PLAIN_CACHE = new WeakMap(), IMG_CACHE = new WeakMap();
 function toPlain(n) {
+  if (!n || typeof n !== 'object') return '';
+  const hit = PLAIN_CACHE.get(n);
+  if (hit !== undefined) return hit;
+  const v = toPlainRaw(n);
+  PLAIN_CACHE.set(n, v);
+  return v;
+}
+function toPlainRaw(n) {
   if (!n.html) return n.content || '';
   return (n.content || '')
+    .replace(/<(img|video|audio)[^>]*>/gi, '')
     .replace(/<(br|\/div|\/p|\/li)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
@@ -466,8 +477,11 @@ function tagsOf(n) {
 /* Primera foto de la nota (para mostrarla en la tarjeta) */
 function firstImg(n) {
   if (!n.html || !n.content) return null;
+  if (IMG_CACHE.has(n)) return IMG_CACHE.get(n);
   const m = n.content.match(/<img[^>]+src="([^"]+)"/);
-  return m ? m[1] : null;
+  const v = m ? m[1] : null;
+  IMG_CACHE.set(n, v);
+  return v;
 }
 
 /* ============================================================
