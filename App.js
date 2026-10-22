@@ -361,6 +361,9 @@ function toPlainRaw(n) {
   if (!n.html) return n.content || '';
   return (n.content || '')
     .replace(/<(img|video|audio)[^>]*>/gi, '')
+    .replace(/<div class="vidbar">[\s\S]*?<\/div>/gi, '')                  // botones de los videos (🎬 3 MB · Achicar)
+    .replace(/<div class="audwrap"[\s\S]*?<\/audio><\/div>/gi, '')          // reproductor de los audios
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')                                     // sello de fecha/lugar en las fotos
     .replace(/<(br|\/div|\/p|\/li)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
@@ -824,7 +827,11 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
               <View style={{ alignItems: 'center', paddingVertical: 14 }}>
                 <Feather name="check-circle" size={44} color="#43a047" />
                 <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22 }}>{ok}</Text>
-                {mainBtn(tr('done'), onClose)}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingHorizontal: 14, paddingVertical: 10,
+                  borderRadius: 14, borderWidth: 1, borderColor: t.border }}>
+                  <Feather name="info" size={16} color={t.muted} />
+                  <Text maxFontSizeMultiplier={1.3} style={{ color: t.muted, fontSize: 13.5, flex: 1, lineHeight: 19 }}>{tr('bkSeeList')}</Text>
+                </View>
               </View>
             ) : busy ? (
               <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
@@ -1373,6 +1380,14 @@ function NotesApp() {
     return () => clearTimeout(tm);
   }, [currentId, editorRev]);
   useEffect(() => { if (edReady && ghostWaiting.current) setTimeout(fadeGhost, 40); }, [edReady]);
+  /* 🔍 Lo iluminado se queda en la nota hasta que borras la búsqueda */
+  useEffect(() => {
+    if (!currentId) return;
+    const q = searchOpen ? query.trim() : '';
+    const js = 'window.hlSet && window.hlSet(' + JSON.stringify(q).replace(/</g, '\\u003c') + ', false); true;';
+    if (Platform.OS === 'web') { try { const w = iframeRef.current && iframeRef.current.contentWindow; w && w.hlSet && w.hlSet(q, false); } catch (e) {} }
+    else if (webRef.current) webRef.current.injectJavaScript(js);
+  }, [query, searchOpen]);
   const quickView = useMemo(() => {
     const n = notes.find(x => x.id === currentId);
     if (!n || Platform.OS === 'web') return null;

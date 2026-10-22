@@ -4309,18 +4309,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* "Listo" se avisa cuando ya se ve todo (fotos incluidas), así la app nunca muestra una pantalla a medias */
   (function(){
     var sent = false, go = function(){ if (sent) return; sent = true; requestAnimationFrame(function(){ requestAnimationFrame(function(){ try { send({ type: 'ready' }); } catch (e) {} }); }); };
-    var ims = Array.prototype.slice.call(document.querySelectorAll('#ed img')).slice(0, 6);
+    var ims = Array.prototype.slice.call(document.querySelectorAll('#ed img')).slice(0, 2);   // solo las primeras (lo que se ve arriba)
     if (!ims.length) { go(); return; }
     var left = ims.length, one = function(){ if (--left <= 0) go(); };
     ims.forEach(function(im){
       if (im.complete && im.naturalWidth) { one(); return; }
       if (im.decode) im.decode().then(one, one); else { im.addEventListener('load', one); im.addEventListener('error', one); }
     });
-    setTimeout(go, 900);
+    setTimeout(go, 350);                                   // nunca hace esperar más de esto
   })();
   /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
-  (function(Q){
-    if (!Q || !window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+  window.hlSet = function(Q, jump){
+    if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+    try { CSS.highlights.delete('bnq'); } catch (e) {}
+    if (!Q) return;
     var fold = function(ch){ var x = ch.normalize ? ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : ch; return (x.length === 1 ? x : ch).toLowerCase(); };
     var q = ''; for (var i = 0; i < Q.length; i++) q += fold(Q[i]);
     if (!q.trim()) return;
@@ -4336,13 +4338,20 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (!ranges.length) return;
     var hl = new Highlight(); ranges.forEach(function(r){ hl.add(r); });
     CSS.highlights.set('bnq', hl);
-    setTimeout(function(){
-      try { var el = ranges[0].startContainer.parentElement; el && el.scrollIntoView({ block: 'center' }); } catch (e) {}
-    }, 120);
-    showTip('🔍 ' + ranges.length);
-    var off = function(){ try { CSS.highlights.delete('bnq'); } catch (e) {} ed.removeEventListener('input', off); ttl.removeEventListener('input', off); };
-    ed.addEventListener('input', off); ttl.addEventListener('input', off);
-  })(N.highlight || '');
+    if (jump) {
+      setTimeout(function(){
+        try { var el = ranges[0].startContainer.parentElement; el && el.scrollIntoView({ block: 'center' }); } catch (e) {}
+      }, 120);
+      showTip('🔍 ' + ranges.length);
+    }
+  };
+  /* se queda iluminado mientras escribes (lo nuevo que coincida también) hasta que borres la búsqueda */
+  var hlQ = N.highlight || '', hlT = null;
+  var hlRe = function(){ clearTimeout(hlT); hlT = setTimeout(function(){ if (hlQ) window.hlSet(hlQ, false); }, 400); };
+  ed.addEventListener('input', hlRe); ttl.addEventListener('input', hlRe);
+  var hlSet0 = window.hlSet;
+  window.hlSet = function(Q, jump){ hlQ = Q || ''; hlSet0(hlQ, jump); };
+  window.hlSet(hlQ, true);
   };
   ${deferred
     ? "try { (window.ReactNativeWebView || { postMessage: function(){} }).postMessage(JSON.stringify({ type: 'spare' })); } catch (e) {}"
