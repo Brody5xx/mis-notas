@@ -282,6 +282,21 @@ function mergeRecord(entries, tokens) {
   return arr;                                          // sin límite: solo el espacio del teléfono
 }
 
+/* 🔍 Partes del texto que coinciden con la búsqueda (sin importar mayúsculas ni acentos) */
+const foldCh = ch => { let x = ch; try { x = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} return (x.length === 1 ? x : ch).toLowerCase(); };
+function hlParts(text, q) {
+  text = String(text || ''); q = String(q || '').trim();
+  if (!q) return null;
+  let fq = ''; for (const ch of q) fq += foldCh(ch);
+  let f = ''; for (let i = 0; i < text.length; i++) f += foldCh(text[i]);
+  const out = []; let pos = 0, at = f.indexOf(fq);
+  if (at < 0) return null;
+  while (at >= 0) { if (at > pos) out.push({ t: text.slice(pos, at) }); out.push({ t: text.slice(at, at + fq.length), hit: true }); pos = at + fq.length; at = f.indexOf(fq, pos); }
+  if (pos < text.length) out.push({ t: text.slice(pos) });
+  return { parts: out, first: f.indexOf(fq) };
+}
+const HL_STYLE = { backgroundColor: '#ffd60a', color: '#000', fontWeight: '800' };
+
 async function loadData() {
   if (FS) {
     try {
@@ -1073,6 +1088,7 @@ function NotesApp() {
   applyLang(langCode);
   const [view, setView] = useState('all');        // 'all', 'fav', 'trash'
   const [query, setQuery] = useState('');
+  const hlQ = query.trim();                              // lo que estás buscando (se ilumina en amarillo)
   const [searchOpen, setSearchOpen] = useState(false);
   const searchFocus = useRef(false);   // el teclado solo se abre al tocar la lupa
   const { width, height: winH } = useWindowDimensions();
@@ -1310,6 +1326,7 @@ function NotesApp() {
   const zp = useRef(new Animated.Value(1)).current;    // 0 = tamaño de la tarjeta, 1 = pantalla completa
   const [zoomRect, setZoomRect] = useState(null);
   const zoomBusy = useRef(false);
+  const zoomStart = useRef(null);
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
   /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
   const [webOn, setWebOn] = useState(Platform.OS === 'web');
@@ -2358,10 +2375,12 @@ function NotesApp() {
       zoomBusy.current = true;
       setZoomRect(R); zp.setValue(0); setRevealing(true);
       setCurrentId(id);
-      requestAnimationFrame(() => {
-        Animated.timing(zp, { toValue: 1, duration: 270, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+      zoomStart.current = () => {          // empieza cuando la nota ya está en pantalla (si no, no se ve la animación)
+        zoomStart.current = null;
+        Animated.timing(zp, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true })
           .start(() => { zoomBusy.current = false; setRevealing(false); setZoomRect(null); });
-      });
+      };
+      setTimeout(() => { if (zoomStart.current) zoomStart.current(); }, 400);   // por si acaso
       return;
     }
     setRevealing(false);
@@ -2719,6 +2738,7 @@ function NotesApp() {
       id: current.id, content: toHtml(current), titleHtml: toTitleHtml(current),
       updated: current.updated, editable: !current.deleted, c,
       kind: current.kind, ink: current.ink, tr, locale: LOCALE, colors: colorPrefs.current, safeBottom: Platform.OS === 'web' ? 0 : ins.bottom,
+      highlight: searchOpen ? query.trim() : '',
     });
   }, [currentId, dark, langCode, current && current.deleted, editorRev, ins.bottom]);
 
@@ -3713,7 +3733,9 @@ function NotesApp() {
                 )}
                 <View style={s.cardHeader}>
                   <Text maxFontSizeMultiplier={1.3} style={s.cardTitle} numberOfLines={1}>
-                    {item.title ? titleSegments(item).map((g, i) => (
+                    {hlQ && hlParts(item.title, hlQ) ? hlParts(item.title, hlQ).parts.map((g, i) => (
+                      <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? HL_STYLE : null}>{g.t}</Text>
+                    )) : item.title ? titleSegments(item).map((g, i) => (
                       <Text maxFontSizeMultiplier={1.3} key={i} style={{
                         color: g.color || c.text,
                         fontWeight: g.bold === false ? '400' : '700',
@@ -3741,7 +3763,15 @@ function NotesApp() {
                     {thumb && (
                       <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />
                     )}
-                    <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{toPlain(item)}</Text>
+                    <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{(() => {
+                      const plain = toPlain(item);
+                      const h = hlQ && hlParts(plain, hlQ);
+                      if (!h) return plain;
+                      // que se vea la parte donde está la palabra (aunque esté más abajo en la nota)
+                      const cut = h.first > 40 ? h.first - 25 : 0;
+                      const hh = cut ? hlParts('…' + plain.slice(cut), hlQ) : h;
+                      return hh.parts.map((g, i) => <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? HL_STYLE : null}>{g.t}</Text>);
+                    })()}</Text>
                   </>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -3877,7 +3907,8 @@ function NotesApp() {
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
-              <Animated.View style={zoomStyle || { flex: 1 }}>
+              <Animated.View style={zoomStyle || { flex: 1 }}
+                onLayout={() => { if (zoomStart.current) requestAnimationFrame(() => zoomStart.current && zoomStart.current()); }}>
                 {editorView}
                 {zr && (   /* al empezar se ve como la tarjeta; el contenido aparece mientras crece */
                   <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.grad[0],

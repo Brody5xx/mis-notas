@@ -14,7 +14,7 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors, safeBottom }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors, safeBottom, highlight }) {
   const SB = Math.max(0, Math.round(+safeBottom || 0));       // barra de gestos / botones del teléfono (para que no tape la barra de abajo)
   /* exportJob = { kind: 'pdf' | 'img', name, notes: [{ t, h, k, u, locked, bg }] } → hace el archivo y lo manda a la app */
   const safeJob = JSON.stringify(exportJob || null).replace(/</g, '\\u003c');
@@ -366,6 +366,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audtx{color:${c.muted};font-style:italic}
   /* ===== Videos dentro de la nota ===== */
   .vidwrap{margin:12px 0;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.1);user-select:none;-webkit-user-select:none}
+  ::highlight(bnq){background-color:#ffd60a;color:#000}
   .vidwrap video{display:block;width:100%;max-height:70vh;background:#000}
   .vidbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.08)}
   .vidbar .vidsz{flex:1;font-size:13px;color:${c.muted};font-variant-numeric:tabular-nums}
@@ -4262,5 +4263,30 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   if (JOB) setTimeout(runExport, 150);
   notifyUndo();
   try { send({ type: 'ready' }); } catch (e) {}       // ya está listo: la app quita la vista previa rápida
+  /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
+  (function(Q){
+    if (!Q || !window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+    var fold = function(ch){ var x = ch.normalize ? ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : ch; return (x.length === 1 ? x : ch).toLowerCase(); };
+    var q = ''; for (var i = 0; i < Q.length; i++) q += fold(Q[i]);
+    if (!q.trim()) return;
+    var ranges = [];
+    [ttl, ed].forEach(function(root){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), n;
+      while ((n = w.nextNode())) {
+        var t = n.nodeValue, f = ''; for (var k = 0; k < t.length; k++) f += fold(t[k]);
+        var at = f.indexOf(q);
+        while (at >= 0) { var r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + q.length); ranges.push(r); at = f.indexOf(q, at + q.length); }
+      }
+    });
+    if (!ranges.length) return;
+    var hl = new Highlight(); ranges.forEach(function(r){ hl.add(r); });
+    CSS.highlights.set('bnq', hl);
+    setTimeout(function(){
+      try { var el = ranges[0].startContainer.parentElement; el && el.scrollIntoView({ block: 'center' }); } catch (e) {}
+    }, 120);
+    showTip('🔍 ' + ranges.length);
+    var off = function(){ try { CSS.highlights.delete('bnq'); } catch (e) {} ed.removeEventListener('input', off); ttl.removeEventListener('input', off); };
+    ed.addEventListener('input', off); ttl.addEventListener('input', off);
+  })(${JSON.stringify(String(highlight || '')).replace(/</g, '\u003c')});
 </script></body></html>`;
 }
