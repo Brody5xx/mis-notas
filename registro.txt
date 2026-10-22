@@ -1,0 +1,408 @@
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated rimraf@2.4.5: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@6.0.4: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+added 529 packages in 21s
+
+70 packages are looking for funding
+  run `npm fund` for details
+Scope: all 9 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +902
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 902, reused 0, downloaded 88, added 88
+Progress: resolved 902, reused 0, downloaded 138, added 128
+Progress: resolved 902, reused 0, downloaded 302, added 280
+Progress: resolved 902, reused 0, downloaded 438, added 410
+Progress: resolved 902, reused 0, downloaded 571, added 539
+Progress: resolved 902, reused 0, downloaded 649, added 599
+Progress: resolved 902, reused 0, downloaded 726, added 718
+Progress: resolved 902, reused 0, downloaded 827, added 794
+Progress: resolved 902, reused 0, downloaded 902, added 902, done
+.../esbuild@0.28.2/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.28.2/node_modules/esbuild postinstall: Done
+
+dependencies:
++ @replit/connectors-sdk 0.4.3
+
+devDependencies:
++ prettier 3.9.6
++ typescript 5.9.3
+
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+. preinstall: Done
+Done in 10.2s using pnpm v10.26.1
+  ✓ App.js
+  ✓ editor.js
+  ✓ idiomas.js
+  ✓ translucido-plugin.js
+  ✓ calc.js
+  ✓ compartir.native.js
+  ✓ compartir.web.js
+  ✓ respaldo.js
+  ✓ boveda.js
+  ✓ reporte.js
+  ✓ pendientes.js
+  ✓ recordatorios.js
+  ✓ avisos.native.js
+  ✓ avisos.web.js
+  ✓ galeria.native.js
+  ✓ galeria.web.js
+  ✓ materiales.js
+  ✓ ayuda.js
+  ✓ matlista.js
+  ✓ icono.js
+  ✓ assets/bestnotes/icon.png
+  ✓ assets/bestnotes/adaptive-foreground.png
+  ✓ assets/bestnotes/adaptive-background.png
+  ✓ assets/bestnotes/favicon.png
+  ✓ pantalla.js
+  ✓ hora.js
+  … instalando expo-document-picker (para elegir archivos). Espera un momento...
+  ✗ No pude instalar expo-document-picker. Escribe en el Shell:  npx expo install expo-document-picker
+    at spawnAsync (/home/runner/work/mis-notas/mis-notas/workspace/node_modules/.pnpm/@expo+spawn-async@1.8.0/node_modules/@expo/spawn-async/build/spawnAsync.js:9:23)
+    at PnpmPackageManager.runAsync (/home/runner/work/mis-notas/mis-notas/workspace/node_modules/.pnpm/@expo+package-manager@1.13.1/node_modules/@expo/package-manager/build/node/BasePackageManager.js:41:42)
+    at PnpmPackageManager.addAsync (/home/runner/work/mis-notas/mis-notas/workspace/node_modules/.pnpm/@expo+package-manager@1.13.1/node_modules/@expo/package-manager/build/node/PnpmPackageManager.js:36:21)
+    at installPackagesAsync (/home/runner/work/mis-notas/mis-notas/workspace/node_modules/.pnpm/@expo+cli@57.0.28_a28ae65544a6da3adcfd876957d22e09/node_modules/@expo/cli/build/src/install/installAsync.js:189:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+  ✓ pnpm-workspace.yaml (esbuild permitido para construir la app)
+
+¡Listo! 26 archivos actualizados. Ahora abre la app.
+Scope: all 9 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+. preinstall: Done
+Done in 1.3s using pnpm v10.26.1
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+✔ Using remote Android credentials (Expo server)
+✔ Using Keystore from configuration: Build Credentials hO-hTnifEL (default)
+- Computing project fingerprint
+✔ Computed project fingerprint
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated rimraf@2.4.5: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@6.0.4: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+[SETUP_WORKINGDIR] Preparing workingdir /tmp/runner/eas-build-local-nodejs/a881ddb3-3947-40f2-a841-4d37b6e71131
+[START_BUILD] Starting build
+  "job": {
+    "type": "managed",
+    "platform": "android",
+    "projectRootDirectory": "artifacts/mobile",
+    "projectArchive": {
+      "type": "PATH",
+      "path": "/tmp/runner/eas-cli-nodejs/b4a99de9-9811-4737-b4d1-6f62759ccbde.tar.gz"
+    },
+    "builderEnvironment": {
+      "pnpm": "10.26.1",
+      "env": {}
+    },
+    "cache": {
+      "disabled": false,
+      "paths": [],
+      "clear": false
+    },
+    "updates": {},
+    "buildType": "apk",
+    "username": "brody5xx",
+    "experimental": {},
+    "mode": "build",
+    "triggeredBy": "EAS_CLI",
+    "appId": "db19c560-3953-4919-a70c-c631d3a8c4fd",
+    "initiatingUserId": "7cd757f3-3ca8-4a08-934d-bcc979c2f68f"
+  }
+[PREPARE_PROJECT] Normalizing project source permissions
+[PREPARE_PROJECT] .npmrc found at .npmrc
+[READ_EAS_JSON] Using eas.json:
+[READ_EAS_JSON] {
+  "cli": {
+    "appVersionSource": "local"
+  },
+  "build": {
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "pnpm": "10.26.1"
+    }
+  }
+}
+
+[READ_PACKAGE_JSON] Using package.json:
+[READ_PACKAGE_JSON] {
+  "name": "@workspace/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "dev": "sh -c 'if [ -n \"$REPLIT_EXPO_SESSION_SECRET\" ]; then pnpm exec create-launch login --session \"$REPLIT_EXPO_SESSION_SECRET\" || true; fi' && EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
+    "build": "node scripts/build.js",
+    "serve": "node server/serve.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@expo-google-fonts/inter": "^0.4.0",
+    "@expo/vector-icons": "^15.1.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@stardazed/streams-text-encoding": "^1.0.2",
+    "@tanstack/react-query": "catalog:",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "@ungap/structured-clone": "^1.3.0",
+    "@workspace/api-client-react": "workspace:*",
+    "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
+    "create-launch": "0.4.1",
+    "expo": "~57.0.7",
+    "expo-blur": "~57.0.2",
+    "expo-constants": "~57.0.6",
+    "expo-font": "~57.0.1",
+    "expo-glass-effect": "~57.0.1",
+    "expo-haptics": "~57.0.1",
+    "expo-image": "~57.0.1",
+    "expo-image-picker": "~57.0.20",
+    "expo-linear-gradient": "~57.0.2",
+    "expo-linking": "~57.0.3",
+    "expo-location": "~57.0.5",
+    "expo-splash-screen": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "expo-symbols": "~57.0.1",
+    "expo-system-ui": "~57.0.1",
+    "expo-web-browser": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-keyboard-controller": "1.21.9",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.10.1",
+    "typescript": "~6.0.3",
+    "zod": "catalog:",
+    "zod-validation-error": "^3.4.0"
+  },
+  "dependencies": {
+    "expo-file-system": "~57.0.7",
+    "expo-media-library": "~57.0.5",
+    "expo-notifications": "~57.0.23",
+    "expo-sharing": "~57.0.23",
+    "react-native-webview": "13.16.1"
+  }
+}
+[INSTALL_DEPENDENCIES] We detected that 'artifacts/mobile' is a pnpm workspace
+[INSTALL_DEPENDENCIES] Running "pnpm install --frozen-lockfile" in /tmp/runner/eas-build-local-nodejs/a881ddb3-3947-40f2-a841-4d37b6e71131/build directory
+[INSTALL_DEPENDENCIES] Scope: all 9 workspace projects
+[INSTALL_DEPENDENCIES] Lockfile is up to date, resolution step is skipped
+[INSTALL_DEPENDENCIES] Progress: resolved 1, reused 0, downloaded 0, added 0
+[INSTALL_DEPENDENCIES] Packages: +902
+[INSTALL_DEPENDENCIES] ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[INSTALL_DEPENDENCIES] Progress: resolved 902, reused 902, downloaded 0, added 9
+[INSTALL_DEPENDENCIES] Progress: resolved 902, reused 902, downloaded 0, added 570
+[INSTALL_DEPENDENCIES] Progress: resolved 902, reused 902, downloaded 0, added 902, done
+[INSTALL_DEPENDENCIES] dependencies:
+[INSTALL_DEPENDENCIES] + @replit/connectors-sdk 0.4.3
+[INSTALL_DEPENDENCIES] 
+[INSTALL_DEPENDENCIES] devDependencies:
+[INSTALL_DEPENDENCIES] + prettier 3.9.6
+[INSTALL_DEPENDENCIES] + typescript 5.9.3
+[INSTALL_DEPENDENCIES] . preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+[INSTALL_DEPENDENCIES] . preinstall: Done
+[INSTALL_DEPENDENCIES] Done in 5.1s using pnpm v10.26.1
+The NODE_ENV environment variable is required but was not specified. Ensure the project is bundled with Expo CLI or NODE_ENV is set.
+Proceeding without mode-specific .env
+[READ_APP_CONFIG] Using app configuration:
+[READ_APP_CONFIG] {
+  "name": "Best Notes",
+  "slug": "mobile",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "icon": "./assets/bestnotes/icon.png",
+  "scheme": "mobile",
+  "userInterfaceStyle": "automatic",
+  "ios": {
+    "supportsTablet": false,
+    "icon": "./assets/bestnotes/icon.png",
+    "bundleIdentifier": "com.luisell.bestnotes"
+  },
+  "android": {
+    "permissions": [
+      "POST_NOTIFICATIONS",
+      "SCHEDULE_EXACT_ALARM",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+      "android.permission.READ_MEDIA_IMAGES",
+      "android.permission.READ_MEDIA_VIDEO",
+      "android.permission.READ_MEDIA_AUDIO"
+    ],
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/bestnotes/adaptive-foreground.png",
+      "backgroundImage": "./assets/bestnotes/adaptive-background.png",
+      "backgroundColor": "#101016"
+    },
+    "package": "com.luisell.bestnotes"
+  },
+  "web": {
+    "favicon": "./assets/bestnotes/favicon.png",
+    "name": "Best Notes",
+    "shortName": "Best Notes"
+  },
+  "plugins": [
+    "./translucido-plugin.js",
+    "expo-sharing",
+    [
+      "expo-media-library",
+      {
+        "photosPermission": "La Bóveda necesita la galería para borrar o devolver tus fotos y videos.",
+        "savePhotosPermission": "La Bóveda necesita guardar fotos y videos en tu galería.",
+        "isAccessMediaLocationEnabled": false
+      }
+    ],
+    [
+      "expo-notifications",
+      {
+        "color": "#ffffff"
+      }
+    ]
+  ],
+  "extra": {
+    "eas": {
+      "projectId": "db19c560-3953-4919-a70c-c631d3a8c4fd"
+    }
+  },
+  "sdkVersion": "57.0.0",
+  "platforms": [
+    "ios",
+    "android",
+    "web"
+  ]
+}
+[PREBUILD] - Creating native directory (./android)
+[PREBUILD] ✔ Created native directory
+[PREBUILD] - Updating package.json
+[PREBUILD] ✔ Updated package.json
+[PREBUILD] - Running prebuild
+[PREBUILD] ✔ Finished prebuild
+[PREBUILD] We detected that 'artifacts/mobile' is a pnpm workspace
+[PREBUILD] Running "pnpm install --no-frozen-lockfile" in /tmp/runner/eas-build-local-nodejs/a881ddb3-3947-40f2-a841-4d37b6e71131/build directory
+[PREBUILD] Scope: all 9 workspace projects
+[PREBUILD] Progress: resolved 0, reused 1, downloaded 0, added 0
+[PREBUILD] artifacts/mockup-sandbox                 |  WARN  deprecated recharts@2.15.4
+[PREBUILD] Progress: resolved 489, reused 484, downloaded 0, added 0
+[PREBUILD] Progress: resolved 829, reused 827, downloaded 0, added 0
+[PREBUILD] Progress: resolved 904, reused 902, downloaded 0, added 0
+[PREBUILD] WARN  1 deprecated subdependencies found: uuid@7.0.3
+[PREBUILD] Packages: +18 -18
+[PREBUILD] ++++++++++++++++++------------------
+[PREBUILD] Progress: resolved 904, reused 902, downloaded 0, added 18, done
+[PREBUILD] . preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+[PREBUILD] . preinstall: Done
+[PREBUILD] WARN  Issues with peer dependencies found
+[PREBUILD] artifacts/mobile
+[PREBUILD] ├─┬ react-native 0.86.3
+[PREBUILD] │ └─┬ @react-native/community-cli-plugin 0.86.3
+[PREBUILD] │   └── ✕ missing peer @react-native/metro-config@0.86.3
+[PREBUILD] └─┬ react-native-worklets 0.10.1
+[PREBUILD]   └── ✕ missing peer @react-native/metro-config@"*"
+[PREBUILD] Peer dependencies that should be installed:
+[PREBUILD]   @react-native/metro-config@0.86.3
+[PREBUILD] 
+[PREBUILD] Done in 4.4s using pnpm v10.26.1
+[RESTORE_CACHE] Local builds do not support restoring cache
+[PREPARE_CREDENTIALS] Writing secrets to the project's directory
+[PREPARE_CREDENTIALS] Injecting signing config into build.gradle
+[PREPARE_CREDENTIALS] Signing config injected
+[EAGER_BUNDLE] Expo Autolinking module resolution enabled
+[EAGER_BUNDLE] Starting Metro Bundler
+[EAGER_BUNDLE] Android Bundling failed 6103ms node_modules/.pnpm/expo@57.0.27_@babel+core@7.29.7_react-dom@19.2.3_react@19.2.3__react-native-web@0.21.4__09093537be461c7b8a0ddad7c2963778/node_modules/expo/AppEntry.js (573 modules)
+[EAGER_BUNDLE] Error: Unable to resolve module expo-document-picker from /tmp/runner/eas-build-local-nodejs/a881ddb3-3947-40f2-a841-4d37b6e71131/build/artifacts/mobile/App.js: expo-document-picker could not be found within the project or in these directories:
+[EAGER_BUNDLE]   node_modules
+[EAGER_BUNDLE]   ../../node_modules
+[EAGER_BUNDLE]   node_modules
+[EAGER_BUNDLE]   ../../node_modules
+[EAGER_BUNDLE] [0m [90m 21 |[39m [36mimport[39m { [33mICON_URI[39m } [36mfrom[39m [32m'./icono'[39m[33m;[39m
+[EAGER_BUNDLE]  [90m 22 |[39m [36mimport[39m { setHour12[33m,[39m getHour12 } [36mfrom[39m [32m'./hora'[39m[33m;[39m
+[EAGER_BUNDLE] [31m[1m>[22m[39m[90m 23 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mDocumentPicker[39m [36mfrom[39m [32m'expo-document-picker'[39m[33m;[39m
+[EAGER_BUNDLE]  [90m    |[39m                                  [31m[1m^[22m[39m
+[EAGER_BUNDLE]  [90m 24 |[39m [36mimport[39m { [33mSafeAreaProvider[39m } [36mfrom[39m [32m'react-native-safe-area-context'[39m[33m;[39m
+[EAGER_BUNDLE]  [90m 25 |[39m [36mimport[39m { useInsets[33m,[39m webTextZoom } [36mfrom[39m [32m'./pantalla'[39m[33m;[39m
+[EAGER_BUNDLE]  [90m 26 |[39m [36mimport[39m [33mGuide[39m[33m,[39m { [33mGUIDE_VERSION[39m[33m,[39m guideSeen } [36mfrom[39m [32m'./ayuda'[39m[33m;[39m[0m
+[EAGER_BUNDLE] 
+[EAGER_BUNDLE] Import stack:
+[EAGER_BUNDLE] 
+[EAGER_BUNDLE]  artifacts/mobile/App.js
+[EAGER_BUNDLE]  | import "expo-document-picker"
+[EAGER_BUNDLE] 
+[EAGER_BUNDLE]  node_modules/.pnpm/expo@57.0.27_@babel+core@7.29.7_react-dom@19.2.3_react@19.2.3__react-native-web@0.21.4__09093537be461c7b8a0ddad7c2963778/node_modules/expo/AppEntry.js
+[EAGER_BUNDLE]  | import "../../App"
+[EAGER_BUNDLE] 
+[EAGER_BUNDLE]  
+[EAGER_BUNDLE]  | import "./artifacts/mobile/node_modules/expo/AppEntry"
+[EAGER_BUNDLE] 
+Error: pnpm expo export:embed --eager --platform android --dev false exited with non-zero code: 1
+    at ChildProcess.completionListener (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/spawn-async/build/spawnAsync.js:113:23)
+    at Object.onceWrapper (node:events:634:26)
+    at ChildProcess.emit (node:events:519:28)
+    at ChildProcess.emit (node:domain:489:12)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5)
+    ...
+    at spawnAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/spawn-async/build/spawnAsync.js:9:23)
+    at spawn (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/turtle-spawn/dist/index.js:16:47)
+    at runExpoCliCommand (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/utils/project.js:59:43)
+    at eagerBundleAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/common/eagerBundle.js:11:43)
+    at /home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:136:54
+    at BuildContext.runBuildPhase (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/context.js:130:34)
+    at buildInnerAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:135:19)
+    at async buildAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:47:9)
+    at async runBuilderWithHooksAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/common.js:13:13)
+    at async Object.androidBuilder (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:32:16)
+
+Build failed
+Unknown error. See logs of the Bundle JavaScript build phase for more information.
+Error: Unknown error. See logs of the Bundle JavaScript build phase for more information.
+    at resolveBuildPhaseErrorAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/buildErrors/detectError.js:61:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async BuildContext.handleBuildPhaseErrorAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/context.js:197:28)
+    at async BuildContext.runBuildPhase (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/context.js:142:35)
+    at async buildInnerAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:135:9)
+    at async buildAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:47:9)
+    at async runBuilderWithHooksAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/common.js:13:13)
+    at async Object.androidBuilder (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/@expo/build-tools/dist/builders/android.js:32:16)
+    at async buildAndroidAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/eas-cli-local-build-plugin/dist/android.js:43:12)
+    at async buildAsync (/home/runner/.npm/_npx/82278a4845e1e505/node_modules/eas-cli-local-build-plugin/dist/build.js:54:29)
+
+Build context (for debugging this failed local build):
+  Platform: android
+  Build profile: apk
+  Workflow: managed
+  Distribution: store
+  Credentials source: remote
+  Project root directory: artifacts/mobile
+  Required package manager: pnpm
+  eas-cli version: 25.3.0
+  SDK version: 57.0.0
+  React Native version: 0.86.3
+  Expo package version: 57.0.27
+  App version: 1.0.0
+  Fingerprint hash: 87df0cef95772f1b5c7182508104862099eca05f
+  Git commit: 8630f32f630d22b8769d8d410f92f3daf8353755
+  Git working tree dirty: false
+  Build tracking ID: 2cef86c6-50a9-4092-83a1-977fac990bf6
+  Project ID: db19c560-3953-4919-a70c-c631d3a8c4fd
+npx -y eas-cli-local-build-plugin@25.3.0 exited with non-zero code: 1
+    Error: build command failed.
