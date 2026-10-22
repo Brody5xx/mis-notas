@@ -20,6 +20,7 @@ import { groupsOf as matGroupsOf, loadMaterials } from './matlista';
 import Materials from './materiales';
 import { ICON_URI } from './icono';
 import { setHour12, getHour12 } from './hora';
+import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useInsets, webTextZoom } from './pantalla';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
@@ -706,6 +707,23 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
   const [file, setFile] = useState(null);           // { name, text }
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [ok, setOk] = useState('');
   useEffect(() => { if (visible) { setStep('menu'); setP1(''); setP2(''); setFile(null); setErr(''); setOk(''); setBusy(''); setShow(false); } }, [visible]);
+  /* 📁 En el teléfono: el selector de archivos del propio teléfono (abre al instante) */
+  const [picking, setPicking] = useState(false);
+  const pickNative = async () => {
+    if (picking) return;
+    setErr(''); setPicking(true);
+    try {
+      const r = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
+      if (!r || r.canceled || !r.assets || !r.assets[0]) return;
+      const a = r.assets[0];
+      let text;
+      if (FS) { try { text = await new FS.File(a.uri).text(); } catch (e) { text = null; } }
+      if (text == null) text = await (await fetch(a.uri)).text();
+      setFile({ name: a.name || 'respaldo', text });
+    } catch (e) {
+      setErr(tr('bkBadFile'));
+    } finally { setPicking(false); }
+  };
   const pickWeb = () => {
     const inp = document.createElement('input'); inp.type = 'file';
     inp.onchange = () => { const f = inp.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setFile({ name: f.name, text: r.result }); r.readAsText(f); };
@@ -805,9 +823,13 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
                       <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>📁 {tr('bkPick')}</Text>
                     </TouchableOpacity>
                   ) : (
-                    <WebView originWhitelist={['*']} source={{ html: PICK_HTML(tr('bkPick'), t) }} style={{ flex: 1, backgroundColor: 'transparent' }}
-                      scrollEnabled={false} allowFileAccess
-                      onMessage={e => { try { const m = JSON.parse(e.nativeEvent.data); setFile(m); setErr(''); } catch (_) {} }} />
+                    <Pressable onPress={pickNative} disabled={picking}
+                      style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.border, borderRadius: 16 },
+                        (pressed || picking) && { backgroundColor: 'rgba(0,0,0,0.28)', opacity: 0.75 }]}>
+                      {picking ? <ActivityIndicator color={t.text} /> : null}
+                      <Text maxFontSizeMultiplier={1.3} style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>{picking ? tr('bkOpening') : '📁 ' + tr('bkPick')}</Text>
+                    </Pressable>
                   )}
                 </View>
                 {file && (

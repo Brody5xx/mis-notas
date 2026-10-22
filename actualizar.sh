@@ -102,6 +102,17 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
   ' || echo "  ✗ No pude registrar los permisos de la galería en app.json"
 fi
 
+# Paquete para elegir archivos (Importar notas) — solo la primera vez
+if [ -f package.json ] && { ! grep -q '"expo-document-picker"' package.json || [ ! -d node_modules/expo-document-picker ]; }; then
+  echo "  … instalando expo-document-picker (para elegir archivos). Espera un momento..."
+  if npx --yes expo install expo-document-picker >/tmp/expo-document-picker.log 2>&1; then
+    echo "  ✓ expo-document-picker instalado"
+  else
+    echo "  ✗ No pude instalar expo-document-picker. Escribe en el Shell:  npx expo install expo-document-picker"
+    tail -5 /tmp/expo-document-picker.log
+  fi
+fi
+
 # Paquete para los recordatorios (avisos a una hora) — solo la primera vez
 if [ -f package.json ] && { ! grep -q '"expo-notifications"' package.json || [ ! -d node_modules/expo-notifications ]; }; then
   echo "  … instalando expo-notifications (para los recordatorios). Espera un momento..."
