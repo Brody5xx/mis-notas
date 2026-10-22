@@ -1306,6 +1306,16 @@ function NotesApp() {
      tiempo, la nota abre rápido (el navegador no "se duerme" ni olvida lo que ya preparó). */
   /* Teléfono: mientras el editor se prepara (1–2 s), se ve al instante el título y el texto de la nota */
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
+  /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
+  const [webOn, setWebOn] = useState(Platform.OS === 'web');
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    setWebOn(false);
+    if (!currentId) return;
+    let t2 = null;
+    const r = requestAnimationFrame(() => { t2 = setTimeout(() => setWebOn(true), 30); });
+    return () => { cancelAnimationFrame(r); if (t2) clearTimeout(t2); };
+  }, [currentId, editorRev]);
   useEffect(() => {
     if (Platform.OS === 'web') return;
     setEdReady(false);
@@ -3066,7 +3076,7 @@ function NotesApp() {
               />
             ) : (
               <>
-              <WebView
+              {webOn && <WebView
                 textZoom={webTextZoom()}
                 ref={webRef}
                 originWhitelist={['*']}
@@ -3080,7 +3090,7 @@ function NotesApp() {
                 allowsInlineMediaPlayback
                 keyboardDisplayRequiresUserAction={false}
                 hideKeyboardAccessoryView
-              />
+              />}
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
                   <Text maxFontSizeMultiplier={1.3} style={{ color: quickView.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 18 }} numberOfLines={2}>
