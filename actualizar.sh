@@ -107,6 +107,13 @@ if [ -f package.json ] && { ! grep -q '"expo-document-picker"' package.json || [
   echo "  … instalando expo-document-picker (para elegir archivos). Espera un momento..."
   if npx --yes expo install expo-document-picker >/tmp/expo-document-picker.log 2>&1; then
     echo "  ✓ expo-document-picker instalado"
+  elif node -e '
+      const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+      let v = "*"; try { v = require(require.resolve("expo/bundledNativeModules.json", { paths: [process.cwd()] }))["expo-document-picker"] || "*"; } catch (e) {}
+      p.dependencies = p.dependencies || {}; p.dependencies["expo-document-picker"] = v;
+      fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n"); console.log("    (versión " + v + ")");
+    ' && (cd "$HOME/workspace" && pnpm install --no-frozen-lockfile >/tmp/expo-document-picker2.log 2>&1); then
+    echo "  ✓ expo-document-picker instalado (de otra forma)"
   else
     echo "  ✗ No pude instalar expo-document-picker. Escribe en el Shell:  npx expo install expo-document-picker"
     tail -5 /tmp/expo-document-picker.log
