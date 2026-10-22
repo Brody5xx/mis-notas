@@ -295,7 +295,8 @@ function hlParts(text, q) {
   if (pos < text.length) out.push({ t: text.slice(pos) });
   return { parts: out, first: f.indexOf(fq) };
 }
-const HL_STYLE = { backgroundColor: '#ffd60a', color: '#000', fontWeight: '800' };
+/* Color de lo encontrado: violeta del ícono de Best Notes, con subrayado */
+const HL_STYLE = { backgroundColor: 'rgba(140,110,255,0.42)', fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: '#c9b6ff' };
 
 async function loadData() {
   if (FS) {
@@ -1327,6 +1328,8 @@ function NotesApp() {
   const [zoomRect, setZoomRect] = useState(null);
   const zoomBusy = useRef(false);
   const zoomStart = useRef(null);
+  const [ghost, setGhost] = useState(null);            // tarjeta fantasma de la animación { R, title, color }
+  const ghostGo = useRef(null);
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
   /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
   const [webOn, setWebOn] = useState(Platform.OS === 'web');
@@ -1336,7 +1339,7 @@ function NotesApp() {
     if (!currentId) return;
     let t2 = null;
     // espera a que termine la animación de abrir (así no se traba) y luego crea el editor
-    const r = requestAnimationFrame(() => { t2 = setTimeout(() => setWebOn(true), 290); });
+    const r = requestAnimationFrame(() => { t2 = setTimeout(() => setWebOn(true), 80); });
     return () => { cancelAnimationFrame(r); if (t2) clearTimeout(t2); };
   }, [currentId, editorRev]);
   useEffect(() => {
@@ -1595,9 +1598,16 @@ function NotesApp() {
     const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
     if (R && !zoomBusy.current) {
       zoomBusy.current = true;
-      setZoomRect(R); setRevealing(true);
-      Animated.timing(zp, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true })
-        .start(() => { closeEditorNow(); setTimeout(() => { zoomBusy.current = false; setZoomRect(null); setRevealing(false); zp.setValue(1); }, 30); });
+      const n = current || {};
+      zp.setValue(1);
+      ghostGo.current = () => {
+        ghostGo.current = null;
+        Animated.timing(zp, { toValue: 0, duration: 210, easing: Easing.in(Easing.cubic), useNativeDriver: true })
+          .start(() => { setGhost(null); zoomBusy.current = false; });
+      };
+      setGhost({ R, title: n.title || '', color: n.color || null, closing: true });
+      closeEditorNow();
+      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);
       return;
     }
     closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
@@ -2370,17 +2380,24 @@ function NotesApp() {
     // Sin la animación del círculo líquido. En el teléfono, la tarjeta crece hasta llenar la pantalla (como Google Keep)
     revBusy.current = false; revPending.current = null; revP.setValue(1);
     if (Platform.OS !== 'web') {
+      // Una "tarjeta fantasma" liviana crece desde la nota hasta llenar la pantalla; después aparece la nota.
+      // (Mover la nota completa mientras crece trababa la animación.)
       const R = rect || cardRects.current[id] || { x: width * 0.08, y: winH * 0.12, w: width * 0.84, h: winH * 0.7 };
       cardRects.current[id] = R;
+      if (zoomBusy.current) { setCurrentId(id); return; }
       zoomBusy.current = true;
-      setZoomRect(R); zp.setValue(0); setRevealing(true);
-      setCurrentId(id);
-      zoomStart.current = () => {          // empieza cuando la nota ya está en pantalla (si no, no se ve la animación)
-        zoomStart.current = null;
-        Animated.timing(zp, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true })
-          .start(() => { zoomBusy.current = false; setRevealing(false); setZoomRect(null); });
+      const n = notesRef.current.find(x => x.id === id) || {};
+      zp.setValue(0);
+      ghostGo.current = () => {
+        ghostGo.current = null;
+        Animated.timing(zp, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+          .start(() => {
+            setCurrentId(id);
+            setTimeout(() => { setGhost(null); zoomBusy.current = false; }, 60);
+          });
       };
-      setTimeout(() => { if (zoomStart.current) zoomStart.current(); }, 400);   // por si acaso
+      setGhost({ R, title: n.title || '', color: n.color || null });
+      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);   // por si acaso
       return;
     }
     setRevealing(false);
@@ -3734,7 +3751,7 @@ function NotesApp() {
                 <View style={s.cardHeader}>
                   <Text maxFontSizeMultiplier={1.3} style={s.cardTitle} numberOfLines={1}>
                     {hlQ && hlParts(item.title, hlQ) ? hlParts(item.title, hlQ).parts.map((g, i) => (
-                      <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? HL_STYLE : null}>{g.t}</Text>
+                      <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>
                     )) : item.title ? titleSegments(item).map((g, i) => (
                       <Text maxFontSizeMultiplier={1.3} key={i} style={{
                         color: g.color || c.text,
@@ -3760,18 +3777,27 @@ function NotesApp() {
                   </View>
                 ) : (
                   <>
-                    {thumb && (
-                      <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />
-                    )}
-                    <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{(() => {
+                    {(() => {
                       const plain = toPlain(item);
                       const h = hlQ && hlParts(plain, hlQ);
-                      if (!h) return plain;
-                      // que se vea la parte donde está la palabra (aunque esté más abajo en la nota)
-                      const cut = h.first > 40 ? h.first - 25 : 0;
-                      const hh = cut ? hlParts('…' + plain.slice(cut), hlQ) : h;
-                      return hh.parts.map((g, i) => <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? HL_STYLE : null}>{g.t}</Text>);
-                    })()}</Text>
+                      if (!h) return (
+                        <>
+                          {thumb && <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />}
+                          <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{plain}</Text>
+                        </>
+                      );
+                      // 🔍 buscando: se esconde la foto y se muestra el pedacito del texto donde está la palabra
+                      const flat = plain.replace(/\s*\n+\s*/g, ' · ');
+                      const h2 = hlParts(flat, hlQ);
+                      let cut = h2.first > 18 ? h2.first - 14 : 0;
+                      if (cut) { const sp = flat.lastIndexOf(' ', cut); if (sp >= 0 && sp > cut - 12) cut = sp + 1; }
+                      const hh = cut ? hlParts('…' + flat.slice(cut), hlQ) : h2;
+                      return (
+                        <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={isGrid ? 6 : 3}>
+                          {hh.parts.map((g, i) => <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>)}
+                        </Text>
+                      );
+                    })()}
                   </>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -3887,7 +3913,19 @@ function NotesApp() {
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
   const nat = false;                                   // (el círculo líquido ya no se usa)
-  const zr = Platform.OS !== 'web' && revealing ? zoomRect : null;
+  const zr = null;                                     // (la nota ya no se encoge/estira: lo hace la tarjeta fantasma)
+  const gr = ghost && ghost.R;
+  const ghostStyle = gr ? {
+    position: 'absolute', left: 0, top: 0, width, height: winH, borderRadius: 24, overflow: 'hidden',
+    backgroundColor: c.grad[0], borderWidth: 1, borderColor: c.border,
+    opacity: ghost.closing ? zp.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0.3, 1, 1] }) : 1,
+    transform: [
+      { translateX: zp.interpolate({ inputRange: [0, 1], outputRange: [gr.x + gr.w / 2 - width / 2, 0] }) },
+      { translateY: zp.interpolate({ inputRange: [0, 1], outputRange: [gr.y + gr.h / 2 - winH / 2, 0] }) },
+      { scaleX: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, gr.w / width), 1] }) },
+      { scaleY: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, gr.h / winH), 1] }) },
+    ],
+  } : null;
   const zoomStyle = zr ? {
     flex: 1, overflow: 'hidden', borderRadius: 22,
     transform: [
@@ -3918,6 +3956,12 @@ function NotesApp() {
             </Animated.View>
           </Animated.View>
         </View>
+      )}
+      {ghostStyle && (
+        <Animated.View pointerEvents="none" style={ghostStyle}
+          onLayout={() => { if (ghostGo.current) requestAnimationFrame(() => ghostGo.current && ghostGo.current()); }}>
+          {!!ghost.color && <View style={[StyleSheet.absoluteFill, { backgroundColor: ghost.color, opacity: 0.16 }]} />}
+        </Animated.View>
       )}
       {mediaJob && Platform.OS !== 'web' && (
         <View key={mediaJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01 }}>

@@ -366,7 +366,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audtx{color:${c.muted};font-style:italic}
   /* ===== Videos dentro de la nota ===== */
   .vidwrap{margin:12px 0;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.1);user-select:none;-webkit-user-select:none}
-  ::highlight(bnq){background-color:#ffd60a;color:#000}
+  ::highlight(bnq){background-color:rgba(140,110,255,.42);text-decoration:underline 2px #c9b6ff}
   .vidwrap video{display:block;width:100%;max-height:70vh;background:#000}
   .vidbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.08)}
   .vidbar .vidsz{flex:1;font-size:13px;color:${c.muted};font-variant-numeric:tabular-nums}
