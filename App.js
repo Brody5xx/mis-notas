@@ -21,6 +21,7 @@ import Materials from './materiales';
 import { ICON_URI } from './icono';
 import { setHour12, getHour12 } from './hora';
 import * as DocumentPicker from 'expo-document-picker';
+import { startDict } from './dictado';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useInsets, webTextZoom } from './pantalla';
 import Guide, { GUIDE_VERSION, guideSeen } from './ayuda';
@@ -1401,6 +1402,117 @@ function NotesApp() {
 
   const c = dark ? THEMES.dark : THEMES.light;
   const ins = useInsets();
+  /* 🚄 EDITOR SIEMPRE LISTO (teléfono): dos editores viven escondidos y ya cargados.
+     Al abrir una nota, uno de ellos recibe la nota al instante (sin crear nada nuevo);
+     al cerrarla, ese editor se tira y se prepara otro nuevo por detrás. */
+  const POOL = Platform.OS !== 'web';
+  const [slots, setSlots] = useState([{ key: 1, html: null }, { key: 2, html: null }]);
+  const slotRefs = useRef([null, null]);
+  const slotLoaded = useRef([false, false]);
+  const pendingBoot = useRef([null, null]);
+  const activeRef = useRef(-1);
+  const [activeSlot, setActiveSlot] = useState(-1);
+  const edAreaRef = useRef(null);
+  const [edArea, setEdArea] = useState(null);
+  const spareHtml = useMemo(() => (POOL && loaded ? buildEditorHtml({
+    id: 'spare', content: '', titleHtml: '', updated: 0, editable: true, c, kind: 'text', ink: [], tr, locale: LOCALE,
+    colors: colorPrefs.current, safeBottom: ins.bottom, deferred: true,
+  }) : null), [loaded, dark, langCode, ins.bottom, hourFmt]);
+  useEffect(() => {          // editores nuevos (o al cambiar tema/idioma): los que no se están usando se rehacen
+    if (!spareHtml) return;
+    setSlots(ss => ss.map((sl, k) => (k === activeRef.current ? sl : { key: sl.key + 2, html: spareHtml })));
+    [0, 1].forEach(k => { if (k !== activeRef.current) { slotLoaded.current[k] = false; slotDirty.current[k] = false; pendingBoot.current[k] = null; } });
+  }, [spareHtml]);
+  const slotDirty = useRef([false, false]);           // ya se usó: hay que rehacerlo antes de volver a usarlo
+  function retireSlot(k) {
+    if (k < 0) return;
+    slotLoaded.current[k] = false; pendingBoot.current[k] = null; slotDirty.current[k] = false;
+    setSlots(ss => ss.map((sl, i) => (i === k ? { key: sl.key + 2, html: spareHtml } : sl)));
+  }
+  function bootNote(n) {
+    const old = activeRef.current;
+    const ok = i => i !== old && !slotDirty.current[i];
+    let k = [0, 1].find(i => ok(i) && slotLoaded.current[i]);
+    if (k === undefined) k = [0, 1].find(ok);
+    if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
+    activeRef.current = k; setActiveSlot(k);
+    webRef.current = slotRefs.current[k];
+    const data = { id: n.id, content: toHtml(n), title: toTitleHtml(n), updated: n.updated, editable: !n.deleted,
+      ink: n.ink || [], highlight: searchOpen ? query.trim() : '' };
+    const js = 'window.__boot && window.__boot(' + JSON.stringify(data).replace(/</g, '\\u003c') + '); true;';
+    if (slotLoaded.current[k] && slotRefs.current[k]) slotRefs.current[k].injectJavaScript(js);
+    else pendingBoot.current[k] = js;
+    if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; setTimeout(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 700); }
+  }
+  useEffect(() => {
+    if (!POOL) return;
+    if (currentId) {
+      const n = notesRef.current.find(x => x.id === currentId);
+      if (n) bootNote(n);
+    } else if (activeRef.current >= 0) {
+      const k = activeRef.current;
+      activeRef.current = -1; setActiveSlot(-1); webRef.current = null;
+      slotDirty.current[k] = true; slotLoaded.current[k] = false;
+      // se rehace un ratito después (para no trabar la animación de cerrar)
+      setTimeout(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 700);
+    }
+  }, [currentId, editorRev]);
+  function onSlotMessage(k, data) {
+    let m = null; try { m = JSON.parse(data); } catch (e) {}
+    if (m && m.type === 'spare') {
+      slotLoaded.current[k] = true;
+      if (pendingBoot.current[k] && slotRefs.current[k]) { slotRefs.current[k].injectJavaScript(pendingBoot.current[k]); pendingBoot.current[k] = null; }
+      return;
+    }
+    if (k === activeRef.current) onEditorMessage(data);
+  }
+  /* 🎙️ DICTAR: hablas y la nota se va escribiendo sola */
+  const [dictOn, setDictOn] = useState(false);
+  const [dictPart, setDictPart] = useState('');
+  const [dictLang, setDictLang] = useState(null);       // 'es-US' / 'en-US' / ...
+  const dictRef = useRef({ on: false, stop: null, lang: null });
+  const dictDefault = () => (langCode === 'en' ? 'en-US' : langCode === 'es' ? 'es-US' : langCode);
+  function editorJs(js) { if (webRef.current) webRef.current.injectJavaScript(js + '; true;'); }
+  async function dictRun(lang) {
+    const D = dictRef.current;
+    if (D.stop) { try { D.stop(); } catch (e) {} D.stop = null; }
+    D.lang = lang;
+    D.stop = await startDict({
+      lang,
+      onText: (t, fin) => {
+        if (!dictRef.current.on) return;
+        setDictPart(fin ? '' : t);
+        editorJs('window.dictateText && window.dictateText(' + JSON.stringify(t).replace(/</g, '\\u003c') + ',' + (fin ? 'true' : 'false') + ')');
+      },
+      onEnd: () => { if (dictRef.current.on) setTimeout(() => { if (dictRef.current.on) dictRun(dictRef.current.lang); }, 250); },   // Android para en los silencios: se sigue
+      onError: (code) => {
+        if (code === 'perm' || code === 'not-allowed' || code === 'unavailable' || code === 'service-not-allowed' || code === 'language-not-supported') {
+          showToast(code === 'perm' || code === 'not-allowed' ? tr('dictPerm') : tr('dictFail'));
+          dictStop();
+        }
+      },
+    });
+  }
+  function dictStart() {
+    if (dictRef.current.on) return;
+    dictRef.current.on = true; setDictOn(true); setDictPart('');
+    const lg = dictLang || dictDefault(); setDictLang(lg);
+    editorJs('window.dictateStart && window.dictateStart()');
+    dictRun(lg);
+  }
+  function dictStop() {
+    const D = dictRef.current; D.on = false;
+    if (D.stop) { try { D.stop(); } catch (e) {} D.stop = null; }
+    setDictOn(false); setDictPart('');
+    editorJs('window.dictateStop && window.dictateStop()');
+  }
+  function dictSwap() {
+    const lg = (dictLang || dictDefault()).startsWith('es') ? 'en-US' : 'es-US';
+    setDictLang(lg);
+    editorJs('window.dictateStop && window.dictateStop(); window.dictateStart && window.dictateStart()');
+    if (dictRef.current.on) dictRun(lg);
+  }
+  useEffect(() => { if (!currentId && dictRef.current.on) dictStop(); }, [currentId]);
   const s = useMemo(() => makeStyles(c, ins), [dark, ins.top, ins.bottom]);
 
   /* ---------- Cargar notas guardadas ---------- */
@@ -3149,22 +3261,8 @@ function NotesApp() {
                 style={{ border: 'none', width: '100%', height: '100%', backgroundColor: 'transparent' }}
               />
             ) : (
-              <>
-              {webOn && <WebView
-                textZoom={webTextZoom()}
-                ref={webRef}
-                originWhitelist={['*']}
-                source={{ html: editorHtml, baseUrl: EDITOR_BASE }}
-                onMessage={e => onEditorMessage(e.nativeEvent.data)}
-                style={{ flex: 1, backgroundColor: 'transparent', opacity: edReady ? 1 : 0 }}
-                containerStyle={{ backgroundColor: 'transparent' }}
-                allowFileAccess
-                mediaCapturePermissionGrantType="grant"
-                mediaPlaybackRequiresUserAction={false}
-                allowsInlineMediaPlayback
-                keyboardDisplayRequiresUserAction={false}
-                hideKeyboardAccessoryView
-              />}
+              <View ref={edAreaRef} style={{ flex: 1 }} collapsable={false}
+                onLayout={() => { try { edAreaRef.current && edAreaRef.current.measureInWindow((x, y, w, h) => { if (w > 0 && h > 0) setEdArea({ x, y, w, h }); }); } catch (e) {} }}>
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
                   <Text maxFontSizeMultiplier={1.3} style={{ color: quickView.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 18 }} numberOfLines={2}>
@@ -3173,7 +3271,7 @@ function NotesApp() {
                   <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 17, lineHeight: 25 }}>{quickView.text}</Text>
                 </View>
               )}
-              </>
+              </View>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -3219,6 +3317,7 @@ function NotesApp() {
             right={<Feather name="chevron-right" size={18} color={c.muted} />} />
           <Row icon="share-2" label={tr('share')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setShareFor([current.id]), 250); }} />
           <Row icon="clipboard" label={tr('tplTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('tplOpen'), 250); }} />
+          {Platform.OS !== 'web' && <Row icon="mic" label={'🗣️ ' + tr('dictTitle')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(dictStart, 250); }} />}
           <Row icon="mic" label={tr('recAudio')} s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('recStart'), 250); }} />
           <Row icon="file-text" label={tr('makePdf')} s={s} t={c} onPress={() => { setOptsOpen(false); exportNotes('pdf', [current.id]); }} />
           <Row icon="delete" label={tr('clearAll')} danger s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => setClearAsk(true), 250); }} />
@@ -3354,7 +3453,7 @@ function NotesApp() {
 
         {folderModal}
         {pinModal}
-        {toast}
+        {Platform.OS === 'web' && toast}
       </View>
     );
   }
@@ -3906,9 +4005,9 @@ function NotesApp() {
   );
 
   /* Editor escondido para "calentar" el motor del navegador del teléfono (se arma una sola vez) */
-  const warmHtml = warmHtmlRef.current || (Platform.OS !== 'web' && loaded ? (warmHtmlRef.current = buildEditorHtml({
+  const warmHtml = null && (warmHtmlRef.current || (Platform.OS !== 'web' && loaded ? (warmHtmlRef.current = buildEditorHtml({
     id: 'warm', content: '<div>Hola</div>', titleHtml: 'T', updated: Date.now(), editable: false, c,
-    kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current })) : null);
+    kind: 'text', ink: [], tr, locale: LOCALE, colors: colorPrefs.current })) : null));
   /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
@@ -3970,9 +4069,46 @@ function NotesApp() {
         </View>
       )}
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
-      {warmHtml && (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01, overflow: 'hidden' }}>
-          <WebView originWhitelist={['*']} source={{ html: warmHtml, baseUrl: EDITOR_BASE }} style={{ width: 2, height: 2 }} />
+      {POOL && slots.map((sl, k) => sl.html ? (
+        <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
+          style={k === activeSlot && current && edArea
+            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady ? 1 : 0 }
+            : { position: 'absolute', left: 0, top: 0, width, height: winH, opacity: 0 }}>
+          <WebView
+            textZoom={webTextZoom()}
+            ref={r => { slotRefs.current[k] = r; if (k === activeRef.current) webRef.current = r; }}
+            originWhitelist={['*']}
+            source={{ html: sl.html, baseUrl: EDITOR_BASE }}
+            onMessage={e => onSlotMessage(k, e.nativeEvent.data)}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            containerStyle={{ backgroundColor: 'transparent' }}
+            allowFileAccess
+            mediaCapturePermissionGrantType="grant"
+            mediaPlaybackRequiresUserAction={false}
+            allowsInlineMediaPlayback
+            keyboardDisplayRequiresUserAction={false}
+            hideKeyboardAccessoryView
+          />
+        </View>
+      ) : null)}
+      {POOL && current && toast}
+      {dictOn && current && (
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 96 + ins.bottom }} pointerEvents="box-none">
+          <Glass t={c} strong radius={22} inner={{ padding: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#ff453a' }} />
+              <Text maxFontSizeMultiplier={1.3} style={{ color: c.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{tr('dictOn')}</Text>
+              <TouchableOpacity onPress={dictSwap} activeOpacity={0.7}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: c.border }}>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: c.text, fontWeight: '800', fontSize: 13 }}>{(dictLang || '').startsWith('es') ? 'ES' : 'EN'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={dictStop} activeOpacity={0.7}
+                style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, backgroundColor: c.text }}>
+                <Text maxFontSizeMultiplier={1.2} style={{ color: c.inv, fontWeight: '800', fontSize: 13 }}>■ {tr('dictStop')}</Text>
+              </TouchableOpacity>
+            </View>
+            {!!dictPart && <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 14, marginTop: 6 }} numberOfLines={2}>{dictPart}</Text>}
+          </Glass>
         </View>
       )}
       {portalStars && Platform.OS !== 'web' && (

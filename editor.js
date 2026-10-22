@@ -14,7 +14,7 @@ export const COLORS = [null, '#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc
    EDITOR CON FORMATO, FOTOS Y RECORTE
    (funciona en el teléfono y en la vista previa de Replit)
    ============================================================ */
-export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors, safeBottom, highlight }) {
+export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, kind, ink, tr, locale, exportJob, colors, safeBottom, highlight, deferred }) {
   const SB = Math.max(0, Math.round(+safeBottom || 0));       // barra de gestos / botones del teléfono (para que no tape la barra de abajo)
   /* exportJob = { kind: 'pdf' | 'img', name, notes: [{ t, h, k, u, locked, bg }] } → hace el archivo y lo manda a la app */
   const safeJob = JSON.stringify(exportJob || null).replace(/</g, '\\u003c');
@@ -26,6 +26,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   const safeInk = JSON.stringify(ink || []).replace(/</g, '\\u003c');
   const safeContent = JSON.stringify(content).replace(/</g, '\\u003c');
   const safeTitle = JSON.stringify(titleHtml || '').replace(/</g, '\\u003c');
+  /* Los datos de la nota. Con "deferred", el editor se prepara antes (escondido) y la nota llega después
+     con window.__boot(datos): así abrir una nota es casi instantáneo */
+  const noteJson = JSON.stringify({ id, content: content || '', title: titleHtml || '', updated: Number(updated) || 0,
+    editable: !!editable, ink: ink || [], highlight: String(highlight || '') }).replace(/</g, '\\u003c');
   const safeColors = JSON.stringify(colors || {}).replace(/</g, '\\u003c');
   const glass = c.dockFill;
   const chips = SIZE_CHIPS.map(v => `<button class="chip" data-size="${v}">${v}</button>`).join('');
@@ -366,6 +370,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .audtx{color:${c.muted};font-style:italic}
   /* ===== Videos dentro de la nota ===== */
   .vidwrap{margin:12px 0;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.1);user-select:none;-webkit-user-select:none}
+  .dictlive{opacity:.6;border-bottom:2px dotted currentColor}
   ::highlight(bnq){background-color:rgba(140,110,255,.42);text-decoration:underline 2px #c9b6ff}
   .vidwrap video{display:block;width:100%;max-height:70vh;background:#000}
   .vidbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.08)}
@@ -374,7 +379,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   .vidbar .vidx,.vidbar .vidmu{padding:5px 8px}
   .vidbar .vidsz{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vidbar{gap:8px}
-  ${editable ? '' : '.vidbar button,.audwrap .audx{display:none !important}'}
+  body.ro .vidbar button,body.ro .audwrap .audx{display:none !important}
   #recP{bottom:calc(14px + var(--kb)) !important;z-index:9}
   body.recording #dock,body.recording #rwChip{display:none !important}
   #recP .recTop{display:flex;align-items:center;gap:12px;margin-bottom:10px}
@@ -641,15 +646,19 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
 <script>
   ${hourScript(getHour12())}
+  window.__boot = function(N){
+  window.__boot = null;
   function $(id){ return document.getElementById(id); }
-  var noteId = ${JSON.stringify(id)};
-  var editable = ${editable ? 'true' : 'false'};
+  var noteId = N.id;
+  var editable = !!N.editable;
   var ttl = $('ttl'), cur = null;
   var ed = $('ed'), dock = $('dock'), imgbar = $('imgbar'), fileInput = $('file');
+  ttl.setAttribute('contenteditable', editable ? 'true' : 'false'); ed.setAttribute('contenteditable', editable ? 'true' : 'false');
+  if (!editable) { dock.style.display = 'none'; document.body.classList.add('ro'); }
   var sizePanel = $('sizePanel'), colorPanel = $('colorPanel');
   var range = $('range'), sizeNum = $('sizeNum'), sizeBig = $('sizeBig'), sample = $('sample'), colorDot = $('colorDot');
   var saved = null, dirty = false, sendTimer = null;
-  ed.innerHTML = ${safeContent};
+  ed.innerHTML = N.content || '';
   Array.prototype.forEach.call(ed.querySelectorAll('.audtx,.audpro'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
   // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
@@ -667,7 +676,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     }
   });
   if (editable) ensureLines();
-  ttl.innerHTML = ${safeTitle};
+  ttl.innerHTML = N.title || '';
   cur = ed;
 
   /* Fecha de modificación (se actualiza sola) */
@@ -716,7 +725,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   // La fecha y el conteo de palabras se calculan un ratito después de abrir
   // (son lentos la primera vez y harían que la animación de abrir se trabe)
   $('meta').innerHTML = '&nbsp;';
-  setTimeout(function(){ $('meta').textContent = modText(${Number(updated) || Date.now()}); }, 950);
+  setTimeout(function(){ $('meta').textContent = modText(+N.updated || Date.now()); }, 950);
 
   /* ¿El texto tocado está en el título o en la nota? */
   function owner(node){
@@ -733,7 +742,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
     else window.parent.postMessage(s, '*');
   }
-  function cleanHtml(){ return ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, ''); }
+  function cleanHtml(){ return ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, '').replace(/<span class="dictlive">[^<]*<[/]span>/g, ''); }
   function payload(){
     return { html: cleanHtml(), title: plainTitle(), titleHtml: plainTitle() ? ttl.innerHTML : '', ink: isDraw ? strokes : undefined };
   }
@@ -2061,7 +2070,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
      nítidos en cualquier pantalla.
      ========================================================= */
   var isDraw = true;                    // todas las notas permiten dibujar
-  var strokes = ${safeInk};
+  var strokes = N.ink || [];
   var ink = $('ink'), live = $('live');
   var ictx = ink.getContext('2d'), lctx = live.getContext('2d');
   var drawing = false, tool = 'pen', penColor = ${JSON.stringify(c.text)}, penSize = 1;
@@ -4262,6 +4271,41 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   if (JOB) setTimeout(runExport, 150);
   notifyUndo();
+  /* 🎙️ DICTAR: la app escucha y manda el texto; aquí se va escribiendo donde estaba el cursor */
+  var dictAt = null;
+  window.dictateStart = function(){
+    var r = null;
+    try { var sel = window.getSelection(); if (sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).startContainer)) r = sel.getRangeAt(0).cloneRange(); } catch (e) {}
+    if (!r && saved && ed.contains(saved.startContainer)) r = saved.cloneRange();
+    if (!r) { var blk = ed.lastElementChild; r = document.createRange(); r.selectNodeContents(blk && !/wrap/.test(blk.className || '') ? blk : ed); r.collapse(false); }
+    r.collapse(false); dictAt = r;
+  };
+  window.dictateText = function(t, fin){
+    if (!editable) return;
+    if (!dictAt) window.dictateStart();
+    var sp = ed.querySelector('span.dictlive');
+    if (!sp) {
+      sp = document.createElement('span'); sp.className = 'dictlive';
+      dictAt.insertNode(sp);
+      var pv = sp.previousSibling, nx = sp.nextSibling;          // renglón vacío: quitar el salto que tenía
+      if (pv && pv.nodeName === 'BR' && !pv.previousSibling) pv.parentNode.removeChild(pv);
+      else if (nx && nx.nodeName === 'BR' && !nx.nextSibling && !sp.previousSibling) nx.parentNode.removeChild(nx);
+    }
+    var prev = sp.previousSibling, needSpace = prev && prev.nodeType === 3 && prev.nodeValue && !/\\s$/.test(prev.nodeValue);
+    sp.textContent = (needSpace ? ' ' : '') + t;
+    if (fin) {
+      var tn = document.createTextNode((needSpace ? ' ' : '') + t + ' ');
+      sp.parentNode.replaceChild(tn, sp);
+      var r2 = document.createRange(); r2.setStartAfter(tn); r2.collapse(true); dictAt = r2; saved = r2.cloneRange();
+      changedNow();
+    }
+    try { (sp.parentNode ? sp : null) && sp.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  };
+  window.dictateStop = function(){
+    var sp = ed.querySelector('span.dictlive');
+    if (sp) { if (sp.textContent.trim()) { var tn = document.createTextNode(sp.textContent + ' '); sp.parentNode.replaceChild(tn, sp); } else sp.parentNode.removeChild(sp); changedNow(); }
+    dictAt = null;
+  };
   try { send({ type: 'ready' }); } catch (e) {}       // ya está listo: la app quita la vista previa rápida
   /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
   (function(Q){
@@ -4287,6 +4331,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     showTip('🔍 ' + ranges.length);
     var off = function(){ try { CSS.highlights.delete('bnq'); } catch (e) {} ed.removeEventListener('input', off); ttl.removeEventListener('input', off); };
     ed.addEventListener('input', off); ttl.addEventListener('input', off);
-  })(${JSON.stringify(String(highlight || '')).replace(/</g, '\u003c')});
+  })(N.highlight || '');
+  };
+  ${deferred
+    ? "try { (window.ReactNativeWebView || { postMessage: function(){} }).postMessage(JSON.stringify({ type: 'spare' })); } catch (e) {}"
+    : 'window.__boot(' + noteJson + ');'}
 </script></body></html>`;
 }

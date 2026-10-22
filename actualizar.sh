@@ -120,6 +120,43 @@ if [ -f package.json ] && { ! grep -q '"expo-document-picker"' package.json || [
   fi
 fi
 
+# Paquete para DICTAR (voz a texto) — solo la primera vez
+if [ -f package.json ] && { ! grep -q '"expo-speech-recognition"' package.json || [ ! -d node_modules/expo-speech-recognition ]; }; then
+  echo "  … instalando expo-speech-recognition (para dictar). Espera un momento..."
+  if npx --yes expo install expo-speech-recognition >/tmp/expo-speech.log 2>&1; then
+    echo "  ✓ expo-speech-recognition instalado"
+  elif node -e '
+      const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+      let v = "*"; try { v = require(require.resolve("expo/bundledNativeModules.json", { paths: [process.cwd()] }))["expo-speech-recognition"] || "*"; } catch (e) {}
+      p.dependencies = p.dependencies || {}; p.dependencies["expo-speech-recognition"] = v;
+      fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n"); console.log("    (versión " + v + ")");
+    ' && (cd "$HOME/workspace" && pnpm install --no-frozen-lockfile >/tmp/expo-speech2.log 2>&1); then
+    echo "  ✓ expo-speech-recognition instalado (de otra forma)"
+  else
+    echo "  ✗ No pude instalar expo-speech-recognition."
+    tail -5 /tmp/expo-speech.log /tmp/expo-speech2.log 2>/dev/null
+  fi
+fi
+# Registrar el dictado en app.json (permisos del micrófono y del reconocimiento de voz)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    e.plugins = e.plugins || [];
+    const has = e.plugins.some(p => (Array.isArray(p) ? p[0] : p) === "expo-speech-recognition");
+    if (!has) {
+      e.plugins.push(["expo-speech-recognition", {
+        microphonePermission: "Best Notes usa el micrófono para dictar tus notas.",
+        speechRecognitionPermission: "Best Notes convierte tu voz en texto para escribir tus notas.",
+        androidSpeechServicePackages: ["com.google.android.googlequicksearchbox", "com.google.android.as"]
+      }]);
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (dictado registrado)");
+    }
+  ' || echo "  ✗ No pude registrar el dictado en app.json"
+fi
+
 # Paquete para los recordatorios (avisos a una hora) — solo la primera vez
 if [ -f package.json ] && { ! grep -q '"expo-notifications"' package.json || [ ! -d node_modules/expo-notifications ]; }; then
   echo "  … instalando expo-notifications (para los recordatorios). Espera un momento..."
