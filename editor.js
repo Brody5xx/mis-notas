@@ -4316,7 +4316,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       if (im.complete && im.naturalWidth) { one(); return; }
       if (im.decode) im.decode().then(one, one); else { im.addEventListener('load', one); im.addEventListener('error', one); }
     });
-    setTimeout(go, 350);                                   // nunca hace esperar más de esto
+    setTimeout(go, 160);                                   // nunca hace esperar más de esto
   })();
   /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
   window.hlSet = function(Q, jump){

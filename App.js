@@ -1354,11 +1354,14 @@ function NotesApp() {
   const ghostGo = useRef(null);
   const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
   const ghostWaiting = useRef(false);
+  const [edHidden, setEdHidden] = useState(false);    // el editor se prepara escondido mientras la tarjeta crece
+  const edReadyRef = useRef(false);
   function fadeGhost() {
     if (!ghostWaiting.current) return;
     ghostWaiting.current = false;
-    Animated.timing(gFade, { toValue: 0, duration: 170, easing: Easing.out(Easing.quad), useNativeDriver: true })
-      .start(() => { setGhost(g => (g && !g.closing ? null : g)); zoomBusy.current = false; });
+    setEdHidden(false);
+    Animated.timing(gFade, { toValue: 0, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true })
+      .start(() => { setGhost(g => (g && !g.closing ? null : g)); zoomBusy.current = false; setRevealing(false); });
   }
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
   /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
@@ -1379,11 +1382,12 @@ function NotesApp() {
     const tm = setTimeout(() => setEdReady(true), 5000);   // por si acaso
     return () => clearTimeout(tm);
   }, [currentId, editorRev]);
-  useEffect(() => { if (edReady && ghostWaiting.current) setTimeout(fadeGhost, 40); }, [edReady]);
+  edReadyRef.current = edReady;
+  useEffect(() => { if (edReady && ghostWaiting.current) fadeGhost(); }, [edReady]);
   /* 🔍 Lo iluminado se queda en la nota hasta que borras la búsqueda */
   useEffect(() => {
     if (!currentId) return;
-    const q = searchOpen ? query.trim() : '';
+    const q = query.trim();
     const js = 'window.hlSet && window.hlSet(' + JSON.stringify(q).replace(/</g, '\\u003c') + ', false); true;';
     if (Platform.OS === 'web') { try { const w = iframeRef.current && iframeRef.current.contentWindow; w && w.hlSet && w.hlSet(q, false); } catch (e) {} }
     else if (webRef.current) webRef.current.injectJavaScript(js);
@@ -1472,7 +1476,7 @@ function NotesApp() {
     activeRef.current = k; setActiveSlot(k);
     webRef.current = slotRefs.current[k];
     const data = { id: n.id, content: toHtml(n), title: toTitleHtml(n), updated: n.updated, editable: !n.deleted,
-      ink: n.ink || [], highlight: searchOpen ? query.trim() : '' };
+      ink: n.ink || [], highlight: query.trim() };
     const js = 'window.__boot && window.__boot(' + JSON.stringify(data).replace(/</g, '\\u003c') + '); true;';
     if (slotLoaded.current[k] && slotRefs.current[k]) slotRefs.current[k].injectJavaScript(js);
     else pendingBoot.current[k] = js;
@@ -1740,7 +1744,7 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
-    if (ghostWaiting.current) { ghostWaiting.current = false; setGhost(null); zoomBusy.current = false; }   // saliste muy rápido
+    if (ghostWaiting.current || edHidden) { ghostWaiting.current = false; ghostGo.current = null; setGhost(null); zoomBusy.current = false; setEdHidden(false); setRevealing(false); }   // saliste muy rápido
     // Teléfono: la nota se encoge de vuelta a su tarjeta
     const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
     if (R && !zoomBusy.current) {
@@ -2351,11 +2355,13 @@ function NotesApp() {
     setUndoState({ canUndo: false, canRedo: false });
     if (n && !recCache.current[n.id]) {
       const id = n.id;
-      loadRecord(id).then(r => {
+      // el registro se carga un ratito después (así abrir la nota no espera por esto)
+      const tm = setTimeout(() => loadRecord(id).then(r => {
         if (recCache.current[id]) return;
         recCache.current[id] = r && r.e ? r : { e: [], at: 0 };
         updateRecord(notesRef.current.find(x => x.id === id));
-      });
+      }), 900);
+      return () => clearTimeout(tm);
     }
   }, [currentId]);
 
@@ -2511,7 +2517,7 @@ function NotesApp() {
     let done = false;
     const go = r => { if (done) return; done = true; if (r) cardRects.current[n.id] = r; openNote(n); };
     try { ref.measureInWindow((x, y, w, h) => go(w > 0 && h > 0 ? { x, y, w, h } : null)); } catch (e) { go(null); }
-    setTimeout(() => go(null), 120);
+    setTimeout(() => go(null), 50);
   }
   function openNote(n) {
     if (n.locked && !unlocked[n.id]) {
@@ -2535,22 +2541,26 @@ function NotesApp() {
       if (zoomBusy.current) { setCurrentId(id); return; }
       zoomBusy.current = true;
       const n = notesRef.current.find(x => x.id === id) || {};
-      zp.setValue(0);
+      zp.setValue(0); gFade.setValue(1);
+      ghostWaiting.current = false;
+      setEdHidden(true); setRevealing(true);
       ghostGo.current = () => {
         ghostGo.current = null;
-        Animated.timing(zp, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+        // 1) la tarjeta empieza a crecer (lo hace el teléfono solo, sin trabarse)
+        Animated.timing(zp, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true })
           .start(() => {
-            // la tarjeta ya llenó la pantalla mostrando la nota; detrás se pone el editor y,
-            // cuando ya se ve completo (con fotos), la tarjeta se desvanece: sin pantallas en blanco
+            // 3) terminó de crecer: si el editor ya está listo, la tarjeta se desvanece y queda la nota
             ghostWaiting.current = true;
-            setCurrentId(id);
-            setTimeout(fadeGhost, 1600);                 // por si acaso
+            setEdHidden(false);
+            if (edReadyRef.current) setTimeout(fadeGhost, 16);
+            setTimeout(fadeGhost, 1500);                 // por si acaso
           });
+        // 2) mientras crece, el editor ya va recibiendo la nota por detrás (escondido)
+        setTimeout(() => setCurrentId(id), 0);
       };
-      gFade.setValue(1);
       const plain = n.locked && !unlocked[n.id] ? '' : toPlain(n);
       setGhost({ R, title: n.title || '', text: plain.slice(0, 1800), img: plain.trim() ? null : firstImg(n), color: n.color || null });
-      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);   // por si acaso
+      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 250);   // por si acaso
       return;
     }
     setRevealing(false);
@@ -2903,12 +2913,12 @@ function NotesApp() {
 
   // El editor se arma una sola vez al abrir la nota
   const editorHtml = useMemo(() => {
-    if (!current) return '';
+    if (!current || Platform.OS !== 'web') return '';      // en el teléfono el editor ya está listo (no se arma de nuevo)
     return buildEditorHtml({
       id: current.id, content: toHtml(current), titleHtml: toTitleHtml(current),
       updated: current.updated, editable: !current.deleted, c,
       kind: current.kind, ink: current.ink, tr, locale: LOCALE, colors: colorPrefs.current, safeBottom: Platform.OS === 'web' ? 0 : ins.bottom,
-      highlight: searchOpen ? query.trim() : '',
+      highlight: query.trim(),
     });
   }, [currentId, dark, langCode, current && current.deleted, editorRev, ins.bottom]);
 
@@ -4081,7 +4091,7 @@ function NotesApp() {
       <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
-        <View ref={revEl} style={StyleSheet.absoluteFill} pointerEvents={revealing ? 'none' : 'auto'}>
+        <View ref={revEl} style={[StyleSheet.absoluteFill, edHidden && { opacity: 0 }]} pointerEvents={revealing ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
@@ -4122,7 +4132,8 @@ function NotesApp() {
       {POOL && slots.map((sl, k) => sl.html ? (
         <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
           style={k === activeSlot && current && edArea
-            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady ? 1 : 0 }
+            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady && !edHidden ? 1 : 0 }
+            : edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: 0 }   // ya del tamaño justo: no tiene que reacomodarse al abrir
             : { position: 'absolute', left: 0, top: 0, width, height: winH, opacity: 0 }}>
           <WebView
             textZoom={webTextZoom()}
