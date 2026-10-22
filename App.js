@@ -1305,6 +1305,11 @@ function NotesApp() {
      cada ratito mientras estás en la pantalla de inicio. Así, aunque dejes la app quieta un
      tiempo, la nota abre rápido (el navegador no "se duerme" ni olvida lo que ya preparó). */
   /* Teléfono: mientras el editor se prepara (1–2 s), se ve al instante el título y el texto de la nota */
+  const cardRefs = useRef({});                         // tarjetas de la lista (para saber dónde están)
+  const cardRects = useRef({});                        // dónde estaba cada tarjeta al abrirla
+  const zp = useRef(new Animated.Value(1)).current;    // 0 = tamaño de la tarjeta, 1 = pantalla completa
+  const [zoomRect, setZoomRect] = useState(null);
+  const zoomBusy = useRef(false);
   const [edReady, setEdReady] = useState(Platform.OS === 'web');
   /* La nota se muestra al instante; el editor (que tarda en crearse) se pone un momentito después */
   const [webOn, setWebOn] = useState(Platform.OS === 'web');
@@ -1313,7 +1318,8 @@ function NotesApp() {
     setWebOn(false);
     if (!currentId) return;
     let t2 = null;
-    const r = requestAnimationFrame(() => { t2 = setTimeout(() => setWebOn(true), 30); });
+    // espera a que termine la animación de abrir (así no se traba) y luego crea el editor
+    const r = requestAnimationFrame(() => { t2 = setTimeout(() => setWebOn(true), 290); });
     return () => { cancelAnimationFrame(r); if (t2) clearTimeout(t2); };
   }, [currentId, editorRev]);
   useEffect(() => {
@@ -1568,6 +1574,15 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
+    // Teléfono: la nota se encoge de vuelta a su tarjeta
+    const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
+    if (R && !zoomBusy.current) {
+      zoomBusy.current = true;
+      setZoomRect(R); setRevealing(true);
+      Animated.timing(zp, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true })
+        .start(() => { closeEditorNow(); setTimeout(() => { zoomBusy.current = false; setZoomRect(null); setRevealing(false); zp.setValue(1); }, 30); });
+      return;
+    }
     closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
@@ -2314,6 +2329,15 @@ function NotesApp() {
       setTimeout(() => askPin('set1', tr('pinNew'), () => showToast(tr('pinChanged'))), 200);
     });
   }
+  /* Mide dónde está la tarjeta en la pantalla y abre la nota desde ahí */
+  function openNoteFromCard(n) {
+    const ref = cardRefs.current[n.id];
+    if (Platform.OS === 'web' || !ref || !ref.measureInWindow || (n.locked && !unlocked[n.id])) { openNote(n); return; }
+    let done = false;
+    const go = r => { if (done) return; done = true; if (r) cardRects.current[n.id] = r; openNote(n); };
+    try { ref.measureInWindow((x, y, w, h) => go(w > 0 && h > 0 ? { x, y, w, h } : null)); } catch (e) { go(null); }
+    setTimeout(() => go(null), 120);
+  }
   function openNote(n) {
     if (n.locked && !unlocked[n.id]) {
       askPin('unlock', tr('lockedNote'), () => {
@@ -2325,9 +2349,22 @@ function NotesApp() {
     openWithDrop(n.id);
   }
   // 🌀 La nota se abre como un portal: un círculo que crece desde donde tocaste
-  function openWithDrop(id) {
-    // Sin la animación del círculo líquido: la nota se abre al instante (más rápido y sin errores)
-    revBusy.current = false; revPending.current = null; revP.setValue(1); setRevealing(false);
+  function openWithDrop(id, rect) {
+    // Sin la animación del círculo líquido. En el teléfono, la tarjeta crece hasta llenar la pantalla (como Google Keep)
+    revBusy.current = false; revPending.current = null; revP.setValue(1);
+    if (Platform.OS !== 'web') {
+      const R = rect || cardRects.current[id] || { x: width * 0.08, y: winH * 0.12, w: width * 0.84, h: winH * 0.7 };
+      cardRects.current[id] = R;
+      zoomBusy.current = true;
+      setZoomRect(R); zp.setValue(0); setRevealing(true);
+      setCurrentId(id);
+      requestAnimationFrame(() => {
+        Animated.timing(zp, { toValue: 1, duration: 270, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+          .start(() => { zoomBusy.current = false; setRevealing(false); setZoomRect(null); });
+      });
+      return;
+    }
+    setRevealing(false);
     setCurrentId(id); return;
     if (revBusy.current) { setCurrentId(id); return; }
     revBusy.current = true;
@@ -3655,8 +3692,9 @@ function NotesApp() {
           const thumb = firstImg(item);
           return (
             <TouchableOpacity
+              ref={r => { if (r) cardRefs.current[item.id] = r; else delete cardRefs.current[item.id]; }}
               activeOpacity={0.75}
-              onPress={() => (selMode ? toggleSelect(item.id) : openNote(item))}
+              onPress={() => (selMode ? toggleSelect(item.id) : openNoteFromCard(item))}
               onLongPress={() => toggleSelect(item.id)}
               delayLongPress={350}
               style={isGrid ? { width: cardW } : null}
@@ -3818,7 +3856,17 @@ function NotesApp() {
   /* El portal: el editor se ve dentro de un círculo líquido que crece (o se encoge) */
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
-  const nat = Platform.OS !== 'web' && revealing;
+  const nat = false;                                   // (el círculo líquido ya no se usa)
+  const zr = Platform.OS !== 'web' && revealing ? zoomRect : null;
+  const zoomStyle = zr ? {
+    flex: 1, overflow: 'hidden', borderRadius: 22,
+    transform: [
+      { translateX: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.x + zr.w / 2 - width / 2, 0] }) },
+      { translateY: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.y + zr.h / 2 - winH / 2, 0] }) },
+      { scaleX: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.w / width), 1] }) },
+      { scaleY: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.h / winH), 1] }) },
+    ],
+  } : null;
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
@@ -3829,9 +3877,13 @@ function NotesApp() {
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
-              <View style={nat ? { position: 'absolute', left: D / 2 - o.x, top: D / 2 - o.y, width, height: winH } : { flex: 1 }}>
+              <Animated.View style={zoomStyle || { flex: 1 }}>
                 {editorView}
-              </View>
+                {zr && (   /* al empezar se ve como la tarjeta; el contenido aparece mientras crece */
+                  <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.grad[0],
+                    opacity: zp.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 0, 0] }) }]} />
+                )}
+              </Animated.View>
             </Animated.View>
           </Animated.View>
         </View>
