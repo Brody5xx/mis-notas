@@ -1470,6 +1470,15 @@ function NotesApp() {
   const activeRef = useRef(-1);
   const [activeSlot, setActiveSlot] = useState(-1);
   const edAreaRef = useRef(null);
+  /* Dónde va el editor: se calcula con las medidas normales de la pantalla de la nota
+     (no "midiendo en pantalla", porque mientras la nota crece está achicada y saldría chiquito) */
+  const edLay = useRef({ kav: null, wrap: null });
+  function setEdAreaFromLayout() {
+    const k = edLay.current.kav, w = edLay.current.wrap;
+    if (!k || !w || w.width <= 0 || w.height <= 0) return;
+    const a = { x: Math.round(k.x + w.x), y: Math.round(k.y + w.y), w: Math.round(w.width), h: Math.round(w.height) };
+    setEdArea(o => (o && o.x === a.x && o.y === a.y && o.w === a.w && o.h === a.h ? o : a));
+  }
   const [edArea, setEdArea] = useState(null);
   const spareHtml = useMemo(() => (POOL && loaded ? buildEditorHtml({
     id: 'spare', content: '', titleHtml: '', updated: 0, editable: true, c, kind: 'text', ink: [], tr, locale: LOCALE,
@@ -3326,7 +3335,8 @@ function NotesApp() {
           )}
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          onLayout={e => { edLay.current.kav = e.nativeEvent.layout; setEdAreaFromLayout(); }}>
           <View style={{ paddingHorizontal: 20, paddingTop: inTrash ? 10 : 0 }}>
             {inTrash && (
               <Glass t={c} radius={16} style={{ marginBottom: 12 }} inner={{ padding: 12 }}>
@@ -3336,7 +3346,7 @@ function NotesApp() {
             {/* El título y la fecha ahora están dentro del editor */}
           </View>
 
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1 }} onLayout={e => { edLay.current.wrap = e.nativeEvent.layout; setEdAreaFromLayout(); }}>
             {Platform.OS === 'web' ? (
               <iframe
                 ref={iframeRef}
@@ -3347,8 +3357,7 @@ function NotesApp() {
                 style={{ border: 'none', width: '100%', height: '100%', backgroundColor: 'transparent' }}
               />
             ) : (
-              <View ref={edAreaRef} style={{ flex: 1 }} collapsable={false}
-                onLayout={() => { try { edAreaRef.current && edAreaRef.current.measureInWindow((x, y, w, h) => { if (w > 0 && h > 0) setEdArea({ x, y, w, h }); }); } catch (e) {} }}>
+              <View ref={edAreaRef} style={{ flex: 1 }} collapsable={false}>
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
                   <Text maxFontSizeMultiplier={1.3} style={{ color: quickView.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 18 }} numberOfLines={2}>
