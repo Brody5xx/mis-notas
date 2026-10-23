@@ -1670,6 +1670,16 @@ function NotesApp() {
     [0, 1].forEach(k => { if (k !== activeRef.current) { slotLoaded.current[k] = false; slotDirty.current[k] = false; pendingBoot.current[k] = null; if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; } } });
   }, [spareHtml]);
   const slotDirty = useRef([false, false]);           // ya se usó: hay que rehacerlo antes de volver a usarlo
+  /* ⚡ Mientras deslizas la lista, el trabajo pesado (rehacer un editor escondido) espera a que pares */
+  const scrollingRef = useRef(false);
+  const lastScroll = useRef(0);
+  const prepTimer = useRef(null);
+  function whenIdle(fn, min) {
+    setTimeout(function tick() {
+      if ((scrollingRef.current && Date.now() - lastScroll.current < 3000) || Date.now() - lastScroll.current < 700) { setTimeout(tick, 400); return; }
+      fn();
+    }, min);
+  }
   function retireSlot(k) {
     if (k < 0) return;
     slotLoaded.current[k] = false; pendingBoot.current[k] = null; slotDirty.current[k] = false;
@@ -1696,7 +1706,7 @@ function NotesApp() {
     const k = [0, 1].find(i => !slotDirty.current[i] && slotLoaded.current[i]);
     if (k === undefined) return;
     injectBoot(k, n);
-    setTimeout(() => {                               // si no la abriste (estabas moviendo la lista), se rehace
+    whenIdle(() => {                                 // si no la abriste (estabas moviendo la lista), se rehace
       if (slotPrep.current[k] === n.id && activeRef.current !== k) retireSlot(k);
     }, 2500);
   }
@@ -1716,7 +1726,7 @@ function NotesApp() {
       webRef.current = slotRefs.current[k];
       injectBoot(k, n);
     }
-    if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; setTimeout(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 700); }
+    if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 900); }
     [0, 1].forEach(i => {                            // otra nota preparada que al final no abriste: se rehace
       if (i !== k && slotPrep.current[i] && slotPrep.current[i] !== n.id) retireSlot(i);
     });
@@ -1731,7 +1741,7 @@ function NotesApp() {
       activeRef.current = -1; setActiveSlot(-1); webRef.current = null;
       slotDirty.current[k] = true; slotLoaded.current[k] = false;
       // se rehace un ratito después (para no trabar la animación de cerrar)
-      setTimeout(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 700);
+      whenIdle(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 900);
     }
   }, [currentId, editorRev]);
   function onSlotMessage(k, data) {
@@ -1742,7 +1752,8 @@ function NotesApp() {
       return;
     }
     if (m && m.type === 'ready') slotReady.current[k] = true;
-    if (k === activeRef.current) onEditorMessage(data);
+    // lo que escribiste siempre se guarda (aunque ya cerraste la nota y volviste al inicio)
+    if (k === activeRef.current || (m && (m.type === 'change' || m.type === 'thumb') && m.id)) onEditorMessage(data);
   }
   /* 🎙️ DICTAR: hablas y la nota se va escribiendo sola */
   const [dictOn, setDictOn] = useState(false);
@@ -2022,8 +2033,10 @@ function NotesApp() {
   function closeEditorNow() {
     const id = currentId;
     const finish = () => {
-      // Si la nota quedó vacía, se descarta (menos si la vaciaste con "Vaciar chat")
-      setNotes(ns => ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)));
+      // Si la nota quedó vacía, se descarta (menos si la vaciaste con "Vaciar chat").
+      // Se mira un momentito después, cuando ya llegó lo último que escribiste.
+      setTimeout(() => setNotes(ns => (ns.some(n => n.id === id && isEmpty(n) && !n.keep) && currentIdRef.current !== id
+        ? ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)) : ns)), 900);
       setCurrentId(cur => (cur === id ? null : cur));
       setCropOpen(false); setSpellOn(false); setRwOn(false);
       setTitleColorOpen(false);
@@ -2041,7 +2054,7 @@ function NotesApp() {
       finish();
     } else if (webRef.current) {
       webRef.current.injectJavaScript('window.flushNow && window.flushNow(); true;');
-      setTimeout(finish, 150);
+      finish();                                          // ⚡ se vuelve al inicio al instante (lo último llega solo)
     } else {
       finish();
     }
@@ -3799,7 +3812,11 @@ function NotesApp() {
   const cardW = (width - 32 - 12 * (cols - 1)) / cols;
   // las funciones de las tarjetas siempre al día, sin que cambien (así las tarjetas no se redibujan de gusto)
   cardH.current.setRef = (id, r) => { if (r) cardRefs.current[id] = r; else delete cardRefs.current[id]; };
-  cardH.current.pressIn = item => { if (!selMode) prepNote(item); };
+  cardH.current.pressIn = item => {
+    if (selMode || (scrollingRef.current && Date.now() - lastScroll.current < 3000)) return;
+    clearTimeout(prepTimer.current);
+    prepTimer.current = setTimeout(() => { if (!scrollingRef.current || Date.now() - lastScroll.current > 3000) prepNote(item); }, 45);   // si empiezas a deslizar, no se prepara
+  };
   cardH.current.press = item => (selMode ? toggleSelect(item.id) : openNoteFromCard(item));
   cardH.current.longPress = item => toggleSelect(item.id);
 
@@ -4059,6 +4076,10 @@ function NotesApp() {
         key={layout + cols}
         data={visible}
         keyExtractor={n => n.id}
+        onScrollBeginDrag={() => { scrollingRef.current = true; lastScroll.current = Date.now(); clearTimeout(prepTimer.current); }}
+        onScrollEndDrag={() => { scrollingRef.current = false; lastScroll.current = Date.now(); }}
+        onMomentumScrollBegin={() => { scrollingRef.current = true; lastScroll.current = Date.now(); }}
+        onMomentumScrollEnd={() => { scrollingRef.current = false; lastScroll.current = Date.now(); }}
         initialNumToRender={8}
         maxToRenderPerBatch={6}
         windowSize={7}
@@ -4300,7 +4321,7 @@ function NotesApp() {
         const hidden = !!current && !revealing;
         const f = homeFrozen.current;
         if (hidden && f && f.hidden && f.dark === dark) return f.el;
-        homeFrozen.current = { hidden, dark, el: <View style={[{ flex: 1, zIndex: 0 }, hidden && { display: 'none' }]}>{homeView}</View> };
+        homeFrozen.current = { hidden, dark, el: <View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, hidden && { opacity: 0 }]}>{homeView}</View> };
         return homeFrozen.current.el;
       })()}
       {!current && menuLayer}
