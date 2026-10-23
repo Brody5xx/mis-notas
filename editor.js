@@ -750,7 +750,13 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   /* Fecha de modificación (se actualiza sola) */
   var LOC = ${JSON.stringify(locale || 'es')};
+  var FD_K = null, FD_V = '';
   function fmtDate(t){
+    var k = Math.floor(t / 60000);                       // ⚡ misma hora y minuto: no se vuelve a calcular
+    if (k === FD_K) return FD_V;
+    FD_K = k; FD_V = fmtDate0(t); return FD_V;
+  }
+  function fmtDate0(t){
     var d = new Date(t);
     try { return d.toLocaleString(LOC, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
     catch (e) { return d.toLocaleString(); }
@@ -759,6 +765,10 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function countWords(){
     var t = (document.getElementById('ed').innerText || '').replace(/\u200B/g, '').trim();
     if (!t) return 0;
+    // ⚡ Idiomas con espacios entre palabras: se cuentan rapidito. El contador lento solo para chino, japonés, tailandés…
+    if (!/[\u0e00-\u0e7f\u0e80-\u0eff\u1000-\u109f\u1780-\u17ff\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(t)) {
+      var mm = t.match(/[^\s.,;:!?¡¿()"'«»…·–—-]+/g); return mm ? mm.length : 0;
+    }
     try {
       if (window.Intl && Intl.Segmenter) {
         var n = 0, it = new Intl.Segmenter(LOC, { granularity: 'word' }).segment(t)[Symbol.iterator](), x;
@@ -2158,6 +2168,12 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 
   function inkW(){ return document.documentElement.clientWidth; }
   function sizeInk(){
+    /* ⚡ Sin dibujos y sin estar dibujando: las hojas de dibujo no se crean (eran 2 imágenes gigantes del tamaño
+       de toda la nota y se volvían a crear con cada renglón nuevo → la nota tardaba en abrir y escribir se trababa) */
+    if (!drawing && !strokes.length && !stroke) {
+      if (ink.width || live.width) [ink, live].forEach(function(cv){ cv.width = 0; cv.height = 0; cv.style.width = '0px'; cv.style.height = '0px'; });
+      return;
+    }
     var w = inkW(), h = Math.max(document.body.scrollHeight, window.innerHeight);
     var dpr = window.devicePixelRatio || 1;
     [ink, live].forEach(function(cv){
@@ -2168,6 +2184,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     redraw();
   }
   function fitInk(){
+    if (!drawing && !strokes.length) return;
     if (Math.abs(document.body.scrollHeight - parseFloat(ink.style.height || 0)) > 2) sizeInk();
   }
   function drawStroke(ctx, s, W){
@@ -2190,6 +2207,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     ctx.restore();
   }
   function redraw(){
+    if (strokes.length && !ink.width) { sizeInk(); return; }   // volvieron dibujos (Deshacer): se crea la hoja
     var W = inkW();
     ictx.clearRect(0, 0, ink.width, ink.height);
     strokes.forEach(function(s){ drawStroke(ictx, s, W); });
@@ -4200,7 +4218,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     g.drawImage(im, 0, 0, W * S, H * S);
     // 2) los dibujos encima
     var ih = parseFloat(ink.style.height) || H;
-    g.drawImage(ink, 0, 0, ink.width, ink.height, 0, 0, W * S, ih * S);
+    if (ink.width && ink.height) g.drawImage(ink, 0, 0, ink.width, ink.height, 0, 0, W * S, ih * S);
     return { big: big, W: W, H: H, S: S, cuts: blocks() };
   }
   /* Fondo de la nota (color, foto de fondo con desenfoque y capa) */
@@ -4444,7 +4462,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   window.hlSet(hlQ, true);
   };
   ${deferred
-    ? "try { (window.ReactNativeWebView || { postMessage: function(){} }).postMessage(JSON.stringify({ type: 'spare' })); } catch (e) {}"
+    ? "try { new Date().toLocaleString(" + JSON.stringify(locale || 'es') + ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}" +   /* ⚡ se prepara antes (la primera vez tarda) */
+      "try { (window.ReactNativeWebView || { postMessage: function(){} }).postMessage(JSON.stringify({ type: 'spare' })); } catch (e) {}"
     : 'window.__boot(' + noteJson + ');'}
 </script></body></html>`;
 }

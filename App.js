@@ -520,7 +520,7 @@ function Background({ t, wall, blur, see }) {
 }
 
 /* Cristal: relleno 4%, borde 0.5 con degradado, brillo arriba y sombra abajo */
-function Glass({ t, style, inner, radius = 20, strong, children }) {
+function Glass({ t, style, inner, radius = 20, strong, lite, children }) {
   /* En Android/iPhone, "crecer" sin un tamaño fijo hace que el vidrio se estire hasta llenar toda la
      pantalla (así se tapaba el editor). Solo se estira por dentro si la tarjeta tiene su propio alto. */
   const fs = StyleSheet.flatten(style) || {};
@@ -532,8 +532,8 @@ function Glass({ t, style, inner, radius = 20, strong, children }) {
         {/* brillo interno pegado al borde (efecto lente) */}
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           borderRadius: radius - 0.5, borderWidth: 2.5, borderColor: t.rim }} />
-        <View pointerEvents="none" style={{ position: 'absolute', top: 2.5, left: 2.5, right: 2.5, bottom: 2.5,
-          borderRadius: Math.max(0, radius - 3), borderWidth: 3, borderColor: t.rim2 }} />
+        {!lite && <View pointerEvents="none" style={{ position: 'absolute', top: 2.5, left: 2.5, right: 2.5, bottom: 2.5,
+          borderRadius: Math.max(0, radius - 3), borderWidth: 3, borderColor: t.rim2 }} />}
         {/* reflejo diagonal */}
         <LinearGradient
           pointerEvents="none"
@@ -544,17 +544,17 @@ function Glass({ t, style, inner, radius = 20, strong, children }) {
           style={StyleSheet.absoluteFill}
         />
         {/* sombra interna blanca arriba (+2) */}
-        <LinearGradient
+        {!lite && <LinearGradient
           pointerEvents="none"
           colors={[t.hi, 'rgba(255,255,255,0)']}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6 }}
-        />
+        />}
         {/* sombra interna negra abajo (-2) */}
-        <LinearGradient
+        {!lite && <LinearGradient
           pointerEvents="none"
           colors={['rgba(0,0,0,0)', t.lo]}
           style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 6 }}
-        />
+        />}
         <View style={[G, inner]}>{children}</View>
       </View>
     </View>
@@ -3973,7 +3973,7 @@ function NotesApp() {
               delayLongPress={350}
               style={isGrid ? { width: cardW } : null}
             >
-              <Glass t={c} radius={22} style={selected[item.id] && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
+              <Glass t={c} lite radius={22} style={selected[item.id] && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
                 {!!item.color && (
                   <>
                     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: item.color, opacity: 0.16 }]} />
