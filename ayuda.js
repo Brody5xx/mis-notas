@@ -14,13 +14,14 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StatusBar, TextInput }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 
-export const GUIDE_VERSION = 1;
+export const GUIDE_VERSION = 2;
 const SEEN_KEY = 'misnotas_guide_seen';
 export async function guideSeen() { try { return +(await AsyncStorage.getItem(SEEN_KEY)) || 0; } catch (e) { return 0; } }
 export async function markGuideSeen() { try { await AsyncStorage.setItem(SEEN_KEY, String(GUIDE_VERSION)); } catch (e) {} }
 
 /* 🆕 Lo más nuevo (lo último arriba) */
 const NEWS = [
+  { date: '2026-10-23', es: '🗣️ Dictar · ⏱ Horas de trabajo · 🔇 Video sin sonido · 💬 SMS · 🕐 12/24 h · 🔍 Búsqueda iluminada', en: '🗣️ Dictation · ⏱ Work hours · 🔇 Mute video · 💬 SMS · 🕐 12/24 h · 🔍 Highlighted search' },
   { date: '2026-10-18', es: '📦 Lista de materiales · 📖 Esta guía', en: '📦 Materials list · 📖 This guide' },
   { date: '2026-10-18', es: '✅ Pendientes · 📅 Sello en fotos · ⏰ Recordatorios', en: '✅ To-dos · 📅 Photo stamp · ⏰ Reminders' },
   { date: '2026-10-17', es: '📊 Reporte del día · ✔️ Checklist estilo Keep', en: '📊 Daily report · ✔️ Keep-style checklist' },
@@ -29,7 +30,53 @@ const NEWS = [
 /* Cada función de la app: ícono, título y qué hace (en español e inglés) */
 const GUIDE = [
   /* ---------- Lo nuevo y lo del trabajo ---------- */
-  { icon: '📦', isNew: true,
+  { icon: '🗣️', isNew: true,
+    es: { t: 'Dictar (voz a texto)', d: [
+      'Dentro de una nota: ⋮ → 🗣️ Dictar. Habla y lo que dices se escribe solo donde está el cursor.',
+      'En la barrita de abajo cambias entre ES (español) y EN (inglés). Con ■ Parar terminas.',
+      'La primera vez el teléfono te pide permiso para usar el micrófono.'] },
+    en: { t: 'Dictation (voice to text)', d: [
+      'Inside a note: ⋮ → 🗣️ Dictate. Speak and your words are typed where the cursor is.',
+      'In the small bar at the bottom switch between ES (Spanish) and EN (English). ■ Stop ends it.',
+      'The first time, the phone asks for microphone permission.'] } },
+  { icon: '⏱', isNew: true,
+    es: { t: 'Horas de trabajo', d: [
+      'Calculadora → pestaña ⏱ Horas. Pon la hora de entrada y de salida de cada día, de lunes a domingo.',
+      'Si tomas descanso, ponlo en minutos y se resta solo.',
+      'Cada día muestra sus horas y abajo sale el TOTAL de la semana. Si sales después de medianoche también lo cuenta bien.',
+      '"Insertar" pone el resumen de la semana dentro de tu nota.'] },
+    en: { t: 'Work hours', d: [
+      'Calculator → ⏱ Hours tab. Enter your start and end time for each day, Monday to Sunday.',
+      'If you take a break, enter it in minutes and it is subtracted.',
+      'Each day shows its hours and the week TOTAL appears at the bottom. Overnight shifts are counted correctly.',
+      '"Insert" puts the week summary into your note.'] } },
+  { icon: '🔍', isNew: true,
+    es: { t: 'Búsqueda iluminada', d: [
+      'Lo que buscas se ilumina en violeta en las tarjetas y también dentro de la nota.',
+      'La tarjeta te muestra el pedacito del texto donde está la palabra.',
+      'Se queda iluminado hasta que borras la búsqueda.'] },
+    en: { t: 'Highlighted search', d: [
+      'What you search is highlighted in violet on the cards and inside the note.',
+      'The card shows the part of the text where the word is.',
+      'It stays highlighted until you clear the search.'] } },
+  { icon: '🔇', isNew: true,
+    es: { t: 'Video sin sonido', d: [
+      'Debajo de cada video toca 🔇 para quitarle el sonido (por ejemplo, antes de enviarlo).',
+      'Con "Achicar" el video pesa menos y se transfiere más rápido.'] },
+    en: { t: 'Mute a video', d: [
+      'Below any video tap 🔇 to remove its sound (for example, before sending it).',
+      '"Shrink" makes the video smaller so it transfers faster.'] } },
+  { icon: '💬', isNew: true,
+    es: { t: 'Enviar por mensaje de texto (SMS)', d: [
+      'Nota → Compartir → Mensaje de texto: abre tus mensajes con el texto de la nota listo para enviar.'] },
+    en: { t: 'Send by text message (SMS)', d: [
+      'Note → Share → Text message: opens your messages with the note text ready to send.'] } },
+  { icon: '🕐', isNew: true,
+    es: { t: 'Hora de 12 o 24 horas', d: [
+      'Menú ☰ → Formato de hora: escoge 12 h (3:00 PM) o 24 h (15:00). Cambia en toda la app y en los recordatorios.'] },
+    en: { t: '12 or 24 hour time', d: [
+      'Menu ☰ → Time format: choose 12 h (3:00 PM) or 24 h (15:00). It changes across the app and in reminders.'] } },
+  { icon: '📦', 
     es: { t: 'Lista de materiales', d: [
       'Menú ☰ → Lista de materiales. Toca "Buscar en mis notas" y la IA saca todo lo que hay que pedir o comprar (switches, cables, mag locks…).',
       'Cada material sale con el TOTAL y, debajo, para dónde va cada parte. Ejemplo: 5 × Cable Cat 6 → 3 para Inwood, 2 para DVSS.',
@@ -46,7 +93,7 @@ const GUIDE = [
       'You can search only Today\'s notes, This week\'s, or All.',
       '"Send to my boss" writes a professional message in English, Spanish or both. "Save as note" turns it into a note (for PDF).',
       'Items already marked Ordered or Arrived are kept when you search again.'] } },
-  { icon: '✅', isNew: true,
+  { icon: '✅', 
     es: { t: 'Pendientes', d: [
       'Menú ☰ → Pendientes (el número dice cuántas cosas te faltan).',
       'Junta todas las casillas SIN marcar de todas tus notas, agrupadas por nota y con el título a color.',
@@ -57,7 +104,7 @@ const GUIDE = [
       'Gathers every UNCHECKED box from all your notes, grouped by note, with the title in its color.',
       'Tap the box to mark it done (it asks "Did you finish this?"). In its note it moves down to "Completed".',
       'Tap the title to open the note, or the bell 🔔 to set a reminder.'] } },
-  { icon: '⏰', isNew: true,
+  { icon: '⏰', 
     es: { t: 'Recordatorios', d: [
       'Dentro de una nota: ⋮ → Recordatorio. También desde Pendientes con la campanita.',
       'Opciones rápidas (En 1 hora, Hoy 7 PM, Mañana 8 AM…) o "Escoger día y hora".',
@@ -68,7 +115,7 @@ const GUIDE = [
       'Quick options (In 1 hour, Today 7 PM, Tomorrow 8 AM…) or "Pick day and time".',
       'Notes with a reminder show a bell in the list. Tapping the alert opens the note.',
       'In the installed app it rings even when closed. In the browser it only alerts while the app is open.'] } },
-  { icon: '📅', isNew: true,
+  { icon: '📅', 
     es: { t: 'Sello en las fotos', d: [
       'Cada foto que pones en una nota sale con una franja abajo: fecha y hora en que se tomó, y el sitio (el título de la nota).',
       'Sirve como prueba del trabajo. Sale en el PDF, en la imagen y en la página que compartes.',
