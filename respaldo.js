@@ -14,8 +14,22 @@
 const ITER = 40000;
 
 /* ---------- Texto ↔ bytes (UTF-8) ---------- */
+/* ⚡ Versiones rápidas y que gastan poca memoria (los respaldos con videos pueden pesar decenas de MB) */
+const HAS_TE = typeof TextEncoder !== 'undefined', HAS_TD = typeof TextDecoder !== 'undefined';
+function fromCodes(u, n) {                      // números → texto, en pedazos (sin sumar letra por letra)
+  const parts = [], CH = 8192;
+  for (let p = 0; p < n; p += CH) parts.push(String.fromCharCode.apply(null, u.subarray(p, Math.min(n, p + CH))));
+  return parts.join('');
+}
 function utf8Encode(str) {
-  const out = new Uint8Array(str.length * 3);
+  if (HAS_TE) { try { return new TextEncoder().encode(str); } catch (e) {} }
+  let len = 0;                                   // primero se cuenta cuánto mide (así no se reserva el triple)
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c < 0x80) len += 1; else if (c < 0x800) len += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) { len += 4; i++; } else len += 3;
+  }
+  const out = new Uint8Array(len);
   let o = 0;
   for (let i = 0; i < str.length; i++) {
     let c = str.charCodeAt(i);
@@ -28,53 +42,53 @@ function utf8Encode(str) {
     else if (c < 0x10000) { out[o++] = 0xe0 | (c >> 12); out[o++] = 0x80 | ((c >> 6) & 63); out[o++] = 0x80 | (c & 63); }
     else { out[o++] = 0xf0 | (c >> 18); out[o++] = 0x80 | ((c >> 12) & 63); out[o++] = 0x80 | ((c >> 6) & 63); out[o++] = 0x80 | (c & 63); }
   }
-  return out.subarray(0, o);
+  return o === len ? out : out.subarray(0, o);
 }
 function utf8Decode(b) {
-  const parts = [];
-  let s = '';
+  if (HAS_TD) { try { return new TextDecoder('utf-8').decode(b); } catch (e) {} }
+  const parts = [], CH = 8192, u = new Uint16Array(CH + 4);
+  let n = 0;
   for (let i = 0; i < b.length;) {
     let c = b[i++];
     if (c >= 0xf0) c = ((c & 7) << 18) | ((b[i++] & 63) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
     else if (c >= 0xe0) c = ((c & 15) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
     else if (c >= 0xc0) c = ((c & 31) << 6) | (b[i++] & 63);
-    if (c >= 0x10000) { c -= 0x10000; s += String.fromCharCode(0xd800 + (c >> 10), 0xdc00 + (c & 1023)); }
-    else s += String.fromCharCode(c);
-    if (s.length > 8192) { parts.push(s); s = ''; }
+    if (c >= 0x10000) { c -= 0x10000; u[n++] = 0xd800 + (c >> 10); u[n++] = 0xdc00 + (c & 1023); }
+    else u[n++] = c;
+    if (n >= CH) { parts.push(String.fromCharCode.apply(null, u.subarray(0, n))); n = 0; }
   }
-  parts.push(s);
+  parts.push(String.fromCharCode.apply(null, u.subarray(0, n)));
   return parts.join('');
 }
 
 /* ---------- Base64 ---------- */
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-const B64MAP = (() => { const m = new Uint8Array(128); for (let i = 0; i < 64; i++) m[B64.charCodeAt(i)] = i; return m; })();
+const B64C = (() => { const m = new Uint8Array(64); for (let i = 0; i < 64; i++) m[i] = B64.charCodeAt(i); return m; })();
+const B64MAP = (() => { const m = new Int16Array(128).fill(-1); for (let i = 0; i < 64; i++) m[B64.charCodeAt(i)] = i; return m; })();
 function b64Encode(b) {
-  const parts = [];
-  let s = '';
-  let i = 0;
+  const out = new Uint8Array(Math.ceil(b.length / 3) * 4);
+  let o = 0, i = 0;
   for (; i + 2 < b.length; i += 3) {
     const n = (b[i] << 16) | (b[i + 1] << 8) | b[i + 2];
-    s += B64[n >> 18] + B64[(n >> 12) & 63] + B64[(n >> 6) & 63] + B64[n & 63];
-    if (s.length > 8192) { parts.push(s); s = ''; }
+    out[o++] = B64C[n >> 18]; out[o++] = B64C[(n >> 12) & 63]; out[o++] = B64C[(n >> 6) & 63]; out[o++] = B64C[n & 63];
   }
   if (i < b.length) {
     const n = (b[i] << 16) | ((i + 1 < b.length ? b[i + 1] : 0) << 8);
-    s += B64[n >> 18] + B64[(n >> 12) & 63] + (i + 1 < b.length ? B64[(n >> 6) & 63] : '=') + '=';
+    out[o++] = B64C[n >> 18]; out[o++] = B64C[(n >> 12) & 63];
+    out[o++] = i + 1 < b.length ? B64C[(n >> 6) & 63] : 61; out[o++] = 61;
   }
-  parts.push(s);
-  return parts.join('');
+  return fromCodes(out, o);
 }
 function b64Decode(str) {
-  const clean = String(str).replace(/[^A-Za-z0-9+/]/g, '');
-  const out = new Uint8Array(Math.floor(clean.length * 3 / 4));
-  let o = 0;
-  for (let i = 0; i < clean.length; i += 4) {
-    const a = B64MAP[clean.charCodeAt(i)], b = B64MAP[clean.charCodeAt(i + 1)];
-    const c = B64MAP[clean.charCodeAt(i + 2)] || 0, d = B64MAP[clean.charCodeAt(i + 3)] || 0;
-    out[o++] = (a << 2) | (b >> 4);
-    if (i + 2 < clean.length) out[o++] = ((b & 15) << 4) | (c >> 2);
-    if (i + 3 < clean.length) out[o++] = ((c & 3) << 6) | d;
+  str = String(str);
+  const out = new Uint8Array(Math.floor(str.length * 3 / 4) + 3);
+  let o = 0, acc = 0, bits = 0;
+  for (let i = 0; i < str.length; i++) {          // sin hacer copias del texto (los espacios y "=" se saltan)
+    const c = str.charCodeAt(i), v = c < 128 ? B64MAP[c] : -1;
+    if (v < 0) continue;
+    acc = (acc << 6) | v; bits += 6;
+    if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 255; }
+    acc &= 0xffff;
   }
   return out.subarray(0, o);
 }
@@ -177,13 +191,13 @@ async function pbkdf2(pass, salt, iter, blocks) {
 
 /* ---------- ChaCha20 (cifrado) ---------- */
 function rd32(b, i) { return b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24); }
-async function chacha20(key, nonce, data) {
+async function chacha20(key, nonce, data, inPlace) {
   const st = new Uint32Array(16), x = new Uint32Array(16), ks = new Uint8Array(64);
   st[0] = 0x61707865; st[1] = 0x3320646e; st[2] = 0x79622d32; st[3] = 0x6b206574;
   for (let i = 0; i < 8; i++) st[4 + i] = rd32(key, i * 4);
   st[12] = 0;
   for (let i = 0; i < 3; i++) st[13 + i] = rd32(nonce, i * 4);
-  const out = new Uint8Array(data.length);
+  const out = inPlace ? data : new Uint8Array(data.length);   // al abrir: se descifra encima (no se duplica la memoria)
   const QR = (a, b, c, d) => {
     x[a] += x[b]; x[d] ^= x[a]; x[d] = (x[d] << 16) | (x[d] >>> 16);
     x[c] += x[d]; x[b] ^= x[c]; x[b] = (x[b] << 12) | (x[b] >>> 20);
@@ -249,19 +263,54 @@ export async function makeBackup(obj, password) {
 }
 
 /* Abre el archivo de respaldo. Errores: 'file' (no es un respaldo) o 'pass' (contraseña incorrecta) */
+/* Base64 directo desde los bytes del archivo (sin convertirlo todo en texto: gasta mucha menos memoria) */
+function b64DecodeBytes(u, start, end) {
+  const out = new Uint8Array(Math.floor((end - start) * 3 / 4) + 3);
+  let o = 0, acc = 0, bits = 0;
+  for (let i = start; i < end; i++) {
+    const c = u[i], v = c < 128 ? B64MAP[c] : -1;
+    if (v < 0) continue;
+    acc = (acc << 6) | v; bits += 6;
+    if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 255; }
+    acc &= 0xffff;
+  }
+  return out.subarray(0, o);
+}
+function findBytes(u, pat, from) {
+  const p = []; for (let i = 0; i < pat.length; i++) p.push(pat.charCodeAt(i));
+  outer: for (let i = from || 0; i <= u.length - p.length; i++) {
+    for (let k = 0; k < p.length; k++) if (u[i + k] !== p[k]) continue outer;
+    return i;
+  }
+  return -1;
+}
 export async function openBackup(text, password) {
   let f;
-  try { f = JSON.parse(text); } catch (e) { throw new Error('file'); }
-  if (!f || f.app !== 'mis-notas' || !f.data || !f.salt || !f.nonce || !f.tag) throw new Error('file');
+  if (text && typeof text !== 'string' && text.length !== undefined) {      // llegó como bytes (archivo grande)
+    const u = text;
+    const k = findBytes(u, '"data":"');
+    if (k < 0) throw new Error('file');
+    const ds = k + 8; let de = ds; while (de < u.length && u[de] !== 34) de++;
+    const head = utf8Decode(u.subarray(0, ds)) + utf8Decode(u.subarray(de, Math.min(u.length, de + 4096)));
+    try { f = JSON.parse(head); } catch (e) { throw new Error('file'); }
+    f.data = null; f.__bytes = [u, ds, de];
+  } else {
+    try { f = JSON.parse(text); } catch (e) { throw new Error('file'); }
+  }
+  if (!f || f.app !== 'mis-notas' || !(f.data || f.__bytes) || !f.salt || !f.nonce || !f.tag) throw new Error('file');
   const salt = b64Decode(f.salt), nonce = b64Decode(f.nonce), tag = b64Decode(f.tag);
   const keys = await pbkdf2(utf8Encode(password), salt, f.iter || ITER, 2);
   const encKey = keys.subarray(0, 32), macKey = keys.subarray(32, 64);
-  const ct = b64Decode(f.data);
+  const ct = f.__bytes ? b64DecodeBytes(f.__bytes[0], f.__bytes[1], f.__bytes[2]) : b64Decode(f.data);
   await tick();
   const want = await macOf(macKey, salt, nonce, ct);
   if (!sameBytes(want, tag)) throw new Error('pass');
-  const plain = await chacha20(encKey, nonce, ct);
-  try { return JSON.parse(utf8Decode(plain)); } catch (e) { throw new Error('file'); }
+  f = null; text = null;                              // ya no se necesitan: se libera memoria
+  const plain = await chacha20(encKey, nonce, ct, true);
+  await tick();
+  let str = utf8Decode(plain);
+  await tick();
+  try { return JSON.parse(str); } catch (e) { throw new Error('file'); } finally { str = null; }
 }
 
 /* ============================================================

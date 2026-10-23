@@ -750,10 +750,8 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
       const r = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
       if (!r || r.canceled || !r.assets || !r.assets[0]) return;
       const a = r.assets[0];
-      let text;
-      if (FS) { try { text = await new FS.File(a.uri).text(); } catch (e) { text = null; } }
-      if (text == null) text = await (await fetch(a.uri)).text();
-      setFile({ name: a.name || 'respaldo', text });
+      // Solo se guarda dónde está el archivo; se lee al tocar "Importar" (así elegirlo es instantáneo)
+      setFile({ name: a.name || 'respaldo', uri: a.uri, size: a.size || 0 });
     } catch (e) {
       setErr(tr('bkBadFile'));
     } finally { setPicking(false); }
@@ -777,7 +775,16 @@ function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
     if (!p1) { setErr(tr('bkPass')); return; }
     setBusy(tr('bkOpening'));
     try {
-      const r = await onImport(file.text, p1);
+      let data = file.text;
+      if (!data && file.uri) {
+        // se lee como bytes (no como texto): con respaldos grandes (videos) gasta mucha menos memoria
+        if (FS) { try { const f = new FS.File(file.uri); data = f.bytes ? await f.bytes() : null; } catch (e) { data = null; } }
+        if (!data && FS) { try { data = await new FS.File(file.uri).text(); } catch (e) { data = null; } }
+        if (!data) data = await (await fetch(file.uri)).text();
+      }
+      const r = await onImport(data, p1);
+      data = null;
+      setFile(null);
       const n = r.n;
       setOk((n === 1 ? tr('bkDone1') : tr('bkDone', { n })) + (r.vaultMsg ? '\n\n' + r.vaultMsg : ''));
     }
