@@ -1362,6 +1362,18 @@ function NotesApp() {
   const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
   const ghostWaiting = useRef(false);
   const [edHidden, setEdHidden] = useState(false);    // el editor se prepara escondido mientras la tarjeta crece
+  const zoomWant = useRef(null);                       // { layout } mientras espera para crecer
+  function startZoom(force) {
+    const w = zoomWant.current;
+    if (!w) return;
+    if (!force && !(w.layout && edReadyRef.current)) return;     // espera: nota puesta en pantalla + editor listo
+    zoomWant.current = null;
+    setEdHidden(false);
+    requestAnimationFrame(() => {
+      Animated.timing(zp, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+        .start(() => { setRevealing(false); setZoomRect(null); zoomBusy.current = false; });
+    });
+  }
   const edReadyRef = useRef(false);
   function fadeGhost() {
     if (!ghostWaiting.current) return;
@@ -1390,7 +1402,7 @@ function NotesApp() {
     return () => clearTimeout(tm);
   }, [currentId, editorRev]);
   edReadyRef.current = edReady;
-  useEffect(() => { if (edReady && ghostWaiting.current) fadeGhost(); }, [edReady]);
+  useEffect(() => { if (edReady && ghostWaiting.current) fadeGhost(); if (edReady) startZoom(false); }, [edReady]);
   /* 🔍 Lo iluminado se queda en la nota hasta que borras la búsqueda */
   useEffect(() => {
     if (!currentId) return;
@@ -1783,22 +1795,20 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
-    if (ghostWaiting.current || edHidden) { ghostWaiting.current = false; ghostGo.current = null; setGhost(null); zoomBusy.current = false; setEdHidden(false); setRevealing(false); }   // saliste muy rápido
+    if (ghostWaiting.current || edHidden || zoomWant.current) { zoomWant.current = null; ghostWaiting.current = false; ghostGo.current = null; setGhost(null); zoomBusy.current = false; setEdHidden(false); setRevealing(false); setZoomRect(null); zp.setValue(1); }   // saliste muy rápido
     // Teléfono: la nota se encoge de vuelta a su tarjeta
     const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
     if (R && !zoomBusy.current) {
       zoomBusy.current = true;
-      const n = current || {};
       zp.setValue(1);
-      ghostGo.current = () => {
-        ghostGo.current = null;
-        Animated.timing(zp, { toValue: 0, duration: 210, easing: Easing.in(Easing.cubic), useNativeDriver: true })
-          .start(() => { setGhost(null); zoomBusy.current = false; });
-      };
-      gFade.setValue(1); ghostWaiting.current = false;
-      setGhost({ R, title: '', text: '', color: n.color || null, closing: true });
-      closeEditorNow();
-      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 300);
+      setZoomRect(R); setRevealing(true);
+      requestAnimationFrame(() => {
+        Animated.timing(zp, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true })
+          .start(() => {
+            closeEditorNow();
+            setTimeout(() => { setZoomRect(null); setRevealing(false); zp.setValue(1); zoomBusy.current = false; }, 260);
+          });
+      });
       return;
     }
     closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
@@ -2579,27 +2589,13 @@ function NotesApp() {
       cardRects.current[id] = R;
       if (zoomBusy.current) { setCurrentId(id); return; }
       zoomBusy.current = true;
-      const n = notesRef.current.find(x => x.id === id) || {};
-      zp.setValue(0); gFade.setValue(1);
-      ghostWaiting.current = false;
-      setEdHidden(true); setRevealing(true);
-      ghostGo.current = () => {
-        ghostGo.current = null;
-        // 1) la tarjeta empieza a crecer (lo hace el teléfono solo, sin trabarse)
-        Animated.timing(zp, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true })
-          .start(() => {
-            // 3) terminó de crecer: si el editor ya está listo, la tarjeta se desvanece y queda la nota
-            ghostWaiting.current = true;
-            setEdHidden(false);
-            if (edReadyRef.current) setTimeout(fadeGhost, 16);
-            setTimeout(fadeGhost, 1500);                 // por si acaso
-          });
-        // 2) mientras crece, el editor ya va recibiendo la nota por detrás (escondido)
-        setTimeout(() => setCurrentId(id), 0);
-      };
-      const plain = n.locked && !unlocked[n.id] ? '' : toPlain(n);
-      setGhost({ R, title: n.title || '', text: plain.slice(0, 1800), img: plain.trim() ? null : firstImg(n), color: n.color || null });
-      setTimeout(() => { if (ghostGo.current) ghostGo.current(); }, 250);   // por si acaso
+      // La nota REAL (ya cargada por detrás desde que pusiste el dedo) crece desde su tarjeta hasta llenar la pantalla.
+      // Así lo que ves crecer es exactamente lo que queda: sin textos que cambian ni saltos.
+      zp.setValue(0);
+      setZoomRect(R); setRevealing(true); setEdHidden(true);
+      zoomWant.current = { layout: false };
+      setCurrentId(id);
+      setTimeout(() => startZoom(true), 380);          // por si acaso: nunca espera más que esto
       return;
     }
     setRevealing(false);
@@ -4103,7 +4099,7 @@ function NotesApp() {
   const D = Math.ceil(2 * Math.hypot(width, winH)) + 40;
   const o = DROP.openPt || { x: width / 2, y: winH / 2 };
   const nat = false;                                   // (el círculo líquido ya no se usa)
-  const zr = null;                                     // (la nota ya no se encoge/estira: lo hace la tarjeta fantasma)
+  const zr = Platform.OS !== 'web' ? zoomRect : null;  // la nota real crece / se encoge desde su tarjeta
   const gr = ghost && ghost.R;
   const ghostStyle = gr ? {
     position: 'absolute', left: 0, top: 0, width, height: winH, borderRadius: 24, overflow: 'hidden',
@@ -4116,8 +4112,16 @@ function NotesApp() {
       { scaleY: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, gr.h / winH), 1] }) },
     ],
   } : null;
+  const zoomTf = zr ? [
+      { translateX: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.x + zr.w / 2 - width / 2, 0] }) },
+      { translateY: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.y + zr.h / 2 - winH / 2, 0] }) },
+      { scaleX: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.w / width), 1] }) },
+      { scaleY: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.h / winH), 1] }) },
+    ] : null;
+  const zoomOp = zp.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 1] });
+  const slotZoom = zr ? { transform: zoomTf, opacity: zoomOp } : null;
   const zoomStyle = zr ? {
-    flex: 1, overflow: 'hidden', borderRadius: 22,
+    flex: 1, overflow: 'hidden', borderRadius: 22, opacity: zoomOp,
     transform: [
       { translateX: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.x + zr.w / 2 - width / 2, 0] }) },
       { translateY: zp.interpolate({ inputRange: [0, 1], outputRange: [zr.y + zr.h / 2 - winH / 2, 0] }) },
@@ -4135,8 +4139,8 @@ function NotesApp() {
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
-              <Animated.View style={zoomStyle || { flex: 1 }}
-                onLayout={() => { if (zoomStart.current) requestAnimationFrame(() => zoomStart.current && zoomStart.current()); }}>
+              <Animated.View style={zoomStyle || { flex: 1 }} renderToHardwareTextureAndroid={!!zr}
+                onLayout={() => { if (zoomWant.current) { zoomWant.current.layout = true; startZoom(false); } }}>
                 {editorView}
                 {zr && (   /* al empezar se ve como la tarjeta; el contenido aparece mientras crece */
                   <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.grad[0],
@@ -4169,7 +4173,7 @@ function NotesApp() {
         </View>
       )}
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
-      {POOL && slots.map((sl, k) => sl.html ? (
+      {POOL && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, slotZoom]}>{slots.map((sl, k) => sl.html ? (
         <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
           style={k === activeSlot && current && edArea
             ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady && !edHidden ? 1 : 0 }
@@ -4191,7 +4195,7 @@ function NotesApp() {
             hideKeyboardAccessoryView
           />
         </View>
-      ) : null)}
+      ) : null)}</Animated.View>}
       {POOL && current && toast}
       {dictOn && current && (
         <View style={{ position: 'absolute', left: 14, right: 14, bottom: 96 + ins.bottom }} pointerEvents="box-none">
