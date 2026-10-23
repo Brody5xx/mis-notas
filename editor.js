@@ -658,7 +658,21 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   var sizePanel = $('sizePanel'), colorPanel = $('colorPanel');
   var range = $('range'), sizeNum = $('sizeNum'), sizeBig = $('sizeBig'), sample = $('sample'), colorDot = $('colorDot');
   var saved = null, dirty = false, sendTimer = null;
-  ed.innerHTML = N.content || '';
+  /* ⚡ Las fotos se ponen un instante DESPUÉS del texto: así la nota se ve y se puede usar enseguida.
+     (Mientras tanto, si algo se guarda, las fotos se guardan completas igual: ver cleanHtml) */
+  var PEND = [];
+  ed.innerHTML = String(N.content || '').replace(/<img src="(data:[^"]*)"/g, function(m0, u){ PEND.push(u); return '<img data-p="' + (PEND.length - 1) + '"'; });
+  function hydrateImgs(all){
+    var list = ed.querySelectorAll('img[data-p]');
+    for (var i = 0; i < list.length; i++) {
+      var im = list[i], k = +im.getAttribute('data-p');
+      if (!all) { var r = im.parentNode && im.parentNode.getBoundingClientRect ? im.parentNode.getBoundingClientRect() : null; if (r && r.top > window.innerHeight * 1.5) continue; }
+      im.setAttribute('decoding', 'async');
+      im.src = PEND[k]; im.removeAttribute('data-p');
+    }
+  }
+  hydrateImgs(false);                                    // las que se ven arriba: ya mismo
+  setTimeout(function(){ hydrateImgs(true); }, 30);       // las de más abajo: justo después
   Array.prototype.forEach.call(ed.querySelectorAll('.audtx,.audpro'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
   // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
@@ -742,7 +756,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
     else window.parent.postMessage(s, '*');
   }
-  function cleanHtml(){ return ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, '').replace(/<span class="dictlive">[^<]*<[/]span>/g, ''); }
+  function cleanHtml(){
+    var h = ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, '').replace(/<span class="dictlive">[^<]*<[/]span>/g, '');
+    if (h.indexOf('data-p="') >= 0) h = h.replace(/<img data-p="([0-9]+)"/g, function(m0, k){ return '<img src="' + (PEND[+k] || '') + '"'; });   // fotos que todavía no se pusieron
+    return h;
+  }
   function payload(){
     return { html: cleanHtml(), title: plainTitle(), titleHtml: plainTitle() ? ttl.innerHTML : '', ink: isDraw ? strokes : undefined };
   }

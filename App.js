@@ -1459,28 +1459,59 @@ function NotesApp() {
   useEffect(() => {          // editores nuevos (o al cambiar tema/idioma): los que no se están usando se rehacen
     if (!spareHtml) return;
     setSlots(ss => ss.map((sl, k) => (k === activeRef.current ? sl : { key: sl.key + 2, html: spareHtml })));
-    [0, 1].forEach(k => { if (k !== activeRef.current) { slotLoaded.current[k] = false; slotDirty.current[k] = false; pendingBoot.current[k] = null; } });
+    [0, 1].forEach(k => { if (k !== activeRef.current) { slotLoaded.current[k] = false; slotDirty.current[k] = false; pendingBoot.current[k] = null; if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; } } });
   }, [spareHtml]);
   const slotDirty = useRef([false, false]);           // ya se usó: hay que rehacerlo antes de volver a usarlo
   function retireSlot(k) {
     if (k < 0) return;
     slotLoaded.current[k] = false; pendingBoot.current[k] = null; slotDirty.current[k] = false;
+    if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; }
     setSlots(ss => ss.map((sl, i) => (i === k ? { key: sl.key + 2, html: spareHtml } : sl)));
+  }
+  const slotPrep = useRef([null, null]);    // nota que ya tiene cargada (preparada al tocar)
+  const slotReady = useRef([false, false]);
+  function bootJs(n) {
+    const data = { id: n.id, content: toHtml(n), title: toTitleHtml(n), updated: n.updated, editable: !n.deleted,
+      ink: n.ink || [], highlight: query.trim() };
+    return 'window.__boot && window.__boot(' + JSON.stringify(data).replace(/</g, '\\u003c') + '); true;';
+  }
+  function injectBoot(k, n) {
+    const js = bootJs(n);
+    slotPrep.current[k] = n.id; slotReady.current[k] = false; slotDirty.current[k] = true;
+    if (slotLoaded.current[k] && slotRefs.current[k]) slotRefs.current[k].injectJavaScript(js);
+    else pendingBoot.current[k] = js;
+  }
+  /* ⚡ Apenas pones el dedo sobre una nota (antes de soltarlo), un editor escondido ya empieza a cargarla */
+  function prepNote(n) {
+    if (!POOL || activeRef.current >= 0 || !n || (n.locked && !unlocked[n.id])) return;
+    if (slotPrep.current.includes(n.id)) return;
+    const k = [0, 1].find(i => !slotDirty.current[i] && slotLoaded.current[i]);
+    if (k === undefined) return;
+    injectBoot(k, n);
+    setTimeout(() => {                               // si no la abriste (estabas moviendo la lista), se rehace
+      if (slotPrep.current[k] === n.id && activeRef.current !== k) retireSlot(k);
+    }, 2500);
   }
   function bootNote(n) {
     const old = activeRef.current;
-    const ok = i => i !== old && !slotDirty.current[i];
-    let k = [0, 1].find(i => ok(i) && slotLoaded.current[i]);
-    if (k === undefined) k = [0, 1].find(ok);
-    if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
-    activeRef.current = k; setActiveSlot(k);
-    webRef.current = slotRefs.current[k];
-    const data = { id: n.id, content: toHtml(n), title: toTitleHtml(n), updated: n.updated, editable: !n.deleted,
-      ink: n.ink || [], highlight: query.trim() };
-    const js = 'window.__boot && window.__boot(' + JSON.stringify(data).replace(/</g, '\\u003c') + '); true;';
-    if (slotLoaded.current[k] && slotRefs.current[k]) slotRefs.current[k].injectJavaScript(js);
-    else pendingBoot.current[k] = js;
+    let k = [0, 1].find(i => i !== old && slotPrep.current[i] === n.id);     // ya estaba cargándose desde que la tocaste
+    if (k !== undefined) {
+      activeRef.current = k; setActiveSlot(k);
+      webRef.current = slotRefs.current[k];
+      if (slotReady.current[k]) setEdReady(true);
+    } else {
+      const ok = i => i !== old && !slotDirty.current[i];
+      k = [0, 1].find(i => ok(i) && slotLoaded.current[i]);
+      if (k === undefined) k = [0, 1].find(ok);
+      if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
+      activeRef.current = k; setActiveSlot(k);
+      webRef.current = slotRefs.current[k];
+      injectBoot(k, n);
+    }
     if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; setTimeout(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 700); }
+    [0, 1].forEach(i => {                            // otra nota preparada que al final no abriste: se rehace
+      if (i !== k && slotPrep.current[i] && slotPrep.current[i] !== n.id) retireSlot(i);
+    });
   }
   useEffect(() => {
     if (!POOL) return;
@@ -1502,6 +1533,7 @@ function NotesApp() {
       if (pendingBoot.current[k] && slotRefs.current[k]) { slotRefs.current[k].injectJavaScript(pendingBoot.current[k]); pendingBoot.current[k] = null; }
       return;
     }
+    if (m && m.type === 'ready') slotReady.current[k] = true;
     if (k === activeRef.current) onEditorMessage(data);
   }
   /* 🎙️ DICTAR: hablas y la nota se va escribiendo sola */
@@ -3881,6 +3913,7 @@ function NotesApp() {
             <TouchableOpacity
               ref={r => { if (r) cardRefs.current[item.id] = r; else delete cardRefs.current[item.id]; }}
               activeOpacity={0.75}
+              onPressIn={() => { if (!selMode) prepNote(item); }}
               onPress={() => (selMode ? toggleSelect(item.id) : openNoteFromCard(item))}
               onLongPress={() => toggleSelect(item.id)}
               delayLongPress={350}
