@@ -224,7 +224,41 @@ async function loadRecord(id) {
     return raw ? JSON.parse(raw) : null;
   } catch (e) { return null; }
 }
+/* ⚡ Las fotos viejas del registro van en un archivo aparte (se escribe solo cuando llega una foto nueva).
+   Así guardar el registro mientras escribes es rapidito. */
+function recPicsFile(id) { return new FS.File(FS.Paths.document, `registro_fotos_${id}.json`); }
+const REC_PICS = {};                                  // id → { clave: foto }
+async function loadRecPics(id) {
+  if (REC_PICS[id]) return REC_PICS[id];
+  let p = {};
+  try { const f = recPicsFile(id); if (f.exists) p = JSON.parse(await f.text()) || {}; } catch (e) { p = {}; }
+  REC_PICS[id] = p; return p;
+}
+function picKey(x) {
+  let h = 5381; const step = Math.max(1, Math.floor(x.length / 3000));
+  for (let i = 0; i < x.length; i += step) h = ((h * 33) ^ x.charCodeAt(i)) >>> 0;
+  return x.length.toString(36) + '_' + h.toString(36);
+}
+async function splitRecPics(id, rec) {
+  if (!rec || !rec.e || !rec.e.some(x => x[0] === REC_IMG && x.length > 300)) return;
+  const pics = await loadRecPics(id); let add = false;
+  rec.e = rec.e.map(x => {
+    if (x[0] !== REC_IMG || x.length <= 300) return x;
+    const k = picKey(x);
+    if (!pics[k]) { pics[k] = x.slice(1); add = true; }
+    return REC_IMG + 'rf:' + k;
+  });
+  if (add) { const f = recPicsFile(id); if (!f.exists) f.create(); f.write(JSON.stringify(pics)); }
+}
+/* Para ver o restaurar el registro: las fotos guardadas aparte vuelven a su lugar */
+async function resolveRecPics(id, entries) {
+  if (!FS || !entries.some(x => x.startsWith(REC_IMG + 'rf:'))) return entries;
+  const pics = await loadRecPics(id);
+  return entries.map(x => (x.startsWith(REC_IMG + 'rf:') ? (pics[x.slice(4)] ? REC_IMG + pics[x.slice(4)] : REC_IMG + 'idb:-') : x));
+}
 async function saveRecord(id, rec) {
+  if (FS && rec) { try { await splitRecPics(id, rec); } catch (e) {} }
+  if (FS && !rec) { try { const pf = recPicsFile(id); if (pf.exists) pf.delete(); delete REC_PICS[id]; } catch (e) {} }
   const str = rec ? JSON.stringify(rec) : '';
   if (FS) {
     try {
@@ -301,8 +335,33 @@ function hlParts(text, q) {
 /* Color de lo encontrado: violeta del ícono de Best Notes, con subrayado */
 const HL_STYLE = { backgroundColor: 'rgba(140,110,255,0.42)', fontWeight: '800', textDecorationLine: 'underline', textDecorationColor: '#c9b6ff' };
 
+/* 💾 Cada nota se guarda en SU PROPIO archivo (como Google Keep): al escribir solo se guarda la nota que
+   cambiaste, no todas. "notas_indice.json" tiene el orden de las notas y los ajustes.
+   El archivo viejo "notas.json" (todas juntas) se queda como respaldo y se usa si algo falla. */
+const SAVED = new Map();                     // id → la nota tal como se guardó la última vez
+function noteFileName(id) { return 'nota_' + String(id).replace(/[^A-Za-z0-9_-]/g, '_') + '.json'; }
+function indexFile() { return new FS.File(FS.Paths.document, 'notas_indice.json'); }
 async function loadData() {
   if (FS) {
+    try {
+      const fi = indexFile();
+      if (fi.exists) {
+        const idx = JSON.parse(await fi.text());
+        let legacy = null;
+        const notes = [];
+        for (const id of idx.ids || []) {
+          let n = null;
+          try { const f = new FS.File(FS.Paths.document, noteFileName(id)); if (f.exists) n = JSON.parse(await f.text()); } catch (e) { n = null; }
+          if (!n) {                                  // no se pudo leer: se busca en el respaldo viejo
+            if (legacy === null) { try { const lf = notesFile(); legacy = lf.exists ? JSON.parse(await lf.text()) : {}; } catch (e) { legacy = {}; } }
+            n = ((legacy && legacy.notes) || []).find(x => x.id === id) || null;
+          }
+          if (n) { notes.push(n); SAVED.set(n.id, n); }
+        }
+        const { ids, v, ...rest } = idx;
+        return { ...rest, notes };
+      }
+    } catch (e) {}
     try {
       const f = notesFile();
       if (f.exists) return JSON.parse(await f.text());
@@ -313,16 +372,36 @@ async function loadData() {
 }
 
 async function saveData(data) {
-  const str = JSON.stringify(data);
   if (FS) {
+    try {
+      const { notes, ...rest } = data;
+      const seen = new Set();
+      for (const n of notes) {
+        seen.add(n.id);
+        if (SAVED.get(n.id) === n) continue;       // no cambió: no se vuelve a guardar
+        const f = new FS.File(FS.Paths.document, noteFileName(n.id));
+        if (!f.exists) f.create();
+        f.write(JSON.stringify(n));
+        SAVED.set(n.id, n);
+      }
+      const fi = indexFile();
+      if (!fi.exists) fi.create();
+      fi.write(JSON.stringify({ v: 2, ...rest, ids: notes.map(n => n.id) }));
+      for (const id of Array.from(SAVED.keys())) {  // notas borradas del todo: se borra su archivo
+        if (seen.has(id)) continue;
+        SAVED.delete(id);
+        try { const f = new FS.File(FS.Paths.document, noteFileName(id)); if (f.exists) f.delete(); } catch (e) {}
+      }
+      return;
+    } catch (e) {}
     try {
       const f = notesFile();
       if (!f.exists) f.create();
-      f.write(str);
+      f.write(JSON.stringify(data));
       return;
     } catch (e) {}
   }
-  await AsyncStorage.setItem(KEY, str);
+  await AsyncStorage.setItem(KEY, JSON.stringify(data));
 }
 
 /* ============================================================
@@ -520,6 +599,103 @@ function Background({ t, wall, blur, see }) {
 }
 
 /* Cristal: relleno 4%, borde 0.5 con degradado, brillo arriba y sombra abajo */
+/* ⚡ Tarjeta de nota: solo se vuelve a dibujar si ESA nota cambió (como Google Keep) */
+const NoteCard = React.memo(function NoteCard({ item, c, s, hlQ, selMode, sel, isGrid, cardW, folderColor, byCreated, hasRem, lang, h }) {
+  const thumb = firstImg(item);
+  return (
+            <TouchableOpacity
+              ref={r => h.setRef(item.id, r)}
+              activeOpacity={0.75}
+              onPressIn={() => h.pressIn(item)}
+              onPress={() => h.press(item)}
+              onLongPress={() => h.longPress(item)}
+              delayLongPress={350}
+              style={isGrid ? { width: cardW } : null}
+            >
+              <Glass t={c} lite radius={22} style={sel && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
+                {!!item.color && (
+                  <>
+                    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: item.color, opacity: 0.16 }]} />
+                    <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: 2, backgroundColor: item.color }} />
+                  </>
+                )}
+                {selMode && (
+                  <View style={[s.selCheck, { borderColor: c.text }, sel && { backgroundColor: c.text }]}>
+                    {sel && <Feather name="check" size={15} color={c.inv} />}
+                  </View>
+                )}
+                <View style={s.cardHeader}>
+                  <Text maxFontSizeMultiplier={1.3} style={s.cardTitle} numberOfLines={1}>
+                    {hlQ && hlParts(item.title, hlQ) ? hlParts(item.title, hlQ).parts.map((g, i) => (
+                      <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>
+                    )) : item.title ? titleSegments(item).map((g, i) => (
+                      <Text maxFontSizeMultiplier={1.3} key={i} style={{
+                        color: g.color || c.text,
+                        fontWeight: g.bold === false ? '400' : '700',
+                        fontStyle: g.italic ? 'italic' : 'normal',
+                        textDecorationLine: g.underline ? 'underline' : 'none',
+                        ...(g.outline ? { textShadowColor: g.outline, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } } : {}),
+                      }}>{g.text}</Text>
+                    )) : tr('untitled')}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {item.pinned && <MaterialCommunityIcons name="pin" size={14} color={c.muted} />}
+                    {item.locked && <Feather name="lock" size={13} color={c.muted} />}
+                    {!!(item.ink && item.ink.length) && <Feather name="edit-2" size={13} color={c.muted} />}
+                    {item.fav && <MaterialCommunityIcons name="star" size={14} color={c.muted} />}
+                    {hasRem && <MaterialCommunityIcons name="bell-ring-outline" size={14} color={c.muted} />}
+                  </View>
+                </View>
+                {item.locked ? (
+                  <View style={s.lockedBox}>
+                    <Feather name="lock" size={22} color={c.muted} />
+                    <Text maxFontSizeMultiplier={1.3} style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>{tr('lockedNote')}</Text>
+                  </View>
+                ) : (
+                  <>
+                    {(() => {
+                      const plain = toPlain(item);
+                      const h = hlQ && hlParts(plain, hlQ);
+                      if (!h) return (
+                        <>
+                          {thumb && <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />}
+                          <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{plain}</Text>
+                        </>
+                      );
+                      // 🔍 buscando: se esconde la foto y se muestra el pedacito del texto donde está la palabra
+                      const flat = plain.replace(/\s*\n+\s*/g, ' · ');
+                      const h2 = hlParts(flat, hlQ);
+                      let cut = h2.first > 18 ? h2.first - 14 : 0;
+                      if (cut) { const sp = flat.lastIndexOf(' ', cut); if (sp >= 0 && sp > cut - 12) cut = sp + 1; }
+                      const hh = cut ? hlParts('…' + flat.slice(cut), hlQ) : h2;
+                      return (
+                        <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={isGrid ? 6 : 3}>
+                          {hh.parts.map((g, i) => <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>)}
+                        </Text>
+                      );
+                    })()}
+                  </>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {!!folderColor && <View style={[s.folderDot, { backgroundColor: folderColor }]} />}
+                  <Text maxFontSizeMultiplier={1.3} style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(byCreated ? (item.created || item.updated) : item.updated)}</Text>
+                  {(() => {
+                    const pr = !item.locked && checklistProgress(item);
+                    if (!pr) return null;
+                    const full = pr.done === pr.total;
+                    return (
+                      <View style={[s.progPill, { borderColor: c.border }, full && { backgroundColor: c.text, borderColor: c.text }]}>
+                        <Feather name="check-square" size={11} color={full ? c.inv : c.muted} />
+                        <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 11, fontWeight: '700', color: full ? c.inv : c.muted, marginLeft: 4 }}>{pr.done}/{pr.total}</Text>
+                      </View>
+                    );
+                  })()}
+                </View>
+              </Glass>
+            </TouchableOpacity>
+  );
+});
+
 function Glass({ t, style, inner, radius = 20, strong, lite, children }) {
   /* En Android/iPhone, "crecer" sin un tamaño fijo hace que el vidrio se estire hasta llenar toda la
      pantalla (así se tapaba el editor). Solo se estira por dentro si la tarjeta tiene su propio alto. */
@@ -1306,7 +1482,9 @@ function NotesApp() {
   const notesRef = useRef(notes);
   notesRef.current = notes;
   const openedRef = useRef(null);                      // cómo estaba la nota al abrirla
-  const recCache = useRef({});                         // registro de cada nota (en memoria)
+  const recCache = useRef({});
+  const recLater = useRef({});
+  const cardH = useRef({});                         // registro de cada nota (en memoria)
   const recTimers = useRef({});
   const [recEntries, setRecEntries] = useState([]);    // registro que se está mirando
   const toastTimer = useRef(null);
@@ -1656,13 +1834,24 @@ function NotesApp() {
   }, []);
 
   /* ---------- Guardado automático ---------- */
+  const saveNow = useRef(null);
   useEffect(() => {
     if (!loaded) return;
-    const t = setTimeout(() => {
-      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock }).catch(() => showToast(tr('saveFail')));
-    }, 500);
+    let done = false;
+    const run = () => { if (done) return; done = true; saveNow.current = null;
+      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock }).catch(() => showToast(tr('saveFail'))); };
+    saveNow.current = run;
+    const t = setTimeout(run, 900);                        // ⚡ se guarda cuando paras un momentito
     return () => clearTimeout(t);
   }, [notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock, loaded]);
+  useEffect(() => {                                         // si sales de la app: se guarda ya mismo
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active') return;
+      if (saveNow.current) saveNow.current();
+      setTimeout(() => saveNow.current && saveNow.current(), 300);   // lo último que mandó el editor al salir
+    });
+    return () => sub.remove();
+  }, []);
 
   /* Aviso abajo. Si se pasa "undo", muestra el botón Deshacer por 4 segundos */
   function showToast(msg, undo) {
@@ -1894,7 +2083,13 @@ function NotesApp() {
     if (!n) return;
     const cache = recCache.current;
     if (!cache[n.id]) return;                            // todavía cargando
-    const next = mergeRecord(cache[n.id].e, noteTokens(n));
+    const prevE = cache[n.id].e;
+    const tks = noteTokens(n).map(t => {                 // foto que ya está guardada aparte: misma clave
+      if (t[0] !== REC_IMG || t.length <= 300) return t;
+      const r = REC_IMG + 'rf:' + picKey(t);
+      return prevE.includes(r) ? r : t;
+    });
+    const next = mergeRecord(prevE, tks);
     if (!next) return;
     cache[n.id] = { e: next, at: Date.now() };
     clearTimeout(recTimers.current[n.id]);
@@ -1910,9 +2105,12 @@ function NotesApp() {
     if (recCache.current[id]) saveRecord(id, recCache.current[id]).catch(() => {});
   }
   function openRecord() {
-    const r = recCache.current[current.id];
-    setRecEntries(r ? r.e : []);
+    const id = current.id;
+    const r = recCache.current[id];
+    const e = r ? r.e : [];
+    setRecEntries(e);
     setHistView({ rec: true });
+    resolveRecPics(id, e).then(full => { if (full !== e) setRecEntries(full); }).catch(() => {});
   }
   function recordToHtml(entries) {
     const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2967,8 +3165,9 @@ function NotesApp() {
       const m = JSON.parse(data);
       if (m.type === 'change' && m.id) {
         patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) }, !m.quiet);
-        const base = notesRef.current.find(x => x.id === m.id) || {};
-        updateRecord({ ...base, id: m.id, title: m.title || '', content: m.html, html: true });
+        // ⚡ el registro se actualiza cuando paras de escribir (no con cada pausita)
+        clearTimeout(recLater.current[m.id]);
+        recLater.current[m.id] = setTimeout(() => { delete recLater.current[m.id]; updateRecord(notesRef.current.find(x => x.id === m.id)); }, 1500);
       }
       if (m.type === 'ready') setEdReady(true);
       if (m.type === 'thumb' && m.id) { const n0 = notesRef.current.find(x => x.id === m.id); if (n0 && (n0.thumb || null) !== (m.thumb || null)) patch(m.id, { thumb: m.thumb || null }, false); }
@@ -3543,7 +3742,7 @@ function NotesApp() {
                     <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
                       {recEntries.length === 0 && <Text maxFontSizeMultiplier={1.3} style={[s.emptyText, { paddingVertical: 16 }]}>{tr('recEmpty')}</Text>}
-                      {recEntries.map((e, i) => (e[0] === REC_IMG ? (e.startsWith(REC_IMG + 'idb:')
+                      {recEntries.map((e, i) => (e[0] === REC_IMG ? (e.startsWith(REC_IMG + 'idb:') || e.startsWith(REC_IMG + 'rf:')
                         ? <Text maxFontSizeMultiplier={1.3} key={i} style={[s.histViewText, { marginBottom: 6 }]}>📷</Text>
                         : <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />)
                         : <Text maxFontSizeMultiplier={1.3} key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
@@ -3598,6 +3797,11 @@ function NotesApp() {
   const isGrid = layout === 'grid';
   const cols = width >= 700 ? 3 : 2;
   const cardW = (width - 32 - 12 * (cols - 1)) / cols;
+  // las funciones de las tarjetas siempre al día, sin que cambien (así las tarjetas no se redibujan de gusto)
+  cardH.current.setRef = (id, r) => { if (r) cardRefs.current[id] = r; else delete cardRefs.current[id]; };
+  cardH.current.pressIn = item => { if (!selMode) prepNote(item); };
+  cardH.current.press = item => (selMode ? toggleSelect(item.id) : openNoteFromCard(item));
+  cardH.current.longPress = item => toggleSelect(item.id);
 
   const emptyMsg = query
     ? ['search', tr('noMatch')]
@@ -3962,102 +4166,9 @@ function NotesApp() {
           </View>
         }
         renderItem={({ item }) => {
-          const thumb = firstImg(item);
-          return (
-            <TouchableOpacity
-              ref={r => { if (r) cardRefs.current[item.id] = r; else delete cardRefs.current[item.id]; }}
-              activeOpacity={0.75}
-              onPressIn={() => { if (!selMode) prepNote(item); }}
-              onPress={() => (selMode ? toggleSelect(item.id) : openNoteFromCard(item))}
-              onLongPress={() => toggleSelect(item.id)}
-              delayLongPress={350}
-              style={isGrid ? { width: cardW } : null}
-            >
-              <Glass t={c} lite radius={22} style={selected[item.id] && s.cardSel} inner={[s.cardInner, isGrid && { minHeight: 150 }]}>
-                {!!item.color && (
-                  <>
-                    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: item.color, opacity: 0.16 }]} />
-                    <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: 2, backgroundColor: item.color }} />
-                  </>
-                )}
-                {selMode && (
-                  <View style={[s.selCheck, { borderColor: c.text }, selected[item.id] && { backgroundColor: c.text }]}>
-                    {selected[item.id] && <Feather name="check" size={15} color={c.inv} />}
-                  </View>
-                )}
-                <View style={s.cardHeader}>
-                  <Text maxFontSizeMultiplier={1.3} style={s.cardTitle} numberOfLines={1}>
-                    {hlQ && hlParts(item.title, hlQ) ? hlParts(item.title, hlQ).parts.map((g, i) => (
-                      <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>
-                    )) : item.title ? titleSegments(item).map((g, i) => (
-                      <Text maxFontSizeMultiplier={1.3} key={i} style={{
-                        color: g.color || c.text,
-                        fontWeight: g.bold === false ? '400' : '700',
-                        fontStyle: g.italic ? 'italic' : 'normal',
-                        textDecorationLine: g.underline ? 'underline' : 'none',
-                        ...(g.outline ? { textShadowColor: g.outline, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } } : {}),
-                      }}>{g.text}</Text>
-                    )) : tr('untitled')}
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 4 }}>
-                    {item.pinned && <MaterialCommunityIcons name="pin" size={14} color={c.muted} />}
-                    {item.locked && <Feather name="lock" size={13} color={c.muted} />}
-                    {!!(item.ink && item.ink.length) && <Feather name="edit-2" size={13} color={c.muted} />}
-                    {item.fav && <MaterialCommunityIcons name="star" size={14} color={c.muted} />}
-                    {remFor(item.id).length > 0 && <MaterialCommunityIcons name="bell-ring-outline" size={14} color={c.muted} />}
-                  </View>
-                </View>
-                {item.locked ? (
-                  <View style={s.lockedBox}>
-                    <Feather name="lock" size={22} color={c.muted} />
-                    <Text maxFontSizeMultiplier={1.3} style={[s.preview, { flex: 0, marginTop: 6, marginBottom: 0 }]}>{tr('lockedNote')}</Text>
-                  </View>
-                ) : (
-                  <>
-                    {(() => {
-                      const plain = toPlain(item);
-                      const h = hlQ && hlParts(plain, hlQ);
-                      if (!h) return (
-                        <>
-                          {thumb && <Image source={{ uri: thumb }} style={[s.thumb, !isGrid && { height: 120 }]} resizeMode="cover" />}
-                          <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={thumb ? 2 : isGrid ? 4 : 2}>{plain}</Text>
-                        </>
-                      );
-                      // 🔍 buscando: se esconde la foto y se muestra el pedacito del texto donde está la palabra
-                      const flat = plain.replace(/\s*\n+\s*/g, ' · ');
-                      const h2 = hlParts(flat, hlQ);
-                      let cut = h2.first > 18 ? h2.first - 14 : 0;
-                      if (cut) { const sp = flat.lastIndexOf(' ', cut); if (sp >= 0 && sp > cut - 12) cut = sp + 1; }
-                      const hh = cut ? hlParts('…' + flat.slice(cut), hlQ) : h2;
-                      return (
-                        <Text maxFontSizeMultiplier={1.3} style={s.preview} numberOfLines={isGrid ? 6 : 3}>
-                          {hh.parts.map((g, i) => <Text maxFontSizeMultiplier={1.3} key={i} style={g.hit ? [HL_STYLE, { color: c.text }] : null}>{g.t}</Text>)}
-                        </Text>
-                      );
-                    })()}
-                  </>
-                )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {(() => {
-                    const f = !viewFolder && folders.find(x => x.id === item.folderId);
-                    return f ? <View style={[s.folderDot, { backgroundColor: f.color }]} /> : null;
-                  })()}
-                  <Text maxFontSizeMultiplier={1.3} style={[s.date, { flexShrink: 1 }]} numberOfLines={1}>{fmtDate(sortBy === 'created' ? (item.created || item.updated) : item.updated)}</Text>
-                  {(() => {
-                    const pr = !item.locked && checklistProgress(item);
-                    if (!pr) return null;
-                    const full = pr.done === pr.total;
-                    return (
-                      <View style={[s.progPill, { borderColor: c.border }, full && { backgroundColor: c.text, borderColor: c.text }]}>
-                        <Feather name="check-square" size={11} color={full ? c.inv : c.muted} />
-                        <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 11, fontWeight: '700', color: full ? c.inv : c.muted, marginLeft: 4 }}>{pr.done}/{pr.total}</Text>
-                      </View>
-                    );
-                  })()}
-                </View>
-              </Glass>
-            </TouchableOpacity>
-          );
+          const f = !viewFolder && item.folderId && folders.find(x => x.id === item.folderId);
+          return <NoteCard item={item} c={c} s={s} hlQ={hlQ} selMode={selMode} sel={!!selected[item.id]} isGrid={isGrid} cardW={cardW}
+            folderColor={f ? f.color : null} byCreated={sortBy === 'created'} hasRem={remFor(item.id).length > 0} lang={lang} h={cardH.current} />;
         }}
       />
 

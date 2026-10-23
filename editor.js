@@ -792,7 +792,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
     return f(b / 1073741824, 2) + ' GB';
   }
   function noteSize(){
-    var b = cleanHtml().length + ttl.innerHTML.length;
+    var b = (LAST_H !== null ? LAST_H : cleanHtml()).length + ttl.innerHTML.length; LAST_H = null;
     Array.prototype.forEach.call(ed.querySelectorAll('.audwrap,.vidwrap'), function(w){
       var m = w.querySelector('audio,video');
       if (!m || !m.getAttribute('data-aid')) return;           // si está dentro de la nota, ya se contó arriba
@@ -830,15 +830,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   function payload(){
     return { html: cleanHtml(), title: plainTitle(), titleHtml: plainTitle() ? ttl.innerHTML : '', ink: isDraw ? strokes : undefined };
   }
+  var LAST_H = null;
   function changedNow(quiet){
     if (quiet !== true) quiet = false;
     clearTimeout(sendTimer); dirty = false;
     vidHydrate();
     if (editable) ensureLines();                // línea para escribir debajo de cada foto
     record();                                   // guardar el paso para Deshacer
-    var p = payload();
+    var p = payload(); LAST_H = p.html;               // ⚡ el tamaño de la nota usa lo mismo (no se calcula 2 veces)
     send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink, quiet: quiet });
     if (!quiet) $('meta').textContent = modText(Date.now());
+    LAST_H = null;
     imgStore(); thumbCheck();
   }
   function changed(){
