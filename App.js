@@ -4127,7 +4127,8 @@ function NotesApp() {
       { scaleX: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.w / width), 1] }) },
       { scaleY: zp.interpolate({ inputRange: [0, 1], outputRange: [Math.max(0.05, zr.h / winH), 1] }) },
     ] : null;
-  const zoomOp = zp.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 1] });
+  const zoomOp = zp.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.02, 1, 1] });
+  // (nunca 0 del todo: Android no dibuja lo que está en 0 y la nota aparecería "a pedazos" al mostrarse)
   const slotZoom = zr ? { transform: zoomTf, opacity: zoomOp } : null;
   const zoomStyle = zr ? {
     flex: 1, overflow: 'hidden', borderRadius: 22, opacity: zoomOp,
@@ -4144,7 +4145,7 @@ function NotesApp() {
       <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
-        <View ref={revEl} style={[StyleSheet.absoluteFill, edHidden && { opacity: 0 }]} pointerEvents={revealing ? 'none' : 'auto'}>
+        <View ref={revEl} style={[StyleSheet.absoluteFill, edHidden && { opacity: 0.011 }]} pointerEvents={revealing ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
@@ -4185,9 +4186,9 @@ function NotesApp() {
       {POOL && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, slotZoom]}>{slots.map((sl, k) => sl.html ? (
         <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
           style={k === activeSlot && current && edArea
-            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady && !edHidden ? 1 : 0 }
-            : edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: 0 }   // ya del tamaño justo: no tiene que reacomodarse al abrir
-            : { position: 'absolute', left: 0, top: 0, width, height: winH, opacity: 0 }}>
+            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady && !edHidden ? 1 : 0.011 }
+            : edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: 0.011 }   // ya del tamaño justo: no tiene que reacomodarse al abrir
+            : { position: 'absolute', left: 0, top: 0, width, height: winH, opacity: 0.011 }}>
           <WebView
             textZoom={webTextZoom()}
             ref={r => { slotRefs.current[k] = r; if (k === activeRef.current) webRef.current = r; }}
