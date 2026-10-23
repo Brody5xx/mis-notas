@@ -1413,7 +1413,7 @@ function NotesApp() {
   }, [query, searchOpen]);
   const quickView = useMemo(() => {
     const n = notes.find(x => x.id === currentId);
-    if (!n || Platform.OS === 'web') return null;
+    if (!n || Platform.OS === 'web' || true) return null;   // (ya no hace falta: la nota real se muestra ya lista)
     const txt = (n.locked && !unlocked[n.id] ? '' : toPlain(n)).slice(0, 2500);   // (sin las letras raras de las fotos)
     return { title: n.title || '', text: txt };
   }, [currentId, editorRev]);
@@ -4142,10 +4142,10 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View style={[{ flex: 1 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      <View style={[{ flex: 1, zIndex: 0 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
       {!current && menuLayer}
       {editorView && (
-        <View ref={revEl} style={[StyleSheet.absoluteFill, edHidden && { opacity: 0.011 }]} pointerEvents={revealing ? 'none' : 'auto'}>
+        <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, edHidden && { opacity: 0 }]} pointerEvents={revealing ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
@@ -4183,12 +4183,15 @@ function NotesApp() {
         </View>
       )}
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
-      {POOL && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, slotZoom]}>{slots.map((sl, k) => sl.html ? (
+      {/* Los editores viven DETRÁS de la pantalla de inicio (así Android los dibuja completos, sin que se vean);
+          cuando abres una nota, pasan al frente ya dibujados */}
+      {POOL && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: current && !edHidden ? 20 : -1, elevation: current && !edHidden ? 20 : 0 }, slotZoom]}>{slots.map((sl, k) => sl.html ? (
         <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
-          style={k === activeSlot && current && edArea
-            ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: edReady && !edHidden ? 1 : 0.011 }
-            : edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h, opacity: 0.011 }   // ya del tamaño justo: no tiene que reacomodarse al abrir
-            : { position: 'absolute', left: 0, top: 0, width, height: winH, opacity: 0.011 }}>
+          style={[edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h }   // ya del tamaño justo
+                         : { position: 'absolute', left: 0, top: 0, width, height: winH },
+            // con una nota abierta solo se ve el editor de esa nota; los demás se esconden
+            current && k !== activeSlot ? { opacity: 0 } : null,
+            !current && seeNow ? { opacity: 0 } : null]}>
           <WebView
             textZoom={webTextZoom()}
             ref={r => { slotRefs.current[k] = r; if (k === activeRef.current) webRef.current = r; }}
@@ -4206,9 +4209,9 @@ function NotesApp() {
           />
         </View>
       ) : null)}</Animated.View>}
-      {POOL && current && toast}
+      {POOL && current && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 30, elevation: 30 }]}>{toast}</View>}
       {dictOn && current && (
-        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 96 + ins.bottom }} pointerEvents="box-none">
+        <View style={{ position: 'absolute', left: 14, right: 14, bottom: 96 + ins.bottom, zIndex: 31, elevation: 31 }} pointerEvents="box-none">
           <Glass t={c} strong radius={22} inner={{ padding: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#ff453a' }} />

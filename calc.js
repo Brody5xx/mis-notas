@@ -111,6 +111,21 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
   #tip{position:fixed;left:50%;top:60px;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 14px;border-radius:14px;
        font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
   #tip.show{opacity:1}
+  #hv{padding:10px 14px 30px;overflow-y:auto;height:100%;-webkit-user-select:none}
+  #hTot{text-align:center;padding:12px;border-radius:18px;border:1px solid ${c.border};background:rgba(255,255,255,.07);margin-bottom:12px}
+  #hTot .hl{font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:${c.muted}}
+  #hSum{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
+  #hDec{font-size:13px;color:${c.muted};font-variant-numeric:tabular-nums}
+  .hday{display:grid;grid-template-columns:58px 1fr 1fr 64px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid ${c.border}}
+  .hday .dn{font-weight:800;font-size:14px;text-transform:capitalize}
+  .hday input{width:100%;min-width:0;background:rgba(255,255,255,.08);border:1px solid ${c.border};color:${c.text};border-radius:10px;
+    padding:7px 4px;font-size:14px;font-family:inherit;color-scheme:dark;-webkit-user-select:text;user-select:text}
+  .hday .hres{text-align:right;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+  .hday .brk{grid-column:2 / 4;display:flex;align-items:center;gap:6px;font-size:12px;color:${c.muted}}
+  .hday .brk input{width:70px;padding:4px 6px;font-size:13px}
+  .hday .hx{grid-column:4;justify-self:end;border:none;background:transparent;color:${c.muted};font-size:16px}
+  .hbtns{display:flex;justify-content:center;margin-top:14px}
+  .hhint{font-size:12px;color:${c.muted};text-align:center;margin-top:10px;line-height:1.4}
 </style></head><body>
 
 <div id="top">
@@ -121,6 +136,7 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
     <button class="tab" data-tab="graph">${H('calcGraph')}</button>
     <button class="tab" data-tab="table">${H('calcTable')}</button>
     <button class="tab" data-tab="fx">${H('calcFx')}</button>
+    <button class="tab" data-tab="hrs">⏱ ${H('hrsTab')}</button>
   </div>
 </div>
 <div id="sub">
@@ -165,6 +181,13 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
 </div></div>
 <div id="fxPick"><div class="ph"><button class="ibtn" id="fxBack">✕</button><input id="fxQ" placeholder="${H('fxSearch')}" autocomplete="off"></div><div id="fxList"></div></div>
 
+<div class="view" id="v-hrs"><div id="hv">
+  <div id="hTot"><div class="hl">${H('hrsTotal')}</div><div id="hSum">0 h</div><div id="hDec"></div></div>
+  <div id="hDays"></div>
+  <div class="hbtns"><button class="pill" id="hClear">🗑 ${H('hrsClear')}</button></div>
+  <div class="hhint">${H('hrsHint')}</div>
+</div></div>
+
 <div id="pad"></div>
 <div id="tip"></div>
 
@@ -188,7 +211,7 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
   }
   var saveT;
   function save(){ clearTimeout(saveT); saveT = setTimeout(function(){
-    S.ans = ans; send({ type: 'calcState', state: { hist: S.hist.slice(-60), ys: S.ys, on: S.on, deg: S.deg, win: S.win, ans: ans, fx: S.fx } });
+    S.ans = ans; send({ type: 'calcState', state: { hist: S.hist.slice(-60), ys: S.ys, on: S.on, deg: S.deg, win: S.win, ans: ans, fx: S.fx, hrs: S.hrs } });
   }, 300); }
   var tipT;
   function tip(t){ var e = $('tip'); e.textContent = t; e.classList.add('show'); clearTimeout(tipT); tipT = setTimeout(function(){ e.classList.remove('show'); }, 1400); }
@@ -333,9 +356,10 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
     tab = t;
     document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === t); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('show', v.id === 'v-' + t); });
-    $('pad').classList.toggle('hide', t === 'graph' || t === 'table' || t === 'fx');
+    $('pad').classList.toggle('hide', t === 'graph' || t === 'table' || t === 'fx' || t === 'hrs');
+    if (t === 'hrs') hrsRender();
     if (t === 'fx') fxOpen();
-    $('ang').style.visibility = t === 'fx' || t === 'table' ? 'hidden' : '';
+    $('ang').style.visibility = t === 'fx' || t === 'table' || t === 'hrs' ? 'hidden' : '';
     if (t === 'calc') setActive($('in'));
     if (t === 'y') setActive(document.querySelector('.yrow input'));
     if (t === 'graph') setTimeout(drawGraph, 30);
@@ -422,6 +446,7 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
   /* Insertar el último cálculo en la nota */
   if ($('ins')) $('ins').addEventListener('click', function(){
     if (tab === 'fx') { var ft = fxText(); if (ft) send({ type: 'calcInsert', text: ft }); else tip('—'); return; }
+    if (tab === 'hrs') { var ht = hrsText(); if (ht) send({ type: 'calcInsert', text: ht }); else tip('—'); return; }
     var x = S.hist[S.hist.length - 1];
     if (!x || x.r === ERR) { tip('—'); return; }
     send({ type: 'calcInsert', text: x.e.replace(/Ans/g, x.av ? '(' + x.av + ')' : 'Ans') + ' = ' + x.r });
@@ -723,6 +748,64 @@ export function buildCalcHtml({ c, tr, state, canInsert, fx, locale }) {
     $('fxPick').classList.remove('show');
     fxRender(); save();
   });
+
+  /* =========================================================
+     ⏱ HORAS DE TRABAJO: lunes a domingo, entrada y salida;
+     calcula las horas de cada día y las suma en la semana
+     ========================================================= */
+  S.hrs = S.hrs || {};
+  var HDAYS = [0, 1, 2, 3, 4, 5, 6];
+  function dayName(i, long){ try { return new Date(2024, 0, 1 + i).toLocaleDateString(LOC, { weekday: long ? 'long' : 'short' }).replace(/[.]$/, ''); } catch (e) { return ['L','M','X','J','V','S','D'][i]; } }
+  function mins(t){ if (!t) return null; var m = /^([0-9]{1,2}):([0-9]{2})/.exec(t); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+  function dayMins(d){
+    var a = mins(d && d.s), b = mins(d && d.e);
+    if (a == null || b == null) return 0;
+    var m = b - a; if (m <= 0) m += 24 * 60;                 // turno que pasa de la medianoche
+    m -= Math.max(0, +(d.b || 0));
+    return Math.max(0, m);
+  }
+  function fmtHM(m){ var h = Math.floor(m / 60), r = Math.round(m % 60); return h + ' h' + (r ? ' ' + (r < 10 ? '0' : '') + r + ' min' : ''); }
+  function fmtT(t){ var m = mins(t); if (m == null) return ''; try { return new Date(2024, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString(LOC, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return t; } }
+  function hrsTotal(){ var t = 0; HDAYS.forEach(function(i){ t += dayMins(S.hrs[i]); }); return t; }
+  function hrsUpdate(){
+    HDAYS.forEach(function(i){ var el = document.getElementById('hr' + i); if (el) { var m = dayMins(S.hrs[i]); el.textContent = m ? fmtHM(m) : '—'; } });
+    var t = hrsTotal();
+    $('hSum').textContent = fmtHM(t);
+    $('hDec').textContent = t ? '= ' + (Math.round(t / 60 * 100) / 100).toLocaleString(LOC) + ' h' : '';
+  }
+  function hrsRender(){
+    $('hDays').innerHTML = HDAYS.map(function(i){
+      var d = S.hrs[i] || {};
+      return '<div class="hday">' +
+        '<div class="dn">' + dayName(i) + '</div>' +
+        '<input type="time" data-d="' + i + '" data-f="s" value="' + (d.s || '') + '">' +
+        '<input type="time" data-d="' + i + '" data-f="e" value="' + (d.e || '') + '">' +
+        '<div class="hres" id="hr' + i + '">—</div>' +
+        '<div class="brk">☕ ${H('hrsBreak')} <input type="number" inputmode="numeric" min="0" step="5" data-d="' + i + '" data-f="b" value="' + (d.b || '') + '" placeholder="0"></div>' +
+        ((d.s || d.e) ? '<button class="hx" data-x="' + i + '">✕</button>' : '') +
+      '</div>';
+    }).join('');
+    hrsUpdate();
+  }
+  $('hDays').addEventListener('input', function(e){
+    var el = e.target; if (!el.hasAttribute || !el.hasAttribute('data-d')) return;
+    var i = el.getAttribute('data-d'), f = el.getAttribute('data-f');
+    S.hrs[i] = S.hrs[i] || {}; S.hrs[i][f] = el.value;
+    hrsUpdate(); save();
+  });
+  $('hDays').addEventListener('change', function(){ hrsRender(); });
+  $('hDays').addEventListener('click', function(e){
+    var x = e.target.closest && e.target.closest('[data-x]'); if (!x) return;
+    delete S.hrs[x.getAttribute('data-x')]; hrsRender(); save();
+  });
+  $('hClear').addEventListener('click', function(){ S.hrs = {}; hrsRender(); save(); tip('✓'); });
+  function hrsText(){
+    var lines = [];
+    HDAYS.forEach(function(i){ var d = S.hrs[i], m = dayMins(d); if (m) lines.push(dayName(i, true) + ': ' + fmtT(d.s) + ' – ' + fmtT(d.e) + (+d.b ? ' (☕ ' + d.b + ' min)' : '') + ' = ' + fmtHM(m)); });
+    if (!lines.length) return '';
+    var NL = String.fromCharCode(10);
+    return '⏱ ' + ${J('hrsTab')} + NL + lines.join(NL) + NL + ${J('hrsTotal')} + ': ' + fmtHM(hrsTotal());
+  }
 
   window.calcTip = tip;
   renderHist();
