@@ -673,6 +673,61 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   hydrateImgs(false);                                    // las que se ven arriba: ya mismo
   setTimeout(function(){ hydrateImgs(true); }, 30);       // las de más abajo: justo después
+  /* 📷 Las fotos se guardan APARTE (como los videos). En la nota solo queda <img data-iid="...">,
+     así la nota pesa poquito y abrir, escribir y guardar va rápido. */
+  function imgIdbHydrate(all){
+    var list = ed.querySelectorAll('img[data-iid]'), ps = [];
+    for (var i = 0; i < list.length; i++) {
+      var im = list[i];
+      if (im.getAttribute('src') || im._ld) continue;
+      if (!all) { var r = im.parentNode && im.parentNode.getBoundingClientRect ? im.parentNode.getBoundingClientRect() : null; if (r && r.top > window.innerHeight * 1.5) continue; }
+      im._ld = true; im.setAttribute('decoding', 'async');
+      ps.push((function(im){
+        return audGet(im.getAttribute('data-iid')).then(function(b){ if (!im.getAttribute('src')) im.src = URL.createObjectURL(b); }, function(){ im._ld = false; });
+      })(im));
+    }
+    return Promise.all(ps);
+  }
+  var IMG_TOP = ed.querySelector('img[data-iid]') ? imgIdbHydrate(false) : null;
+  setTimeout(function(){ imgIdbHydrate(true); }, 30);
+  var imgBusy = false;
+  function imgStore(){                                   // fotos nuevas (o editadas) → se guardan aparte
+    if (!editable || imgBusy) return;
+    var list = Array.prototype.filter.call(ed.querySelectorAll('img'), function(im){ return /^data:image/.test(im.getAttribute('src') || ''); });
+    if (!list.length) return;
+    imgBusy = true;
+    var left = list.length, moved = 0;
+    list.forEach(function(im){
+      var src = im.getAttribute('src');
+      fetch(src).then(function(r){ return r.blob(); }).then(function(b){ return audPut(b).then(function(id){ return [id, b]; }); }).then(function(x){
+        var u = URL.createObjectURL(x[1]), pre = new Image(); pre.src = u;
+        return (pre.decode ? pre.decode() : Promise.resolve()).catch(function(){}).then(function(){   // ya lista: el cambio no se nota
+          if (im.getAttribute('src') !== src) return;     // la cambiaste mientras tanto
+          var w = im.naturalWidth, h = im.naturalHeight;
+          if (w && h) { im.setAttribute('width', w); im.setAttribute('height', h); }
+          im.setAttribute('data-iid', x[0]);
+          im.src = u; moved++;
+        });
+      }).catch(function(){}).then(function(){ if (--left === 0) { imgBusy = false; if (moved) changedNow(true); } });
+    });
+  }
+  var thumbKey;
+  function thumbCheck(){                                 // foto chiquita para la tarjeta de inicio
+    if (!editable) return;
+    var fi = ed.querySelector('img'), k = fi ? (fi.getAttribute('data-iid') || '') : '-';
+    if (k === thumbKey) return;
+    if (!fi) { thumbKey = k; send({ type: 'thumb', id: noteId, thumb: null }); return; }
+    if (!k) return;
+    if (!fi.complete || !fi.naturalWidth) { if (!fi._tw) { fi._tw = true; fi.addEventListener('load', function(){ fi._tw = false; thumbCheck(); }); } return; }
+    thumbKey = k;
+    try {
+      var W = Math.min(360, fi.naturalWidth), H = Math.max(1, Math.round(fi.naturalHeight * W / fi.naturalWidth));
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      cv.getContext('2d').drawImage(fi, 0, 0, W, H);
+      send({ type: 'thumb', id: noteId, thumb: cv.toDataURL('image/jpeg', 0.72) });
+    } catch (e) {}
+  }
+  setTimeout(function(){ imgStore(); thumbCheck(); }, 1200);   // fotos viejas dentro de la nota → aparte (sin trabar al abrir)
   Array.prototype.forEach.call(ed.querySelectorAll('.audtx,.audpro'), function(x){ x.parentNode.removeChild(x); });   // transcripción a medias de antes
   // Fotos movidas con la versión anterior: pasarlas al sistema nuevo
   Array.prototype.forEach.call(ed.querySelectorAll('.imgwrap'), function(w){
@@ -758,20 +813,23 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   }
   function cleanHtml(){
     var h = ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, '').replace(/<span class="dictlive">[^<]*<[/]span>/g, '');
+    if (h.indexOf('data-iid="') >= 0 && h.indexOf('src="data:') >= 0) h = h.replace(/<img [^>]*>/g, function(tg){ return tg.indexOf('src="data:') >= 0 ? tg.replace(/ data-iid="[^"]*"/, '').replace(/ (width|height)="[0-9]*"/g, '') : tg; });
     if (h.indexOf('data-p="') >= 0) h = h.replace(/<img data-p="([0-9]+)"/g, function(m0, k){ return '<img src="' + (PEND[+k] || '') + '"'; });   // fotos que todavía no se pusieron
     return h;
   }
   function payload(){
     return { html: cleanHtml(), title: plainTitle(), titleHtml: plainTitle() ? ttl.innerHTML : '', ink: isDraw ? strokes : undefined };
   }
-  function changedNow(){
+  function changedNow(quiet){
+    if (quiet !== true) quiet = false;
     clearTimeout(sendTimer); dirty = false;
     vidHydrate();
     if (editable) ensureLines();                // línea para escribir debajo de cada foto
     record();                                   // guardar el paso para Deshacer
     var p = payload();
-    send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink });
-    $('meta').textContent = modText(Date.now());
+    send({ type: 'change', id: noteId, html: p.html, title: p.title, titleHtml: p.titleHtml, ink: p.ink, quiet: quiet });
+    if (!quiet) $('meta').textContent = modText(Date.now());
+    imgStore(); thumbCheck();
   }
   function changed(){
     dirty = true; clearTimeout(sendTimer);
@@ -4248,7 +4306,17 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
       '<footer>' + xesc(JOB.app || 'Mis Notas') + '</footer></main><script>' + PAGE_JS + '</scr' + 'ipt></body></html>';
     return { type: 'exported', kind: 'page', name: JOB.name + '.html', mime: 'text/html', text: html };
   }
+  async function inlineImgs(){                          // 📷 las fotos guardadas aparte se meten en lo que se exporta
+    for (var i = 0; i < JOB.notes.length; i++) {
+      var n = JOB.notes[i];
+      if (!n.h || n.h.indexOf('data-iid="') < 0) continue;
+      var ids = {};
+      n.h.replace(/data-iid="([^"]+)"/g, function(m0, id){ ids[id] = 1; return m0; });
+      for (var id in ids) { try { var d = await blobToData(await audGet(id)); n.h = n.h.split('data-iid="' + id + '"').join('src="' + d + '"'); } catch (e) {} }
+    }
+  }
   async function runExport(){
+    try { await inlineImgs(); } catch (e) {}
     if (JOB.kind === 'page') {
       try { send(await buildPage()); } catch (e) { send({ type: 'exported', error: String(e && e.message || e) }); }
       return;
@@ -4327,14 +4395,18 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* "Listo" se avisa cuando ya se ve todo (fotos incluidas), así la app nunca muestra una pantalla a medias */
   (function(){
     var sent = false, go = function(){ if (sent) return; sent = true; requestAnimationFrame(function(){ requestAnimationFrame(function(){ try { send({ type: 'ready' }); } catch (e) {} }); }); };
+    setTimeout(go, 220);                                   // nunca hace esperar más de esto
+    var wait = function(){
     var ims = Array.prototype.slice.call(document.querySelectorAll('#ed img')).slice(0, 2);   // solo las primeras (lo que se ve arriba)
     if (!ims.length) { go(); return; }
     var left = ims.length, one = function(){ if (--left <= 0) go(); };
     ims.forEach(function(im){
       if (im.complete && im.naturalWidth) { one(); return; }
+      if (!im.getAttribute('src')) { one(); return; }
       if (im.decode) im.decode().then(one, one); else { im.addEventListener('load', one); im.addEventListener('error', one); }
     });
-    setTimeout(go, 160);                                   // nunca hace esperar más de esto
+    };
+    if (IMG_TOP) IMG_TOP.then(wait, wait); else wait();
   })();
   /* 🔍 Lo que buscaste en la pantalla de inicio se ilumina en amarillo dentro de la nota */
   window.hlSet = function(Q, jump){

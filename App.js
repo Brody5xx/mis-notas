@@ -246,7 +246,9 @@ function noteTokens(n) {
   if (!n.html) { (n.content || '').split('\n').forEach(add); return out; }
   (n.content || '').split(/(<img[^>]*>)/i).forEach(part => {
     const m = part.match(/^<img[^>]+src="([^"]+)"/i);
+    const mi = !m && part.match(/^<img[^>]+data-iid="([^"]+)"/i);
     if (m) out.push(REC_IMG + m[1]);
+    else if (mi) out.push(REC_IMG + 'idb:' + mi[1]);       // foto guardada aparte
     else toPlain({ html: true, content: part.replace(/<(div|p|li|h[1-6])[\s>]/gi, '\n$&') }).split('\n').forEach(add);
   });
   return out;
@@ -479,9 +481,10 @@ function tagsOf(n) {
 
 /* Primera foto de la nota (para mostrarla en la tarjeta) */
 function firstImg(n) {
+  if (n.thumb) return n.thumb;                          // 📷 foto chiquita guardada aparte (rápido)
   if (!n.html || !n.content) return null;
   if (IMG_CACHE.has(n)) return IMG_CACHE.get(n);
-  const m = n.content.match(/<img[^>]+src="([^"]+)"/);
+  const m = n.content.match(/<img[^>]+src="(data:[^"]+)"/);
   const v = m ? m[1] : null;
   IMG_CACHE.set(n, v);
   return v;
@@ -1783,7 +1786,7 @@ function NotesApp() {
   }
 
   function isEmpty(n) {
-    return !n.title.trim() && !toPlain(n).trim() && !firstImg(n) && !n.hasWall && !(n.ink && n.ink.length);
+    return !n.title.trim() && !toPlain(n).trim() && !firstImg(n) && !/<img /.test(n.content || '') && !n.hasWall && !(n.ink && n.ink.length);
   }
 
   /* Notas que vaciaste con "Vaciar chat": si siguen vacías después de 48 horas, se borran solas */
@@ -1915,7 +1918,7 @@ function NotesApp() {
     const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const title = (current.title || '').trim();
     return entries.filter(e => e !== title).map(e => (e[0] === REC_IMG
-      ? `<div class="imgwrap" contenteditable="false" data-scale="100" style="width:40%"><img src="${e.slice(1)}"></div>`
+      ? `<div class="imgwrap" contenteditable="false" data-scale="100" style="width:40%"><img ${e.startsWith(REC_IMG + 'idb:') ? `data-iid="${e.slice(5)}"` : `src="${e.slice(1)}"`}></div>`
       : `<div>${esc(e)}</div>`)).join('');
   }
   function restoreRecord() {
@@ -2058,7 +2061,7 @@ function NotesApp() {
       };
       const html = '<!DOCTYPE html><html><body><script>(function(){var A=' + JSON.stringify(aids) + ',V=' + JSON.stringify(vids || {}) + ';' +
         /* le pone el tipo correcto (video/mp4, video/webm, audio/...) mirando el comienzo del archivo */
-        'function fix(b,isV,cb){if(/^(video|audio)\\//.test(b.type||"")){cb(b);return;}var g=function(u){var t=isV?"video/mp4":"audio/mp4";' +
+        'function fix(b,isV,cb){if(/^(video|audio|image)\\//.test(b.type||"")){cb(b);return;}var g=function(u){var t=isV?"video/mp4":"audio/mp4";' +
         'if(u&&u.length>=12){if(u[0]==26&&u[1]==69&&u[2]==223&&u[3]==163)t=isV?"video/webm":"audio/webm";else if(u[0]==79&&u[1]==103&&u[2]==103&&u[3]==83)t="audio/ogg";' +
         'else if((u[0]==73&&u[1]==68&&u[2]==51)||(u[0]==255&&(u[1]&224)==224))t="audio/mpeg";}cb(new Blob([b],{type:t}));};' +
         'try{b.slice(0,12).arrayBuffer().then(function(ab){g(new Uint8Array(ab));},function(){g(null);});}catch(e){g(null);}}' +
@@ -2073,18 +2076,65 @@ function NotesApp() {
       setMediaJob({ key, html });
     });
   }
+  /* 📷 Fotos viejas guardadas DENTRO de las notas → se pasan aparte, una nota a la vez y sin que lo notes.
+     Así el archivo de notas queda liviano y todo (abrir, escribir, guardar) va más rápido. */
+  const [migJob, setMigJob] = useState(null);
+  const migRes = useRef(null);
+  function migOne(content) {
+    return new Promise(resolve => {
+      const tm = setTimeout(() => { migRes.current = null; setMigJob(null); resolve(null); }, 60000);
+      migRes.current = m => { if (m.type !== 'mig') return; clearTimeout(tm); migRes.current = null; setMigJob(null); resolve(m.html ? m : null); };
+      const js = '(function(){var H=' + JSON.stringify(String(content || '')).replace(/</g, '\\u003c') + ';' +
+        'function post(o){window.ReactNativeWebView.postMessage(JSON.stringify(o));}' +
+        'var todo=(H.match(/<img [^>]*>/g)||[]).filter(function(t){return t.indexOf(\'src="data:image\')>=0;});' +
+        'if(!todo.length){post({type:"mig"});return;}' +
+        'var rq;try{rq=indexedDB.open("misnotas_audios",1);}catch(e){post({type:"mig"});return;}' +
+        'rq.onupgradeneeded=function(){rq.result.createObjectStore("a");};' +
+        'rq.onerror=function(){post({type:"mig"});};' +
+        'rq.onsuccess=function(){var db=rq.result,i=0,thumb=null,out=H;' +
+        'function next(){if(i>=todo.length){post({type:"mig",html:out,thumb:thumb});return;}' +
+        'var tg=todo[i++],m=tg.match(/src="(data:image[^"]*)"/);if(!m){next();return;}var d=m[1];' +
+        'fetch(d).then(function(r){return r.blob();}).then(function(b){var id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);' +
+        'return new Promise(function(ok,no){var tx=db.transaction("a","readwrite");tx.objectStore("a").put(b,id);tx.oncomplete=function(){ok([id,b]);};tx.onerror=tx.onabort=function(){no(tx.error);};});})' +
+        '.then(function(x){return new Promise(function(ok){var im=new Image();im.onload=function(){ok([x[0],im]);};im.onerror=function(){ok([x[0],null]);};im.src=URL.createObjectURL(x[1]);});})' +
+        '.then(function(y){var im=y[1],nt=tg.replace(\'src="\'+d+\'"\',\'data-iid="\'+y[0]+\'"\'+(im&&im.naturalWidth?\' width="\'+im.naturalWidth+\'" height="\'+im.naturalHeight+\'"\':\'\'));' +
+        'out=out.split(tg).join(nt);' +
+        'if(!thumb&&im&&im.naturalWidth){try{var W=Math.min(360,im.naturalWidth),Hh=Math.max(1,Math.round(im.naturalHeight*W/im.naturalWidth));var cv=document.createElement("canvas");cv.width=W;cv.height=Hh;cv.getContext("2d").drawImage(im,0,0,W,Hh);thumb=cv.toDataURL("image/jpeg",0.72);}catch(e){}}})' +
+        '.catch(function(){}).then(function(){setTimeout(next,10);});}next();};})();';
+      setMigJob({ key: Date.now(), html: '<!DOCTYPE html><html><body><script>' + js + '</scr' + 'ipt></body></html>' });
+    });
+  }
+  useEffect(() => {
+    if (Platform.OS === 'web' || !loaded) return;
+    let stop = false;
+    const t = setTimeout(async () => {
+      const todo = notesRef.current.filter(n => n.html && /<img [^>]*src="data:image/.test(n.content || '')).map(n => n.id);
+      for (const id of todo) {
+        if (stop) return;
+        if (id === currentIdRef.current) continue;            // la nota abierta la pasa el editor mismo
+        const n = notesRef.current.find(x => x.id === id);
+        if (!n) continue;
+        const orig = n.content;
+        const r = await migOne(orig);
+        if (r && r.html && r.html !== orig)
+          setNotes(ns => ns.map(x => (x.id === id && x.content === orig ? { ...x, content: r.html, ...(r.thumb && !x.thumb ? { thumb: r.thumb } : {}) } : x)));
+        await new Promise(ok => setTimeout(ok, 400));
+      }
+    }, 5000);
+    return () => { stop = true; clearTimeout(t); };
+  }, [loaded, notes.length]);
   async function withMediaInside(list) {
-    if (!list.some(n => /data-aid="/.test(String(n.content || '')))) return list;
+    if (!list.some(n => /data-[ai]id="/.test(String(n.content || '')))) return list;
     if (Platform.OS !== 'web') {
       const aids = [];
-      list.forEach(n => (String(n.content || '').match(/data-aid="([^"]+)"/g) || []).forEach(x => { const a = x.slice(10, -1); if (!aids.includes(a)) aids.push(a); }));
+      list.forEach(n => (String(n.content || '').match(/data-[ai]id="([^"]+)"/g) || []).forEach(x => { const a = x.slice(10, -1); if (!aids.includes(a)) aids.push(a); }));
       const vids = {};
       list.forEach(n => (String(n.content || '').match(/<video[^>]*data-aid="([^"]+)"/g) || []).forEach(x => { const m = x.match(/data-aid="([^"]+)"/); if (m) vids[m[1]] = 1; }));
       const got = await fetchMediaNative(aids, vids);
       return list.map(n => {
         let h = String(n.content || '');
-        if (!/data-aid="/.test(h)) return n;
-        Object.keys(got).forEach(aid => { h = h.split('data-aid="' + aid + '"').join('src="' + got[aid] + '"'); });
+        if (!/data-[ai]id="/.test(h)) return n;
+        Object.keys(got).forEach(aid => { h = h.split('data-aid="' + aid + '"').join('src="' + got[aid] + '"').split('data-iid="' + aid + '"').join('src="' + got[aid] + '"'); });
         return { ...n, content: h };
       });
     }
@@ -2105,11 +2155,11 @@ function NotesApp() {
     const out = [];
     for (const n of list) {
       let h = String(n.content || '');
-      const ids = Array.from(new Set((h.match(/data-aid="([^"]+)"/g) || []).map(x => x.slice(10, -1))));
+      const ids = Array.from(new Set((h.match(/data-[ai]id="([^"]+)"/g) || []).map(x => x.slice(10, -1))));
       for (const aid of ids) {
         const b = await get(aid);
         const d = b ? await toData(b) : null;
-        if (d) h = h.split('data-aid="' + aid + '"').join('src="' + d + '"');
+        if (d) h = h.split('data-aid="' + aid + '"').join('src="' + d + '"').split('data-iid="' + aid + '"').join('src="' + d + '"');
       }
       out.push(h === n.content ? n : { ...n, content: h });
     }
@@ -2916,11 +2966,12 @@ function NotesApp() {
     try {
       const m = JSON.parse(data);
       if (m.type === 'change' && m.id) {
-        patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) });
+        patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) }, !m.quiet);
         const base = notesRef.current.find(x => x.id === m.id) || {};
         updateRecord({ ...base, id: m.id, title: m.title || '', content: m.html, html: true });
       }
       if (m.type === 'ready') setEdReady(true);
+      if (m.type === 'thumb' && m.id) { const n0 = notesRef.current.find(x => x.id === m.id); if (n0 && (n0.thumb || null) !== (m.thumb || null)) patch(m.id, { thumb: m.thumb || null }, false); }
       if (m.type === 'crop') setCropOpen(!!m.open);
       if (m.type === 'spellOpen') setSpellOn(!!m.open);
       if (m.type === 'spell') runSpell(m);
@@ -3492,8 +3543,9 @@ function NotesApp() {
                     <Text maxFontSizeMultiplier={1.3} style={[s.wallHint, { marginTop: 6, marginBottom: 0 }]}>{tr('recIntro')}</Text>
                     <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
                       {recEntries.length === 0 && <Text maxFontSizeMultiplier={1.3} style={[s.emptyText, { paddingVertical: 16 }]}>{tr('recEmpty')}</Text>}
-                      {recEntries.map((e, i) => (e[0] === REC_IMG
-                        ? <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />
+                      {recEntries.map((e, i) => (e[0] === REC_IMG ? (e.startsWith(REC_IMG + 'idb:')
+                        ? <Text maxFontSizeMultiplier={1.3} key={i} style={[s.histViewText, { marginBottom: 6 }]}>📷</Text>
+                        : <Image key={i} source={{ uri: e.slice(1) }} style={[s.thumb, { height: 120, marginVertical: 4 }]} resizeMode="cover" />)
                         : <Text maxFontSizeMultiplier={1.3} key={i} style={[s.histViewText, { marginBottom: 6 }]}>{e}</Text>))}
                     </ScrollView>
                     <TouchableOpacity onPress={restoreRecord} activeOpacity={0.8} style={[s.wallBtn, { backgroundColor: c.text }]}>
@@ -4172,6 +4224,12 @@ function NotesApp() {
             </View>
           )}
         </Animated.View>
+      )}
+      {migJob && Platform.OS !== 'web' && (
+        <View key={migJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01 }}>
+          <WebView originWhitelist={['*']} source={{ html: migJob.html, baseUrl: EDITOR_BASE }} style={{ width: 2, height: 2 }}
+            onMessage={e => { try { const m = JSON.parse(e.nativeEvent.data); migRes.current && migRes.current(m); } catch (er) {} }} />
+        </View>
       )}
       {mediaJob && Platform.OS !== 'web' && (
         <View key={mediaJob.key} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: 2, height: 2, opacity: 0.01 }}>
