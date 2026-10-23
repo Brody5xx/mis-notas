@@ -1361,6 +1361,7 @@ function NotesApp() {
   const ghostGo = useRef(null);
   const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
   const ghostWaiting = useRef(false);
+  const homeFrozen = useRef(null);
   const [edHidden, setEdHidden] = useState(false);    // el editor se prepara escondido mientras la tarjeta crece
   const zoomWant = useRef(null);                       // { layout } mientras espera para crecer
   function startZoom(force) {
@@ -1368,11 +1369,9 @@ function NotesApp() {
     if (!w) return;
     if (!force && !(w.layout && edReadyRef.current)) return;     // espera: nota puesta en pantalla + editor listo
     zoomWant.current = null;
-    setEdHidden(false);
-    requestAnimationFrame(() => {
-      Animated.timing(zp, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true })
-        .start(() => { setRevealing(false); setZoomRect(null); zoomBusy.current = false; });
-    });
+    // Sin animación: la nota ya está dibujada por detrás, así que se muestra completa de un solo golpe
+    zp.setValue(1); setZoomRect(null);
+    setEdHidden(false); setRevealing(false); zoomBusy.current = false;
   }
   const edReadyRef = useRef(false);
   function fadeGhost() {
@@ -1805,21 +1804,7 @@ function NotesApp() {
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
     if (ghostWaiting.current || edHidden || zoomWant.current) { zoomWant.current = null; ghostWaiting.current = false; ghostGo.current = null; setGhost(null); zoomBusy.current = false; setEdHidden(false); setRevealing(false); setZoomRect(null); zp.setValue(1); }   // saliste muy rápido
-    // Teléfono: la nota se encoge de vuelta a su tarjeta
-    const R = Platform.OS !== 'web' && currentId ? cardRects.current[currentId] : null;
-    if (R && !zoomBusy.current) {
-      zoomBusy.current = true;
-      zp.setValue(1);
-      setZoomRect(R); setRevealing(true);
-      requestAnimationFrame(() => {
-        Animated.timing(zp, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true })
-          .start(() => {
-            closeEditorNow();
-            setTimeout(() => { setZoomRect(null); setRevealing(false); zp.setValue(1); zoomBusy.current = false; }, 260);
-          });
-      });
-      return;
-    }
+    // Sin animación al cerrar: se vuelve al inicio al instante (más rápido y sin saltos)
     closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
     if (revBusy.current) { closeEditorNow(); return; }
     revBusy.current = true;
@@ -2600,11 +2585,13 @@ function NotesApp() {
       zoomBusy.current = true;
       // La nota REAL (ya cargada por detrás desde que pusiste el dedo) crece desde su tarjeta hasta llenar la pantalla.
       // Así lo que ves crecer es exactamente lo que queda: sin textos que cambian ni saltos.
-      zp.setValue(0);
-      setZoomRect(R); setRevealing(true); setEdHidden(true);
+      // Sin animación: el inicio se queda quieto un instante mientras la nota termina de dibujarse por detrás,
+      // y luego aparece la nota completa de un solo golpe (sin letras encimadas ni saltos).
+      zp.setValue(1); setZoomRect(null);
+      setRevealing(true); setEdHidden(true);
       zoomWant.current = { layout: false };
       setCurrentId(id);
-      setTimeout(() => startZoom(true), 380);          // por si acaso: nunca espera más que esto
+      setTimeout(() => startZoom(true), 450);          // por si acaso: nunca espera más que esto
       return;
     }
     setRevealing(false);
@@ -3816,6 +3803,9 @@ function NotesApp() {
         key={layout + cols}
         data={visible}
         keyExtractor={n => n.id}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         numColumns={isGrid ? cols : 1}
         columnWrapperStyle={isGrid ? { gap: 12 } : undefined}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 + ins.bottom, gap: 12 }}
@@ -4142,7 +4132,14 @@ function NotesApp() {
   const nIn = (arr) => revP.interpolate({ inputRange: LIQ.inR, outputRange: arr });
   return (
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
-      <View style={[{ flex: 1, zIndex: 0 }, current && !revealing && { display: 'none' }]}>{homeView}</View>
+      {(() => {
+        // ⚡ Con una nota abierta, el inicio (escondido) NO se vuelve a dibujar con cada letra que escribes
+        const hidden = !!current && !revealing;
+        const f = homeFrozen.current;
+        if (hidden && f && f.hidden && f.dark === dark) return f.el;
+        homeFrozen.current = { hidden, dark, el: <View style={[{ flex: 1, zIndex: 0 }, hidden && { display: 'none' }]}>{homeView}</View> };
+        return homeFrozen.current.el;
+      })()}
       {!current && menuLayer}
       {editorView && (
         <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, edHidden && { opacity: 0 }]} pointerEvents={revealing ? 'none' : 'auto'}>
