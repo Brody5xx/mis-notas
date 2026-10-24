@@ -1414,15 +1414,15 @@ function NotesApp() {
     showToast('🧪 Probando… no toques nada (unos 60 segundos)');
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const stalls = from => PERF.log.filter(x => x.t >= from && x.ev.startsWith('⛔')).reduce((a, x) => a + (x.ms || 0), 0);
-    const variants = [['Normal', {}], ['Sin esconder el inicio', { keepHome: 1 }], ['Sin mostrar la barra', { noChrome: 1 }],
-      ['Sin mostrar la nota', { noFrame: 1 }], ['Sin cargar la nota', { noBoot: 1 }],
-      ['Sin desenfoque (vidrio) en la nota', { noBlur: 1 }], ['Sin vidrio ni sombras en la nota', { noFx: 1 }], ['Normal otra vez', {}]];
+    const variants = [['Normal', {}], ['Sin mostrar la nota', { noFrame: 1 }],
+      ['Sin animaciones en la nota', { noAnim: 1 }], ['Nota siempre puesta, tapada por el inicio', { coverHome: 1 }], ['Normal otra vez', {}]];
     const out = ['🧪 PRUEBA AUTOMÁTICA (promedio de 3 veces)', 'Nota: ' + (n.title || '(sin título)'), ''];
     await sleep(1500);
     for (const [name, f] of variants) {
-      Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 }, f);
+      Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0, coverHome: 0 }, f);
       shellJs('window.__fx(' + JSON.stringify(f.noFx ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important;filter:none!important}'
-        : f.noBlur ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}' : '') + ')');
+        : f.noBlur ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}'
+        : f.noAnim ? '*,*::before,*::after{transition:none!important;animation:none!important}' : '') + ')');
       let o = 0, c = 0;
       for (let i = 0; i < 3; i++) {
         let t = perfNow(); mark('🧪 ' + name + ': abrir'); labFns.current.open(n.id); await sleep(1700); o += stalls(t);
@@ -1430,7 +1430,8 @@ function NotesApp() {
       }
       out.push(name + ':  entrar ' + Math.round(o / 3) + ' ms trabada  ·  salir ' + Math.round(c / 3) + ' ms');
     }
-    Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 });
+    Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0, coverHome: 0 });
+    shellJs('window.__show(-1)');
     shellJs('window.__fx("")');
     setLabBusy(false);
     setPerfView(out.join('\n') + '\n\n' + perfReport());
@@ -1715,7 +1716,7 @@ function NotesApp() {
   const activeRef = useRef(-1);
   const [activeSlot, setActiveSlot] = useState(-1);
   const frameOn = currentId && !edHidden && activeSlot >= 0 && !LAB.noFrame ? activeSlot : -1;
-  useEffect(() => { if (POOL) shellJs('window.__show(' + frameOn + ')'); }, [frameOn]);
+  useEffect(() => { if (POOL && !(LAB.coverHome && frameOn < 0)) shellJs('window.__show(' + frameOn + ')'); }, [frameOn]);
   const edAreaRef = useRef(null);
   /* Dónde va el editor: se calcula con las medidas normales de la pantalla de la nota
      (no "midiendo en pantalla", porque mientras la nota crece está achicada y saldría chiquito) */
@@ -2131,7 +2132,7 @@ function NotesApp() {
       finish();
     } else if (webRef.current) {
       webRef.current.injectJavaScript('window.flushNow && window.flushNow(); true;');
-      shellJs('window.__show(-1)');                      // primero se esconde la nota por dentro…
+      if (!LAB.coverHome) shellJs('window.__show(-1)');  // primero se esconde la nota por dentro…
       setTimeout(finish, 34);                            // …y enseguida aparece el inicio (sin que se encimen)                                          // ⚡ se vuelve al inicio al instante (lo último llega solo)
     } else {
       finish();
@@ -4421,7 +4422,7 @@ function NotesApp() {
         const hidden = !!current && !revealing && !LAB.keepHome;
         const f = homeFrozen.current;
         if (hidden && f && f.hidden && f.dark === dark) return f.el;
-        homeFrozen.current = { hidden, dark, el: <View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, hidden && { opacity: 0 }]}>{homeView}</View> };
+        homeFrozen.current = { hidden, dark, el: <View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, !hidden && LAB.coverHome && { zIndex: 25, elevation: 25 }, hidden && { opacity: 0 }]}>{homeView}</View> };
         return homeFrozen.current.el;
       })()}
       {!current && menuLayer}
