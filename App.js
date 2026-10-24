@@ -1405,6 +1405,7 @@ function NotesApp() {
   const [perfView, setPerfView] = useState(null);
   const labFns = useRef({});
   const [labBusy, setLabBusy] = useState(false);
+  const [webLayer, setWebLayer] = useState('none');
   /* 🧪 Prueba automática: abre y cierra una nota sola, apagando UNA cosa a la vez, y mide cuánto se traba */
   async function runLab() {
     const n = notesRef.current.find(x => !x.deleted && !x.locked);
@@ -1415,11 +1416,12 @@ function NotesApp() {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const stalls = from => PERF.log.filter(x => x.t >= from && x.ev.startsWith('⛔')).reduce((a, x) => a + (x.ms || 0), 0);
     const variants = [['Normal', {}], ['Sin mostrar la nota', { noFrame: 1 }],
-      ['Sin animaciones en la nota', { noAnim: 1 }], ['Nota siempre puesta, tapada por el inicio', { coverHome: 1 }], ['Normal otra vez', {}]];
+      ['Capa de hardware (hardware)', { layer: 'hardware' }], ['Capa de software (software)', { layer: 'software' }], ['Normal otra vez', {}]];
     const out = ['🧪 PRUEBA AUTOMÁTICA (promedio de 3 veces)', 'Nota: ' + (n.title || '(sin título)'), ''];
     await sleep(1500);
     for (const [name, f] of variants) {
       Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0, coverHome: 0 }, f);
+      setWebLayer(f.layer || 'none'); await sleep(600);
       shellJs('window.__fx(' + JSON.stringify(f.noFx ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important;filter:none!important}'
         : f.noBlur ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}'
         : f.noAnim ? '*,*::before,*::after{transition:none!important;animation:none!important}' : '') + ')');
@@ -1431,7 +1433,7 @@ function NotesApp() {
       out.push(name + ':  entrar ' + Math.round(o / 3) + ' ms trabada  ·  salir ' + Math.round(c / 3) + ' ms');
     }
     Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0, coverHome: 0 });
-    shellJs('window.__show(-1)');
+    shellJs('window.__show(-1)'); setWebLayer('none');
     shellJs('window.__fx("")');
     setLabBusy(false);
     setPerfView(out.join('\n') + '\n\n' + perfReport());
@@ -4483,6 +4485,7 @@ function NotesApp() {
           <WebView
             textZoom={webTextZoom()}
             ref={shellRef}
+            androidLayerType={webLayer}
             originWhitelist={['*']}
             source={{ html: shellHtml, baseUrl: EDITOR_BASE }}
             onMessage={e => onShellMessage(e.nativeEvent.data)}
