@@ -4484,7 +4484,11 @@ export function buildShellHtml(spare) {
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">' +
     '<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}' +
     'iframe{position:fixed;left:0;top:0;width:100%;height:100%;border:0;background:transparent;opacity:0;pointer-events:none;z-index:1}' +
-    'iframe.on{opacity:1;pointer-events:auto;z-index:2}</style></head><body><script>' +
+    'iframe.on{opacity:1;pointer-events:auto;z-index:2}' +
+    /* ⚡ un puntito casi invisible: la página NUNCA queda vacía. Según la prueba automática, pasar de "vacía" a
+       "con algo" hacía que el teléfono preparara todo de nuevo y se trababa 500-700 ms al entrar a una nota */
+    '#keep{position:fixed;left:0;bottom:0;width:2px;height:2px;background:rgba(128,128,128,0.02);z-index:0;pointer-events:none}' +
+    '</style></head><body><div id="keep"></div><script>' +
     '(function(){var SP=' + shellSafe(spare) + ',F=[],ON=-1;' +
     'function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}' +
     'function mk(k){var f=document.createElement("iframe");' +
