@@ -1675,6 +1675,7 @@ function NotesApp() {
       if (q.length && shellRef.current) shellRef.current.injectJavaScript(q.join(';\n') + '; true;');
       return;
     }
+    if (m && m.paint != null) { mark('🖼 nota pintada por dentro', m.paint); return; }
     if (m && m.k != null) onSlotMessage(m.k, m.d);
   }
   const slotLoaded = useRef([false, false]);
