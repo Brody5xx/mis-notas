@@ -117,6 +117,23 @@ function inlineRuns(node, st, out) {
 function plainOfRuns(runs) { return runs.map(r => (r.br ? '\n' : r.text)).join('').replace(/\u200B/g, ''); }
 function hasStyle(runs) { return runs.some(r => !r.br && r.text.trim() && Object.keys(cleanStyle(r.st)).length); }
 
+/* Dónde está la foto en el editor completo (para dibujarla igual):
+   side 'l' = a la izquierda con texto a su derecha, 'r' = a la derecha, '' = sola.
+   x = borde izquierdo en %, y = cuánto la bajaste (px). */
+function imgPos(node, css, wp) {
+  const fl = String(css.float || '').trim(), num = v => { const m = /(-?[0-9.]+)%/.exec(v || ''); return m ? parseFloat(m[1]) : null; };
+  let side = fl === 'left' ? 'l' : fl === 'right' ? 'r' : '';
+  const ml = num(css['margin-left']), mr = num(css['margin-right']), dx = node.attrs['data-x'];
+  let x;
+  if (side === 'r' && mr != null) x = 100 - wp - mr;              // lo que de verdad se ve en el editor completo
+  else if (side !== 'r' && ml != null) x = ml;
+  else if (dx != null && dx !== '' && !isNaN(+dx)) x = +dx;
+  else x = side === 'l' ? 0 : side === 'r' ? 100 - wp : (100 - wp) / 2;   // sin mover: en el centro
+  x = Math.max(0, Math.min(100 - Math.min(wp, 100), x));
+  const y = Math.max(0, +(node.attrs['data-y'] || 0) || 0);
+  return { side, x, y };
+}
+
 function imgInfo(node, raw) {
   const img = node.children.find(x => x.tag === 'img');
   if (!img) return null;
@@ -130,10 +147,12 @@ function imgInfo(node, raw) {
     pct: pct ? Math.max(10, Math.min(100, parseFloat(pct[1]))) : 40,
     w: +img.attrs.width || 0, h: +img.attrs.height || 0, stamp,
     rot: +(node.attrs['data-rot'] || 0) || 0,
+    ...imgPos(node, css, pct ? parseFloat(pct[1]) : 40),
   };
 }
 
 let KEY = 1;
+export function imgOfRaw(raw) { const r = htmlToBlocks(raw, true); return r.ok && r.blocks[0] && r.blocks[0].t === 'img' ? r.blocks[0] : null; }
 export function newKey() { return 'k' + (KEY++); }
 
 /* Un bloque de texto tiene "pedazos" (spans) con su estilo; '\n' separa renglones */

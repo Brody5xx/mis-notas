@@ -7,7 +7,7 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, Image, Keyboard, Platform, useWindowDimensions } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { htmlToBlocks, blocksToHtml, mergeSpans, spansPlain, sameStyle, newKey } from './nativo-html';
+import { htmlToBlocks, blocksToHtml, mergeSpans, spansPlain, sameStyle, newKey, imgOfRaw } from './nativo-html';
 
 const BASE_SIZE = 17;
 const SIZES = [13, 15, 17, 20, 24, 30, 38];
@@ -31,6 +31,31 @@ function styleAt(spans, pos) {
   let j = 0;
   for (const sp of spans) { if (pos >= j && pos < j + sp.text.length && sp.text[pos - j] !== '\n') return sp.st; j += sp.text.length; }
   return {};
+}
+/* 🖼️ Foto a un lado (como en el editor completo): los renglones que caben al lado
+   de la foto van en su propio bloque, para dibujarlos a su lado. El HTML no cambia. */
+function besideW(img, W) {
+  const wp = img.pct || 40, x = img.x || 0;
+  return Math.round(img.side === 'l' ? W * (100 - x - wp) / 100 - 14 : W * x / 100 - 14);
+}
+function splitBeside(blocks, W) {
+  const out = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i], prev = out[out.length - 1];
+    if (b.t === 'text' && prev && prev.t === 'img' && prev.side && besideW(prev, W) >= 70) {
+      const cw = besideW(prev, W), iw = W * (prev.pct || 40) / 100;
+      const ih = iw * (prev.w && prev.h ? prev.h / prev.w : 0.75) + (prev.y || 0) + 10;
+      const plain = spansPlain(b.spans), lines = plain.split('\n');
+      let acc = 0, n = 0, pos = 0;
+      while (n < lines.length && acc < ih) { acc += Math.max(1, Math.ceil(lines[n].length * 8.6 / cw)) * 25; pos += lines[n].length + 1; n++; }
+      if (n >= lines.length) { out.push({ ...b, beside: true }); continue; }
+      out.push({ ...b, beside: true, spans: mergeSpans(sliceSpans(b.spans, 0, pos - 1)) });
+      out.push({ k: newKey(), t: 'text', spans: mergeSpans(sliceSpans(b.spans, pos, plain.length)) });
+      continue;
+    }
+    out.push(b);
+  }
+  return out;
 }
 function sliceSpans(spans, a, b) {     // los pedazos entre a y b
   const out = []; let i = 0;
@@ -101,7 +126,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
 
   const first = useMemo(() => {
     const r = htmlToBlocks(note.content || '', note.html !== false);
-    return r.ok ? r.blocks : [{ k: newKey(), t: 'text', spans: [{ text: String(note.content || ''), st: {} }] }];
+    return r.ok ? splitBeside(r.blocks, width - 40) : [{ k: newKey(), t: 'text', spans: [{ text: String(note.content || ''), st: {} }] }];
   }, [note.id]);
   const [blocks, setBlocksRaw] = useState(first);
   const [title, setTitle] = useState(note.title || '');
@@ -340,9 +365,12 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
   }
   function joinText(list) {                     // dos bloques de texto seguidos se juntan
     const out = [];
-    for (const b of list) {
+    for (let b of list) {
       const last = out[out.length - 1];
-      if (last && last.t === 'text' && b.t === 'text') out[out.length - 1] = { ...last, spans: mergeSpans(last.spans.concat([{ text: '\n', st: {} }], b.spans)) };
+      const fl = x => x && x.t === 'img' && x.side;
+      if (b.t === 'text' && b.beside && !fl(last)) b = { ...b, beside: false };          // ya no hay foto al lado
+      if (last && last.t === 'text' && last.beside && b.t === 'text' && fl(out[out.length - 2])) out.push(b);
+      else if (last && last.t === 'text' && b.t === 'text') out[out.length - 1] = { ...last, spans: mergeSpans(last.spans.concat([{ text: '\n', st: {} }], b.spans)) };
       else out.push(b);
     }
     return out;
@@ -454,13 +482,18 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       if (b.k !== k) return b;
       const pct = Math.max(20, Math.min(100, Math.round((b.pct || 40) + d)));
       const raw = /style="[^"]*width:\s*[0-9.]+%/.test(b.raw) ? b.raw.replace(/(style="[^"]*width:\s*)[0-9.]+%/, '$1' + pct + '%') : b.raw.replace('<div class="imgwrap"', '<div class="imgwrap" style="width:' + pct + '%"');
-      return { ...b, pct, raw: raw.replace(/data-scale="[0-9.]+"/, 'data-scale="' + Math.round(pct / 0.4) + '"') };
+      const raw2 = raw.replace(/data-scale="[0-9.]+"/, 'data-scale="' + Math.round(pct / 0.4) + '"');
+      const p = imgOfRaw(raw2);
+      return { ...b, pct, raw: raw2, ...(p ? { side: p.side, x: p.x, y: p.y } : {}) };
     }));
   }
   function imgDelete(k) { setSelImg(null); setBlocks(prev => joinText(prev.filter(b => b.k !== k))); }
 
   /* ============================================================ */
   const contentW = width - 40;
+  /* Selección igual al editor completo: gris transparente + manijas verde‑azul */
+  const dk = (() => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(c.text || ''); return !m || (parseInt(m[1], 16) + parseInt(m[2], 16) + parseInt(m[3], 16)) > 380; })();
+  const selP = { selectionColor: dk ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.18)', selectionHandleColor: '#1fa99b', cursorColor: c.text };
   const baseTxt = { color: c.text, fontSize: BASE_SIZE, lineHeight: 25, paddingVertical: 2, paddingHorizontal: 0, textAlignVertical: 'top' };
   const onlyEmpty = blocks.length === 1 && blocks[0].t === 'text' && !spansPlain(blocks[0].spans);
 
@@ -483,7 +516,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
         const y = e.nativeEvent.layout.y;
         setTimeout(() => { try { scrollRef.current.scrollTo({ y: Math.max(0, y - 80), animated: false }); } catch (er) {} }, 30);
       }}
-      selectionColor={c.text}
+      {...selP}
       underlineColorAndroid="transparent"
       {...(plainMode(b.k, b.spans) ? { value: spansPlain(b.spans) } : {})}
     >
@@ -514,7 +547,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
           onKeyPress={e => onItemKey(b.k, x.k, e)}
           onSelectionChange={e => onSel(b.k, x.k, e.nativeEvent.selection)}
           onFocus={() => { setFocusK(b.k); setSelImg(null); focus.current.k = b.k; focus.current.item = x.k; }}
-          selectionColor={c.text}
+          {...selP}
           underlineColorAndroid="transparent"
         >
           {kids(x.k, x.spans)}
@@ -533,14 +566,38 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       </View>
     );
   };
-  const renderImg = (b) => {
+  /* Todo en el mismo lugar que en el editor completo: si la foto está a un lado,
+     los renglones de al lado se dibujan a su lado */
+  const renderAll = () => {
+    const out = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i], nx = blocks[i + 1];
+      if (b.t === 'img' && b.side && nx && nx.t === 'text' && nx.beside && besideW(b, contentW) >= 70) {
+        const L = b.side === 'l', cw = besideW(b, contentW);
+        const xs = Math.round(contentW * (b.x || 0) / 100), wi = Math.round(contentW * (b.pct || 40) / 100);
+        out.push(
+          <View key={'row' + b.k} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            {L && <View style={{ width: xs }} />}
+            {L && renderImg(b, true)}
+            <View style={{ width: cw, marginLeft: L ? 14 : 0, marginRight: L ? 0 : 14, paddingTop: 6 }}>{renderText(nx, i + 1)}</View>
+            {!L && renderImg(b, true)}
+            {!L && <View style={{ width: Math.max(0, contentW - xs - wi) }} />}
+          </View>
+        );
+        i++; continue;
+      }
+      out.push(b.t === 'text' ? renderText(b, i) : b.t === 'img' ? renderImg(b) : b.t === 'media' ? renderMedia(b) : renderList(b));
+    }
+    return out;
+  };
+  const renderImg = (b, inRow) => {
     const uri = b.src || (b.iid && imgUris[b.iid]);
     const w = Math.round(contentW * (b.pct || 40) / 100);
     const ratio = b.w && b.h ? b.h / b.w : 0.75;
     const sel = selImg === b.k;
     return (
       <Pressable key={b.k} onPress={() => { Keyboard.dismiss(); setSelImg(sel ? null : b.k); setFocusK(null); focus.current.k = null; }}
-        style={{ width: w, marginVertical: 6 }}>
+        style={{ width: w, marginTop: 6 + (b.y || 0), marginBottom: 6, marginLeft: inRow ? 0 : Math.round(contentW * Math.max(0, Math.min(100 - (b.pct || 40), b.x == null ? (100 - (b.pct || 40)) / 2 : b.x)) / 100) }}>
         <View style={{ width: w, height: Math.round(w * ratio), borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(127,127,127,0.15)',
           borderWidth: sel ? 2 : 0, borderColor: '#5ccfff' }}>
           {!!uri && <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
@@ -627,10 +684,10 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
           onSubmitEditing={() => { const f = blocksRef.current.find(b => b.t === 'text'); if (f) wantFocus.current = { key: f.k, pos: 0 }; setTitle(t => t); }}
           onFocus={() => { setFocusK(null); focus.current.k = null; }}
           style={{ color: c.text, fontSize: 26, fontWeight: '700', lineHeight: 33, paddingVertical: 4, paddingHorizontal: 0 }}
-          selectionColor={c.text} underlineColorAndroid="transparent"
+          {...selP} underlineColorAndroid="transparent"
         />
         {!!fmtDate && <Text style={{ color: c.muted, fontSize: 13, marginTop: 2, marginBottom: 10 }}>{fmtDate(note.updated)}</Text>}
-        {blocks.map((b, i) => (b.t === 'text' ? renderText(b, i) : b.t === 'img' ? renderImg(b) : b.t === 'media' ? renderMedia(b) : renderList(b)))}
+        {renderAll()}
         <Pressable style={{ height: 240 }} onPress={() => {         // tocar abajo: escribir al final
           const last = blocksRef.current[blocksRef.current.length - 1];
           if (last && last.t === 'text') { const n = spansPlain(last.spans).length; wantFocus.current = { key: last.k, pos: n }; setFocusK(last.k); setSelV({ start: n, end: n }); setTitle(t => t); }

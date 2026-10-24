@@ -3918,8 +3918,18 @@ function NotesApp() {
 
         {/* Opciones de la nota */}
         <Sheet visible={!!curReal && optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
-          {POOL && <Row icon={nativeCur ? 'maximize-2' : 'zap'} label={nativeCur ? 'Usar el editor completo en esta nota' : '⚡ Usar el editor rápido en esta nota'} s={s} t={c}
-            onPress={() => { setOptsOpen(false); setTimeout(toggleNoteEditor, 250); }} />}
+          {POOL && (
+            <TouchableOpacity activeOpacity={0.7} style={s.row} onPress={() => { setOptsOpen(false); setTimeout(toggleNoteEditor, 250); }}>
+              <Feather name="zap" size={19} color={c.text} style={{ marginRight: 14 }} />
+              <View style={{ flex: 1 }}>
+                <Text maxFontSizeMultiplier={1.3} style={s.rowText}>⚡ Editor rápido en esta nota</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{nativeCur ? 'Encendido · apágalo para usar el editor completo' : 'Apagado · se usa el editor completo'}</Text>
+              </View>
+              <View style={[s.toggle, { borderColor: c.text }, nativeCur && { backgroundColor: c.text }]}>
+                <View style={[s.toggleKnob, { backgroundColor: nativeCur ? c.inv : c.text }, nativeCur && { alignSelf: 'flex-end' }]} />
+              </View>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
             <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>👔</Text>
