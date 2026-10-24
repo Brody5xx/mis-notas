@@ -3895,7 +3895,7 @@ function NotesApp() {
                   onSave={r => onNativeSave(curReal.id, r)} getImg={getImg} putImg={putImg} pickImage={pickImage}
                   makeStamp={(iid, w, h) => makeStamp(iid, w, h, (notesRef.current.find(x => x.id === curReal.id) || {}).title)}
                   onUndoState={u => setUndoState(u)} onFull={toggleNoteEditor} fmtDate={fmtDate} bottomPad={0}
-                  onPlay={playMedia} getPoster={getPoster} playing={playingA} />
+                  onPlay={playMedia} getPoster={getPoster} playing={playingA} highlight={hlQ} />
               )}
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>

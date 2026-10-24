@@ -60,6 +60,24 @@ function lineRange(text, a, b) {              // renglones completos que tocan [
 }
 function clean(st) { const o = {}; ['b', 'i', 'u', 's'].forEach(k => { if (st[k]) o[k] = 1; }); if (st.size && st.size !== BASE_SIZE) o.size = st.size; if (st.color) o.color = st.color; if (st.bg) o.bg = st.bg; return o; }
 
+/* 🔍 lo que buscaste se ilumina (igual que en la tarjeta) */
+const foldCh = ch => { let x = ch; try { x = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} return (x.length === 1 ? x : ch).toLowerCase(); };
+function fold(t) { let f = ''; for (let i = 0; i < t.length; i++) f += foldCh(t[i]); return f; }
+function hlSpans(spans, q) {
+  if (!q) return spans;
+  const txt = spansPlain(spans), f = fold(txt), fq = fold(q);
+  if (!fq || f.indexOf(fq) < 0) return spans;
+  const marks = []; let at = f.indexOf(fq);
+  while (at >= 0) { marks.push([at, at + fq.length]); at = f.indexOf(fq, at + fq.length); }
+  const out = []; let pos = 0;                  // se parte en pedazos (sin juntar, para no perder la marca)
+  for (const [a, b] of marks) {
+    if (a > pos) out.push(...sliceSpans(spans, pos, a));
+    out.push(...sliceSpans(spans, a, b).map(x => ({ text: x.text, st: { ...x.st, hl: 1 } })));
+    pos = b;
+  }
+  if (pos < txt.length) out.push(...sliceSpans(spans, pos, txt.length));
+  return out;
+}
 function spanStyle(st, c) {
   const o = {};
   if (st.b) o.fontWeight = '700';
@@ -68,12 +86,16 @@ function spanStyle(st, c) {
   if (st.size) { o.fontSize = st.size; o.lineHeight = Math.round(st.size * 1.45); }
   if (st.color) o.color = st.color;
   if (st.bg) o.backgroundColor = st.bg;
+  if (st.hl) { o.backgroundColor = 'rgba(140,110,255,0.42)'; o.textDecorationLine = 'underline'; o.textDecorationColor = '#c9b6ff'; }
   return o;
 }
 
 /* ============================================================ */
 const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
-  const { note, c, tr, onSave, getImg, putImg, makeStamp, onUndoState, onFull, fmtDate, bottomPad, pickImage, onPlay, getPoster, playing } = props;
+  const { note, c, tr, onSave, getImg, putImg, makeStamp, onUndoState, onFull, fmtDate, bottomPad, pickImage, onPlay, getPoster, playing, highlight } = props;
+  const hq = String(highlight || '').trim();
+  const scrollRef = useRef(null);
+  const hlDone = useRef(false);
   const { width } = useWindowDimensions();
   const T = (k, fb) => { try { const v = tr(k); return v && v !== k ? v : fb; } catch (e) { return fb; } };
 
@@ -122,9 +144,11 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
   function kids(key, spans) {
     const f = shown.current[key];
     if (f) return f;
-    return hasSt(spans) ? spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null;
+    const d = hlSpans(spans, hq);
+    return hasSt(d) ? d.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null;
   }
-  function freeze(key, spans) { if (!shown.current[key] && hasSt(spans)) shown.current[key] = spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>); }
+  const plainMode = (key, spans) => !shown.current[key] && !hasSt(hlSpans(spans, hq));
+  function freeze(key, spans0) { const spans = hlSpans(spans0, hq); if (!shown.current[key] && hasSt(spans)) shown.current[key] = spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>); }
   function unfreeze(key) { if (shown.current[key]) { delete shown.current[key]; bump(x => x + 1); } }
   function setBlocks(fn, keep) {
     if (!keep) shown.current = {};
@@ -452,9 +476,16 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       onSelectionChange={e => onSel(b.k, null, e.nativeEvent.selection)}
       onFocus={() => { setFocusK(b.k); setSelImg(null); }}
       onBlur={() => unfreeze(b.k)}
+      onLayout={e => {                            // 🔍 se va a la primera palabra que buscaste
+        if (!hq || hlDone.current || !scrollRef.current) return;
+        if (fold(spansPlain(b.spans)).indexOf(fold(hq)) < 0) return;
+        hlDone.current = true;
+        const y = e.nativeEvent.layout.y;
+        setTimeout(() => { try { scrollRef.current.scrollTo({ y: Math.max(0, y - 80), animated: false }); } catch (er) {} }, 30);
+      }}
       selectionColor={c.text}
       underlineColorAndroid="transparent"
-      {...(!shown.current[b.k] && !hasSt(b.spans) ? { value: spansPlain(b.spans) } : {})}
+      {...(plainMode(b.k, b.spans) ? { value: spansPlain(b.spans) } : {})}
     >
       {kids(b.k, b.spans)}
     </TextInput>
@@ -476,7 +507,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
         <TextInput
           ref={r => { if (r) inputs.current[x.k] = r; else delete inputs.current[x.k]; }}
           multiline scrollEnabled={false}
-          {...(!shown.current[x.k] && !hasSt(x.spans) ? { value: spansPlain(x.spans) } : {})}
+          {...(plainMode(x.k, x.spans) ? { value: spansPlain(x.spans) } : {})}
           onBlur={() => unfreeze(x.k)}
           style={[baseTxt, { flex: 1 }, x.done && { textDecorationLine: 'line-through', opacity: 0.55 }]}
           onChangeText={t => onItemChange(b.k, x.k, t)}
@@ -587,7 +618,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 160 + (bottomPad || 0) }}>
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 160 + (bottomPad || 0) }}>
         <TextInput
           value={title}
           onChangeText={t => { titleTouched.current = true; setTitle(t.replace(/\n/g, ' ')); titleRef.current = t; changed(); }}
