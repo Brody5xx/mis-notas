@@ -1714,7 +1714,7 @@ function NotesApp() {
   const nativeOk = useRef(new WeakMap());
   const stampPref = useRef(null);
   function canNative(n) {
-    if (!POOL || !nativeOn || !n || n.deleted || fullIds.current.has(n.id)) return false;
+    if (!POOL || !nativeOn || !n || n.deleted || n.ed === 'full' || fullIds.current.has(n.id)) return false;
     if (n.ink && n.ink.length) return false;
     if (n.kind && n.kind !== 'text') return false;
     if (nativeOk.current.has(n)) return nativeOk.current.get(n);
@@ -1811,6 +1811,42 @@ function NotesApp() {
       else if (/^data:/.test(r.firstImg)) { /* foto vieja dentro de la nota: la tarjeta la toma sola */ }
       else shellAsk(q => 'window.__thumb(' + q + ',' + JSON.stringify(r.firstImg) + ')').then(m => { if (m && m.data) patch(id, { thumb: m.data }, false); });
     }
+  }
+  /* Por qué una nota no puede abrirse en el editor rápido (en palabras sencillas) */
+  function whyNotNative(n) {
+    if (!n) return '';
+    if (n.ink && n.ink.length) return 'tiene dibujos';
+    if (n.kind && n.kind !== 'text') return 'es una nota especial';
+    let r = null; try { r = htmlToBlocks(n.content || '', n.html !== false); } catch (e) {}
+    if (!r || r.ok) return '';
+    const w = String(r.why || '');
+    if (/^img/.test(w) || /imgwrap/.test(w)) return 'tiene una foto girada';
+    if (/^(h[1-6]|table|hr|blockquote|pre)/.test(w)) return 'tiene un formato especial (' + w.split(' ')[0] + ')';
+    if (/^font/.test(w)) return 'tiene letras con contorno';
+    return 'tiene algo que solo el editor completo sabe mostrar (' + w.trim() + ')';
+  }
+  /* ⚡ Cada nota: editor rápido o completo (se acuerda de lo que elegiste) */
+  function toggleNoteEditor() {
+    const id = currentIdRef.current; if (!id) return;
+    if (nativeCurRef.current) {
+      patch(id, { ed: 'full' }, false);
+      switchToFull();
+      showToast('Esta nota se abre en el editor completo · toca ⚡ para volver al rápido');
+      return;
+    }
+    const n = notesRef.current.find(x => x.id === id);
+    const n2 = n ? { ...n, ed: null } : null;
+    fullIds.current.delete(id);
+    if (!nativeOn) { showToast('Primero enciende ⚡ Editor rápido en el menú ☰'); return; }
+    if (!canNative(n2)) { showToast('⚠️ Esta nota no puede ir al editor rápido: ' + (whyNotNative(n2) || 'no se pudo leer')); return; }
+    patch(id, { ed: null }, false);
+    flushEditor(() => {                          // lo último que escribiste se guarda y la nota pasa al rápido
+      const k = activeRef.current;
+      activeRef.current = -1; setActiveSlot(-1); webRef.current = null;
+      if (k >= 0) { slotDirty.current[k] = true; slotLoaded.current[k] = false; whenIdle(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 900); }
+      nativeCurRef.current = id; setNativeCur(id);
+      showToast('⚡ Editor rápido');
+    });
   }
   /* Pasar la nota abierta al editor completo (para dibujar, audios, plantillas, etc.) */
   function switchToFull(then) {
@@ -3078,6 +3114,7 @@ function NotesApp() {
         return;
       }
       nativeCurRef.current = null; setNativeCur(null);
+      if (PERF.on && nn) mark('📝 editor completo: ' + (nn.ed === 'full' ? 'lo elegiste tú' : whyNotNative(nn) || '—'));
       if (zoomBusy.current) { setCurrentId(id); return; }
       zoomBusy.current = true;
       // La nota REAL (ya cargada por detrás desde que pusiste el dedo) crece desde su tarjeta hasta llenar la pantalla.
@@ -3857,7 +3894,7 @@ function NotesApp() {
                 <NativeEditor key={curReal.id} ref={nativeApi} note={curReal} c={c} tr={tr}
                   onSave={r => onNativeSave(curReal.id, r)} getImg={getImg} putImg={putImg} pickImage={pickImage}
                   makeStamp={(iid, w, h) => makeStamp(iid, w, h, (notesRef.current.find(x => x.id === curReal.id) || {}).title)}
-                  onUndoState={u => setUndoState(u)} onFull={() => switchToFull()} fmtDate={fmtDate} bottomPad={0}
+                  onUndoState={u => setUndoState(u)} onFull={toggleNoteEditor} fmtDate={fmtDate} bottomPad={0}
                   onPlay={playMedia} getPoster={getPoster} playing={playingA} />
               )}
               {!edReady && quickView && (
@@ -3881,7 +3918,8 @@ function NotesApp() {
 
         {/* Opciones de la nota */}
         <Sheet visible={!!curReal && optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
-          {!!nativeCur && <Row icon="maximize-2" label="Abrir en el editor completo (dibujar, audio, video…)" s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => switchToFull(), 250); }} />}
+          {POOL && <Row icon={nativeCur ? 'maximize-2' : 'zap'} label={nativeCur ? 'Usar el editor completo en esta nota' : '⚡ Usar el editor rápido en esta nota'} s={s} t={c}
+            onPress={() => { setOptsOpen(false); setTimeout(toggleNoteEditor, 250); }} />}
           <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
             <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>👔</Text>

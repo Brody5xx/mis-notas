@@ -37,7 +37,8 @@ const GUIDE = [
       'Abajo tienes: B (negrita), I (cursiva), U (subrayado), S (tachado), Aa (tamaño), el círculo (color), el marcador (resaltar), ✓ (checklist) y 📷 (foto con cámara o galería).',
       'Selecciona texto y toca un botón para darle formato. Si no seleccionas nada, lo próximo que escribas sale con ese formato.',
       'Toca una foto para hacerla más grande (+), más chica (−) o quitarla.',
-      'Las notas con audios, videos o dibujos se abren en el editor completo. Con el botón "Completo" (o ⋮ → Abrir en el editor completo) pasas cualquier nota al editor completo.',
+      'Los videos se ven con su portada (tócalos para verlos) y los audios se tocan para oírlos. Las notas con dibujos se abren en el editor completo.',
+      'Cada nota recuerda su editor: ⋮ → "Usar el editor completo en esta nota" (o el botón "Completo"), y ⋮ → "⚡ Usar el editor rápido en esta nota" para volver.',
       'Menú ☰ → ⚡ Editor rápido: lo enciendes o apagas cuando quieras. Las notas son las mismas en los dos editores.'] },
     en: { t: 'Fast editor', d: [
       'Text, checklist, list and photo notes open INSTANTLY in the fast editor.',

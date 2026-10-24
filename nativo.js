@@ -161,11 +161,15 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     const inp = inputs.current[w.key];
     if (!inp) return;
     try { inp.focus(); } catch (e) {}
-    setTimeout(() => { try { inp.setSelection && inp.setSelection(w.pos, w.pos); } catch (e) {} }, 30);
+    try { inp.setSelection && inp.setSelection(w.pos, w.pos); } catch (e) {}
+    const n0 = edits.current;                    // otra vez un momentito después (si todavía no escribiste nada)
+    setTimeout(() => { if (edits.current === n0) { try { inp.setSelection && inp.setSelection(w.pos, w.pos); } catch (e) {} } }, 40);
   });
 
   /* ---------- escribir en un bloque de texto ---------- */
+  const edits = useRef(0);
   function onTextChange(k, newText) {
+    edits.current++;
     setBlocks(prev => prev.map(b => {
       if (b.k !== k || b.t !== 'text') return b;
       const old = spansPlain(b.spans);
@@ -191,9 +195,19 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     focus.current = { k, item, sel: s };
     setSelV(s);
     const P = pend.current;     // (Android a veces avisa del cursor antes que del texto: 1 de diferencia está bien)
-    if (P && (P.k !== k || s.start !== s.end || (s.start !== P.pos && s.start !== P.pos + 1))) { pend.current = null; setPendV(null); }
+    if (P && (P.k !== (item || k) || s.start !== s.end || (s.start !== P.pos && s.start !== P.pos + 1))) { pend.current = null; setPendV(null); }
   }
-  function curText() { return blocksRef.current.find(b => b.k === focus.current.k && b.t === 'text'); }
+  function curText() {
+    const b = blocksRef.current.find(x => x.k === focus.current.k);
+    if (!b) return null;
+    if (b.t === 'text') return b;
+    if (b.items && focus.current.item) { const it = b.items.find(x => x.k === focus.current.item); if (it) return { k: it.k, spans: it.spans, item: true, bk: b.k }; }
+    return null;
+  }
+  function setSpansOf(t, fn) {                  // cambia los pedazos de un texto o de un renglón de lista
+    if (t.item) setBlocks(prev => prev.map(b => (b.k !== t.bk ? b : { ...b, items: b.items.map(x => (x.k === t.k ? { ...x, spans: fn(x.spans) } : x)) })));
+    else setBlocks(prev => prev.map(x => (x.k === t.k ? { ...x, spans: fn(x.spans) } : x)));
+  }
 
   /* ---------- formato (barra de abajo) ---------- */
   function applyStyle(fn) {
@@ -206,7 +220,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       // si el renglón está vacío, también se ve en el renglón
       return;
     }
-    setBlocks(prev => prev.map(x => (x.k === b.k ? { ...x, spans: mapRange(x.spans, start, end, st => clean(fn(st))) } : x)));
+    setSpansOf(b, sp => mapRange(sp, start, end, st => clean(fn(st))));
   }
   function toggle(prop) {
     const b = curText(); if (!b) return;
@@ -217,8 +231,8 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     applyStyle(st => { if (on) st[prop] = 1; else delete st[prop]; return st; });
   }
   const activeSt = useMemo(() => {
-    const b = blocks.find(x => x.k === focusK && x.t === 'text'); if (!b) return {};
-    if (pendV && pendV.k === focusK) return pendV.st;
+    const b = curText(); if (!b) return {};
+    if (pendV && pendV.k === b.k) return pendV.st;
     const { start, end } = selV;
     if (start !== end) { const parts = sliceSpans(b.spans, start, end).filter(x => x.text.trim()); return parts.length ? parts[0].st : {}; }
     return styleAt(b.spans, start);
@@ -240,7 +254,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     const { start, end } = focus.current.sel;
     const txt = spansPlain(b.spans);
     const add = (start > 0 && !/\s$/.test(txt.slice(0, start)) ? ' ' : '') + t;
-    setBlocks(prev => prev.map(x => (x.k === b.k ? { ...x, spans: editSpans(x.spans, start, end, add, clean(styleAt(x.spans, start))) } : x)));
+    setSpansOf(b, sp => editSpans(sp, start, end, add, clean(styleAt(sp, start))));
     const pos = start + add.length;
     focus.current.sel = { start: pos, end: pos };
     wantFocus.current = { key: b.k, pos };
@@ -252,7 +266,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     const blocks0 = blocksRef.current;
     const bi = blocks0.findIndex(b => b.k === fk);
     if (bi < 0) {                                          // sin foco: checklist nuevo al final
-      setBlocks(prev => prev.concat([{ k: newKey(), t: 'check', items: [{ k: newKey(), text: '', done: false }] }, { k: newKey(), t: 'text', spans: [] }]));
+      setBlocks(prev => prev.concat([{ k: newKey(), t: 'check', items: [{ k: newKey(), spans: [], done: false }] }, { k: newKey(), t: 'text', spans: [] }]));
       return;
     }
     const b = blocks0[bi];
@@ -263,10 +277,10 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       const tk = newKey();
       const parts = [];
       if (before.length) parts.push({ ...b, items: before });
-      parts.push({ k: tk, t: 'text', spans: it.text ? [{ text: it.text, st: {} }] : [] });
+      parts.push({ k: tk, t: 'text', spans: it.spans });
       if (after.length) parts.push({ ...b, k: newKey(), items: after });
       setBlocks(prev => joinText(prev.slice(0, bi).concat(parts, prev.slice(bi + 1))));
-      wantFocus.current = { key: tk, pos: it.text.length };
+      wantFocus.current = { key: tk, pos: spansPlain(it.spans).length };
       return;
     }
     if (b.t !== 'text') return;
@@ -274,7 +288,8 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     const { start, end } = focus.current.sel;
     const [ls, le] = lineRange(txt, start, end);
     const lines = txt.slice(ls, le).split('\n');
-    const items = lines.map(l => ({ k: newKey(), text: l, done: false }));
+    let at = ls;
+    const items = lines.map(l => { const it = { k: newKey(), spans: mergeSpans(sliceSpans(b.spans, at, at + l.length)), done: false }; at += l.length + 1; return it; });
     const parts = [];
     const pre = ls > 0 ? sliceSpans(b.spans, 0, ls - 1) : null;
     const post = le < txt.length ? sliceSpans(b.spans, le + 1, txt.length) : null;
@@ -282,7 +297,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     parts.push({ k: newKey(), t: 'check', items });
     parts.push({ k: newKey(), t: 'text', spans: post ? mergeSpans(post) : [] });
     setBlocks(prev => prev.slice(0, bi).concat(parts, prev.slice(bi + 1)));
-    wantFocus.current = { key: items[items.length - 1].k, pos: items[items.length - 1].text.length };
+    wantFocus.current = { key: items[items.length - 1].k, pos: spansPlain(items[items.length - 1].spans).length };
   }
   function joinText(list) {                     // dos bloques de texto seguidos se juntan
     const out = [];
@@ -294,24 +309,47 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     return out;
   }
   function onItemChange(bk, ik, text) {
-    if (text.includes('\n')) {                  // Enter: renglón nuevo en la lista
-      const [a, ...rest] = text.split('\n');
-      const b0 = blocksRef.current.find(b => b.k === bk);
-      const it0 = b0 && b0.items.find(x => x.k === ik);
-      if (it0 && !it0.text && !a && !rest.join('')) { exitList(bk, ik); return; }    // Enter en renglón vacío: sale de la lista
+    edits.current++;
+    const b0 = blocksRef.current.find(b => b.k === bk);
+    const it0 = b0 && b0.items.find(x => x.k === ik);
+    if (!it0) return;
+    const old = spansPlain(it0.spans);
+    // el texto con estilo se actualiza igual que en el texto normal
+    let spans;
+    {
+      const sel = focus.current.item === ik ? focus.current.sel : null;
+      let a, e, ins; const d = text.length - old.length;
+      if (sel && sel.start === sel.end && d > 0 && old.slice(0, sel.start) === text.slice(0, sel.start) && old.slice(sel.start) === text.slice(sel.start + d)) { a = sel.start; e = sel.start; ins = text.slice(a, a + d); }
+      else {
+        let p = 0; const ml = Math.min(old.length, text.length);
+        while (p < ml && old[p] === text[p]) p++;
+        let q = 0; while (q < ml - p && old[old.length - 1 - q] === text[text.length - 1 - q]) q++;
+        a = p; e = old.length - q; ins = text.slice(p, text.length - q);
+      }
+      const P = pend.current;
+      const st = P && P.k === ik && P.pos === a ? P.st : styleAt(it0.spans, a);
+      if (P && P.k === ik && P.pos === a && ins) pend.current = { k: ik, pos: a + ins.length, st: P.st };
+      spans = editSpans(it0.spans, a, e, ins, clean(st));
+    }
+    const plain = spansPlain(spans);
+    if (plain.includes('\n')) {                 // Enter: renglón nuevo en la lista
+      const cut = plain.indexOf('\n');
+      const before = mergeSpans(sliceSpans(spans, 0, cut));
+      const after = mergeSpans(sliceSpans(spans, cut + 1, plain.length)).map(x => ({ ...x, text: x.text.replace(/\n/g, ' ') }));
+      if (!old && !spansPlain(before) && !spansPlain(after)) { exitList(bk, ik); return; }    // Enter en renglón vacío: sale de la lista
       const nk = newKey();
       setBlocks(prev => prev.map(b => {
         if (b.k !== bk) return b;
         const i = b.items.findIndex(x => x.k === ik);
         const items = b.items.slice();
-        items[i] = { ...items[i], text: a };
-        items.splice(i + 1, 0, { k: nk, text: rest.join(' '), done: false });
+        items[i] = { ...items[i], spans: before };
+        items.splice(i + 1, 0, { k: nk, spans: after, done: false });
         return { ...b, items };
       }));
       wantFocus.current = { key: nk, pos: 0 };
       return;
     }
-    setBlocks(prev => prev.map(b => (b.k !== bk ? b : { ...b, items: b.items.map(x => (x.k === ik ? { ...x, text } : x)) })));
+    setBlocks(prev => prev.map(b => (b.k !== bk ? b : { ...b, items: b.items.map(x => (x.k === ik ? { ...x, spans } : x)) })));
   }
   function exitList(bk, ik) {
     const list = blocksRef.current; const bi = list.findIndex(b => b.k === bk); if (bi < 0) return;
@@ -329,11 +367,11 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     if (e.nativeEvent.key !== 'Backspace') return;
     const b = blocksRef.current.find(x => x.k === bk); if (!b) return;
     const ii = b.items.findIndex(x => x.k === ik); const it = b.items[ii];
-    if (!it || it.text) return;
+    if (!it || spansPlain(it.spans)) return;
     if (b.items.length === 1) { exitList(bk, ik); return; }
     const prevIt = b.items[ii - 1] || b.items[ii + 1];
     setBlocks(prev => prev.map(x => (x.k !== bk ? x : { ...x, items: x.items.filter(y => y.k !== ik) })));
-    if (prevIt) wantFocus.current = { key: prevIt.k, pos: prevIt.text.length };
+    if (prevIt) wantFocus.current = { key: prevIt.k, pos: spansPlain(prevIt.spans).length };
   }
   function toggleDone(bk, ik) {
     setBlocks(prev => prev.map(b => (b.k !== bk ? b : { ...b, items: b.items.map(x => (x.k === ik ? { ...x, done: !x.done } : x)) })));
@@ -421,7 +459,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
         <TextInput
           ref={r => { if (r) inputs.current[x.k] = r; else delete inputs.current[x.k]; }}
           multiline scrollEnabled={false}
-          value={x.text}
+          {...(x.spans.some(sp => Object.keys(sp.st || {}).length) ? {} : { value: spansPlain(x.spans) })}
           style={[baseTxt, { flex: 1 }, x.done && { textDecorationLine: 'line-through', opacity: 0.55 }]}
           onChangeText={t => onItemChange(b.k, x.k, t)}
           onKeyPress={e => onItemKey(b.k, x.k, e)}
@@ -429,7 +467,9 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
           onFocus={() => { setFocusK(b.k); setSelImg(null); focus.current.k = b.k; focus.current.item = x.k; }}
           selectionColor={c.text}
           underlineColorAndroid="transparent"
-        />
+        >
+          {x.spans.some(sp => Object.keys(sp.st || {}).length) ? x.spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null}
+        </TextInput>
       </View>
     );
     return (
@@ -523,7 +563,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
   };
 
   /* ---------- barra de herramientas ---------- */
-  const inText = !!blocks.find(x => x.k === focusK && x.t === 'text');
+  const inText = !!curText();
   const B = Btn;
   const curSize = activeSt.size || BASE_SIZE;
 

@@ -71,8 +71,12 @@ function tagStyle(node, st) {
   else if (t === 'font') {
     if (node.attrs.face || node.attrs.size) return null;
     if (node.attrs.color) s.color = node.attrs.color;
+  } else if (t === 'a') {
+    const h = node.attrs.href || '';
+    if (!h || /^\s*javascript:/i.test(h)) return null;
+    s.href = h;
   } else if (t !== 'span') return null;
-  const okAttrs = { style: 1, class: 1, color: 1, dir: 1 };
+  const okAttrs = t === 'a' ? { href: 1, target: 1, rel: 1, style: 1 } : { style: 1, class: 1, color: 1, dir: 1 };
   for (const k in node.attrs) if (!okAttrs[k]) return null;
   if (node.attrs.class && node.attrs.class.trim()) return null;
   const css = cssOf(node.attrs.style);
@@ -91,9 +95,9 @@ function tagStyle(node, st) {
   }
   return s;
 }
-function styleKey(st) { return JSON.stringify([st.b ? 1 : 0, st.i ? 1 : 0, st.u ? 1 : 0, st.s ? 1 : 0, st.size || 0, st.color || '', st.bg || '']); }
+function styleKey(st) { return JSON.stringify([st.b ? 1 : 0, st.i ? 1 : 0, st.u ? 1 : 0, st.s ? 1 : 0, st.size || 0, st.color || '', st.bg || '', st.href || '']); }
 export function sameStyle(a, b) { return styleKey(a || DEF) === styleKey(b || DEF); }
-function cleanStyle(st) { const o = {}; ['b', 'i', 'u', 's'].forEach(k => { if (st[k]) o[k] = 1; }); if (st.size) o.size = st.size; if (st.color) o.color = st.color; if (st.bg) o.bg = st.bg; return o; }
+function cleanStyle(st) { const o = {}; ['b', 'i', 'u', 's'].forEach(k => { if (st[k]) o[k] = 1; }); if (st.size) o.size = st.size; if (st.color) o.color = st.color; if (st.bg) o.bg = st.bg; if (st.href) o.href = st.href; return o; }
 
 /* Junta el texto (con su estilo) de una parte de la nota */
 function inlineRuns(node, st, out) {
@@ -170,11 +174,13 @@ export function htmlToBlocks(html, isHtml = true) {
       if (li.tag !== 'li') return false;
       for (const k in li.attrs) if (k !== 'class' && k !== 'data-head' && k !== 'data-prev') return false;
       const out = { runs: [] }; inlineRuns(li, DEF, out);
-      if (out.bad || hasStyle(out.runs)) return false;       // con formato adentro: en el editor completo
-      items.push({ k: newKey(), text: plainOfRuns(out.runs).replace(/\n+$/, '').replace(/\n/g, ' '), done: kind === 'check' && /\bdone\b/.test(li.attrs.class || '') });
+      if (out.bad) return false;
+      const rs = out.runs.slice(); while (rs.length && rs[rs.length - 1].br) rs.pop();
+      const spans = mergeSpans(rs.map(r => (r.br ? { text: ' ', st: DEF } : { text: r.text.replace(/\u200B/g, '').replace(/\n/g, ' '), st: r.st })));
+      items.push({ k: newKey(), spans, done: kind === 'check' && /\bdone\b/.test(li.attrs.class || '') });
     }
     endText();
-    blocks.push({ k: newKey(), t: kind, items: items.length ? items : [{ k: newKey(), text: '', done: false }] });
+    blocks.push({ k: newKey(), t: kind, items: items.length ? items : [{ k: newKey(), spans: [], done: false }] });
     return true;
   };
   const block = (node) => {
@@ -200,8 +206,12 @@ export function htmlToBlocks(html, isHtml = true) {
     if ((node.tag === 'ul' || node.tag === 'ol') && !cls.trim()) return listBlock(node, node.tag);
     if (node.tag === 'div' || node.tag === 'p') {
       for (const k in node.attrs) if (k !== 'style' && k !== 'dir') return false;
-      const css = cssOf(node.attrs.style); for (const k in css) if (!(k === 'text-align' && css[k] === 'left')) return false;
+      const css = cssOf(node.attrs.style);
+      const rest = Object.keys(css).filter(k => !(k === 'text-align' && /^(left|start)$/.test(css[k]))).map(k => k + ':' + css[k]).join(';');
+      const base = rest ? tagStyle({ tag: 'span', attrs: { style: rest } }, DEF) : DEF;   // <div style="color:..."> = el renglón con ese color
+      if (!base) return false;
       if (node.children.some(ch => ['div', 'p', 'ul', 'ol'].includes(ch.tag))) {    // bloques dentro de un bloque
+        if (rest) return false;
         let lo = [];
         const flushLo = () => { if (lo.length) { addRuns(lo); lo = []; } };
         for (const ch of node.children) {
@@ -213,7 +223,7 @@ export function htmlToBlocks(html, isHtml = true) {
         flushLo();
         return true;
       }
-      const out = { runs: [] }; inlineRuns(node, DEF, out);
+      const out = { runs: [] }; inlineRuns(node, base, out);
       if (out.bad) return false;
       const runs = out.runs.slice();
       if (runs.length && runs[runs.length - 1].br) runs.pop();      // <div>texto<br></div> = un renglón
@@ -256,6 +266,13 @@ function textHtml(t, first = true, last = true) {
   if (last) x = x.replace(/ $/, '\u00a0');
   return esc(x);
 }
+function inlineHtml(l) {
+  return l.map((x, i) => {
+    const tx = textHtml(x.text, i === 0, i === l.length - 1); const css = cssFrom(x.st || DEF);
+    const inner = css ? '<span style="' + css + ';">' + tx + '</span>' : tx;
+    return x.st && x.st.href ? '<a href="' + esc(x.st.href).replace(/"/g, '&quot;') + '">' + inner + '</a>' : inner;
+  }).join('');
+}
 export function spansHtml(spans) {
   const lines = [[]];
   for (const sp of spans) {
@@ -264,7 +281,7 @@ export function spansHtml(spans) {
   }
   return lines.map(l => {
     if (!l.length) return '<div><br></div>';
-    return '<div>' + l.map((x, i) => { const tx = textHtml(x.text, i === 0, i === l.length - 1); const css = cssFrom(x.st || DEF); return css ? '<span style="' + css + ';">' + tx + '</span>' : tx; }).join('') + '</div>';
+    return '<div>' + inlineHtml(l) + '</div>';
   }).join('');
 }
 export function blocksToHtml(blocks) {
@@ -273,9 +290,9 @@ export function blocksToHtml(blocks) {
     if (b.t === 'text') h += spansHtml(b.spans);
     else if (b.t === 'check') {
       const items = b.items.filter(x => !x.done).concat(b.items.filter(x => x.done));
-      h += '<ul class="checklist">' + items.map(x => '<li' + (x.done ? ' class="done"' : '') + '>' + (x.text ? textHtml(x.text) : '<br>') + '</li>').join('') + '</ul>';
+      h += '<ul class="checklist">' + items.map(x => '<li' + (x.done ? ' class="done"' : '') + '>' + (spansPlain(x.spans) ? inlineHtml(x.spans.filter(y => y.text)) : '<br>') + '</li>').join('') + '</ul>';
     } else if (b.t === 'ul' || b.t === 'ol') {
-      h += '<' + b.t + '>' + b.items.map(x => '<li>' + (x.text ? textHtml(x.text) : '<br>') + '</li>').join('') + '</' + b.t + '>';
+      h += '<' + b.t + '>' + b.items.map(x => '<li>' + (spansPlain(x.spans) ? inlineHtml(x.spans.filter(y => y.text)) : '<br>') + '</li>').join('') + '</' + b.t + '>';
     } else if (b.t === 'img' || b.t === 'media') {
       h += b.raw;
       const nx = blocks[i + 1];
@@ -286,7 +303,7 @@ export function blocksToHtml(blocks) {
 }
 /* Texto plano (para buscar, contar palabras, etc.) */
 export function blocksPlain(blocks) {
-  return blocks.map(b => (b.t === 'text' ? spansPlain(b.spans) : b.items ? b.items.map(x => x.text).join('\n') : '')).join('\n');
+  return blocks.map(b => (b.t === 'text' ? spansPlain(b.spans) : b.items ? b.items.map(x => spansPlain(x.spans)).join('\n') : '')).join('\n');
 }
 /* La foto nueva, en el mismo formato del editor completo */
 export function newImgRaw(iid, w, h, stampSvg, taken) {
