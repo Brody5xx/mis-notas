@@ -73,7 +73,7 @@ function spanStyle(st, c) {
 
 /* ============================================================ */
 const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
-  const { note, c, tr, onSave, getImg, putImg, makeStamp, onUndoState, onFull, fmtDate, bottomPad, pickImage } = props;
+  const { note, c, tr, onSave, getImg, putImg, makeStamp, onUndoState, onFull, fmtDate, bottomPad, pickImage, onPlay, getPoster, playing } = props;
   const { width } = useWindowDimensions();
   const T = (k, fb) => { try { const v = tr(k); return v && v !== k ? v : fb; } catch (e) { return fb; } };
 
@@ -472,6 +472,56 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     );
   };
 
+  /* ---------- audios y videos (se tocan para ver/oír; se reproducen en el reproductor de la app) ---------- */
+  const [posters, setPosters] = useState({});
+  useEffect(() => {
+    let alive = true;
+    blocks.forEach(b => {
+      if (b.t !== 'media' || b.kind !== 'video' || !b.aid || posters[b.aid] !== undefined || !getPoster) return;
+      setPosters(m => ({ ...m, [b.aid]: null }));
+      getPoster(b.aid).then(u => { if (alive) setPosters(m => ({ ...m, [b.aid]: u || '' })); }).catch(() => {});
+    });
+    return () => { alive = false; };
+  }, [blocks]);
+  const fmtDur = d => { d = Math.round(d || 0); return Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0'); };
+  const fmtSize = b => (!b ? '' : b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(1) + ' MB');
+  const renderMedia = (b) => {
+    const del = (
+      <Pressable onPress={() => setBlocks(prev => joinText(prev.filter(x => x.k !== b.k)))} hitSlop={8}
+        style={{ position: 'absolute', top: 6, right: 6, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+        <Feather name="trash-2" size={15} color="#ff6b6b" />
+      </Pressable>
+    );
+    if (b.kind === 'video') {
+      const w = contentW, h = Math.round(w * 9 / 16), pu = b.aid ? posters[b.aid] : null;
+      return (
+        <View key={b.k} style={{ width: w, marginVertical: 6 }}>
+          <Pressable onPress={() => { Keyboard.dismiss(); onPlay && onPlay(b); }}
+            style={{ width: w, height: h, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+            {!!pu && <Image source={{ uri: pu }} style={{ position: 'absolute', left: 0, top: 0, width: w, height: h }} resizeMode="cover" />}
+            <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="play" size={26} color="#000" style={{ marginLeft: 3 }} />
+            </View>
+          </Pressable>
+          {del}
+          <Text style={{ color: c.muted, fontSize: 12, marginTop: 4 }}>🎬 {fmtSize(b.size)}{b.muted ? '  ·  🔇' : ''}</Text>
+        </View>
+      );
+    }
+    const on = playing && playing === (b.aid || b.k);
+    return (
+      <View key={b.k} style={{ marginVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, paddingRight: 46, borderRadius: 22, borderWidth: 1, borderColor: c.border, alignSelf: 'flex-start', minWidth: 190 }}>
+        <Pressable onPress={() => onPlay && onPlay(b)} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c.text, alignItems: 'center', justifyContent: 'center' }}>
+          <Feather name={on ? 'pause' : 'play'} size={18} color={c.inv} style={!on && { marginLeft: 2 }} />
+        </Pressable>
+        <Text style={{ color: c.text, fontWeight: '700' }}>🎙️ {fmtDur(b.dur)}</Text>
+        <Pressable onPress={() => setBlocks(prev => joinText(prev.filter(x => x.k !== b.k)))} hitSlop={8} style={{ position: 'absolute', right: 10 }}>
+          <Feather name="trash-2" size={16} color="#ff6b6b" />
+        </Pressable>
+      </View>
+    );
+  };
+
   /* ---------- barra de herramientas ---------- */
   const inText = !!blocks.find(x => x.k === focusK && x.t === 'text');
   const B = Btn;
@@ -491,7 +541,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
           selectionColor={c.text} underlineColorAndroid="transparent"
         />
         {!!fmtDate && <Text style={{ color: c.muted, fontSize: 13, marginTop: 2, marginBottom: 10 }}>{fmtDate(note.updated)}</Text>}
-        {blocks.map((b, i) => (b.t === 'text' ? renderText(b, i) : b.t === 'img' ? renderImg(b) : renderList(b)))}
+        {blocks.map((b, i) => (b.t === 'text' ? renderText(b, i) : b.t === 'img' ? renderImg(b) : b.t === 'media' ? renderMedia(b) : renderList(b)))}
         <Pressable style={{ height: 240 }} onPress={() => {         // tocar abajo: escribir al final
           const last = blocksRef.current[blocksRef.current.length - 1];
           if (last && last.t === 'text') { const n = spansPlain(last.spans).length; wantFocus.current = { key: last.k, pos: n }; setFocusK(last.k); setSelV({ start: n, end: n }); setTitle(t => t); }

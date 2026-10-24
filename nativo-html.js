@@ -162,7 +162,6 @@ export function htmlToBlocks(html, isHtml = true) {
     return { ok: true, blocks };
   }
   const src = String(html || '');
-  if (/class="(audwrap|vidwrap)/.test(src)) return { ok: false, why: 'media' };
   const root = parseTree(src);
   const listBlock = (node, kind) => {
     const items = [];
@@ -185,6 +184,16 @@ export function htmlToBlocks(html, isHtml = true) {
       if (!info || info.rot) return false;                  // fotos giradas: mejor en el editor completo
       endText();
       blocks.push({ k: newKey(), ...info });
+      return true;
+    }
+    if (node.tag === 'div' && /\b(audwrap|vidwrap)\b/.test(cls)) {          // 🎙️🎬 audio o video: se guarda tal cual
+      const isV = /\bvidwrap\b/.test(cls);
+      const el = (function f(n) { for (const ch of n.children || []) { if (ch.tag === (isV ? 'video' : 'audio')) return ch; const r = f(ch); if (r) return r; } return null; })(node);
+      if (!el) return false;
+      endText();
+      blocks.push({ k: newKey(), t: 'media', kind: isV ? 'video' : 'audio', raw: src.slice(node.start, node.end),
+        aid: el.attrs['data-aid'] || null, src: el.attrs.src && /^data:/.test(el.attrs.src) ? el.attrs.src : null,
+        dur: +(node.attrs['data-dur'] || 0) || 0, size: +(node.attrs['data-size'] || 0) || 0, muted: node.attrs['data-muted'] === '1' });
       return true;
     }
     if (node.tag === 'ul' && /\bchecklist\b/.test(cls)) return listBlock(node, 'check');
@@ -267,7 +276,7 @@ export function blocksToHtml(blocks) {
       h += '<ul class="checklist">' + items.map(x => '<li' + (x.done ? ' class="done"' : '') + '>' + (x.text ? textHtml(x.text) : '<br>') + '</li>').join('') + '</ul>';
     } else if (b.t === 'ul' || b.t === 'ol') {
       h += '<' + b.t + '>' + b.items.map(x => '<li>' + (x.text ? textHtml(x.text) : '<br>') + '</li>').join('') + '</' + b.t + '>';
-    } else if (b.t === 'img') {
+    } else if (b.t === 'img' || b.t === 'media') {
       h += b.raw;
       const nx = blocks[i + 1];
       if (!nx || nx.t !== 'text') h += '<div><br></div>';

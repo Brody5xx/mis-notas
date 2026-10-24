@@ -4487,6 +4487,8 @@ export function buildShellHtml(spare) {
     'iframe.on{opacity:1;pointer-events:auto;z-index:2}' +
     /* ⚡ un puntito casi invisible: la página NUNCA queda vacía. Según la prueba automática, pasar de "vacía" a
        "con algo" hacía que el teléfono preparara todo de nuevo y se trababa 500-700 ms al entrar a una nota */
+    '#pl{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;display:none;z-index:50;align-items:center;justify-content:center}' +
+    '#pl video{max-width:100%;max-height:100%;width:100%}#pl button{position:absolute;top:12px;right:12px;width:46px;height:46px;border-radius:23px;border:0;background:rgba(255,255,255,.22);color:#fff;font-size:22px;z-index:2}' +
     '#keep{position:fixed;left:0;bottom:0;width:2px;height:2px;background:rgba(128,128,128,0.02);z-index:0;pointer-events:none}' +
     '</style></head><body><div id="keep"></div><script>' +
     '(function(){var SP=' + shellSafe(spare) + ',F=[],ON=-1;' +
@@ -4517,6 +4519,22 @@ export function buildShellHtml(spare) {
       'var out=data,W=w,H=h;if(k<1){W=Math.round(w*k);H=Math.round(h*k);var cv=document.createElement("canvas");cv.width=W;cv.height=H;cv.getContext("2d").drawImage(im,0,0,W,H);out=cv.toDataURL("image/jpeg",0.85);}' +
       'return fetch(out).then(function(x){return x.blob();}).then(function(b){return db().then(function(d){return new Promise(function(ok,no){var tx=d.transaction("a","readwrite");tx.objectStore("a").put(b,id);tx.oncomplete=function(){ok();};tx.onerror=tx.onabort=function(){no(tx.error);};});});})' +
       '.then(function(){post({put:r,ok:1,w:W,h:H,thumb:thumbOf(im),data:out===data?null:out});});}).catch(function(){post({put:r});});};' +
+    /* 🎬🎙️ reproductor para el editor rápido (el video se ve aquí; el audio suena sin mostrar nada) */
+    'function fixT(b,isV){if(/^(video|audio)\\//.test(b.type||""))return Promise.resolve(b);return b.slice(0,12).arrayBuffer().then(function(ab){var u=new Uint8Array(ab),t=isV?"video/mp4":"audio/mp4";' +
+      'if(u[0]==26&&u[1]==69&&u[2]==223&&u[3]==163)t=isV?"video/webm":"audio/webm";else if(u[0]==79&&u[1]==103&&u[2]==103&&u[3]==83)t="audio/ogg";else if((u[0]==73&&u[1]==68&&u[2]==51)||(u[0]==255&&(u[1]&224)==224))t="audio/mpeg";' +
+      'return new Blob([b],{type:t});},function(){return b;});}' +
+    'function srcOf(aid,src,isV){return aid?getB(aid).then(function(b){return fixT(b,isV);}).then(function(b){return URL.createObjectURL(b);}):Promise.resolve(src);}' +
+    'var AU=null;function stopA(){if(AU){try{AU.pause();}catch(e){}AU=null;}}' +
+    'var PL=document.createElement("div");PL.id="pl";PL.innerHTML="<video controls playsinline></video><button>✕</button>";document.body.appendChild(PL);' +
+    'var PV=PL.querySelector("video");PL.querySelector("button").onclick=function(){try{PV.pause();}catch(e){}PV.removeAttribute("src");PL.style.display="none";post({pclose:1});};' +
+    'window.__play=function(aid,src,isV){stopA();srcOf(aid,src,isV).then(function(u){if(isV){PV.src=u;PL.style.display="flex";PV.play().catch(function(){});}' +
+      'else{AU=new Audio(u);AU.onended=function(){AU=null;post({aend:1});};AU.play().catch(function(){post({aend:1});});}},function(){post({perr:1,v:isV?1:0});});};' +
+    'window.__stopA=function(){stopA();};' +
+    'window.__closePl=function(){try{PV.pause();}catch(e){}PV.removeAttribute("src");PL.style.display="none";};' +
+    'window.__poster=function(r,aid){getB(aid).then(function(b){return fixT(b,true);}).then(function(b){var v=document.createElement("video");v.muted=true;v.preload="auto";v.playsInline=true;' +
+      'var done=false,fin=function(d){if(done)return;done=true;post({posterOf:r,data:d});try{URL.revokeObjectURL(v.src);}catch(e){}};' +
+      'v.onloadeddata=function(){try{v.currentTime=0.1;}catch(e){fin(null);}};v.onseeked=function(){try{var W=Math.min(480,v.videoWidth||480),H=Math.round(W*(v.videoHeight||270)/(v.videoWidth||480));var cv=document.createElement("canvas");cv.width=W;cv.height=H;cv.getContext("2d").drawImage(v,0,0,W,H);fin(cv.toDataURL("image/jpeg",0.7));}catch(e){fin(null);}};' +
+      'v.onerror=function(){fin(null);};setTimeout(function(){fin(null);},8000);v.src=URL.createObjectURL(b);},function(){post({posterOf:r});});};' +
     'mk(0);mk(1);var st=null;try{st=localStorage.getItem("misnotas_stamp");}catch(e){}post({shell:1,stamp:st});})();' +
     '</scr' + 'ipt></body></html>';
 }

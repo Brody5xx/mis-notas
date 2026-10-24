@@ -1779,6 +1779,27 @@ function NotesApp() {
     return newImgRaw(iid, w, h, svg, Date.now());
   }
   const lastFirstImg = useRef({});
+  /* 🎬🎙️ audios y videos del editor rápido: se reproducen en el cascarón */
+  const [playerOn, setPlayerOn] = useState(false);
+  const [playingA, setPlayingA] = useState(null);
+  const posterMem = useRef({});
+  async function getPoster(aid) {
+    if (posterMem.current[aid] !== undefined) return posterMem.current[aid];
+    try { if (FS) { const f = new FS.File(FS.Paths.document, 'poster_' + String(aid).replace(/[^A-Za-z0-9_-]/g, '_') + '.txt'); if (f.exists) { const d = await f.text(); posterMem.current[aid] = d; return d; } } } catch (e) {}
+    const m = await shellAsk(r => 'window.__poster(' + r + ',' + JSON.stringify(aid) + ')', 15000);
+    const d = m && m.data ? m.data : null;
+    posterMem.current[aid] = d;
+    if (d) { try { const f = new FS.File(FS.Paths.document, 'poster_' + String(aid).replace(/[^A-Za-z0-9_-]/g, '_') + '.txt'); if (!f.exists) f.create(); f.write(d); } catch (e) {} }
+    return d;
+  }
+  function playMedia(b) {
+    const isV = b.kind === 'video';
+    const id = b.aid || b.k;
+    if (!isV && playingA === id) { shellJs('window.__stopA()'); setPlayingA(null); return; }
+    if (isV) setPlayerOn(true); else setPlayingA(id);
+    shellJs('window.__play(' + JSON.stringify(b.aid || null) + ',' + (b.src ? shellSafe(b.src) : 'null') + ',' + (isV ? 'true' : 'false') + ')');
+  }
+  useEffect(() => { if (!currentId) { if (playingA) { shellJs('window.__stopA()'); setPlayingA(null); } } }, [currentId]);
   function onNativeSave(id, r) {
     mark('✍️ guardado rápido (' + Math.round(String(r.html || '').length / 1024) + ' KB)');
     patch(id, { content: r.html, html: true, title: r.title || '', titleHtml: r.titleHtml || '' });
@@ -1803,11 +1824,14 @@ function NotesApp() {
   }
   function onShellMessage(data) {
     let m = null; try { m = JSON.parse(data); } catch (e) { return; }
-    if (m && (m.img != null || m.put != null || m.thumbOf != null)) {
-      const r = m.img != null ? m.img : m.put != null ? m.put : m.thumbOf;
-      const w = shellReq.current.wait[r]; if (w) w(m.thumbOf != null ? { data: m.data } : m);
+    if (m && (m.img != null || m.put != null || m.thumbOf != null || m.posterOf != null)) {
+      const r = m.img != null ? m.img : m.put != null ? m.put : m.thumbOf != null ? m.thumbOf : m.posterOf;
+      const w = shellReq.current.wait[r]; if (w) w(m.thumbOf != null || m.posterOf != null ? { data: m.data } : m);
       return;
     }
+    if (m && m.pclose) { setPlayerOn(false); return; }
+    if (m && m.aend) { setPlayingA(null); return; }
+    if (m && m.perr) { setPlayerOn(false); setPlayingA(null); showToast(m.v ? '⚠️ No pude abrir el video' : '⚠️ No pude reproducir el audio'); return; }
     if (m && m.shell) {
       stampPref.current = m.stamp == null ? null : String(m.stamp);
       shellOk.current = true;
@@ -2240,6 +2264,7 @@ function NotesApp() {
       finish();
     } else if (nativeCurRef.current) {
       if (nativeApi.current) nativeApi.current.flush();
+      shellJs('window.__closePl && window.__closePl(); window.__stopA && window.__stopA()'); setPlayerOn(false);
       nativeCurRef.current = null;
       finish(); setNativeCur(null);
     } else if (webRef.current) {
@@ -3440,6 +3465,7 @@ function NotesApp() {
   /* ---------- Botón "atrás" de Android ---------- */
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (playerOn) { shellJs('window.__closePl()'); setPlayerOn(false); return true; }
       if (spellOn) { callEditor('spellClose'); return true; }
       if (rwOn) { callEditor('rewriteClose'); return true; }
       if (cropOpen && webRef.current) {
@@ -3462,7 +3488,7 @@ function NotesApp() {
       return false;
     });
     return () => sub.remove();
-  }, [currentId, menuOpen, query, cropOpen, spellOn, rwOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
+  }, [currentId, playerOn, menuOpen, query, cropOpen, spellOn, rwOn, wallOpen, newOpen, pinPad, folderEdit, moveOpen, optsOpen, sortOpen, histOpen, histView, selMode]);
 
   /* ---------- Notas que se muestran ---------- */
   useEffect(() => { setSelected({}); }, [view]);
@@ -3831,7 +3857,8 @@ function NotesApp() {
                 <NativeEditor key={curReal.id} ref={nativeApi} note={curReal} c={c} tr={tr}
                   onSave={r => onNativeSave(curReal.id, r)} getImg={getImg} putImg={putImg} pickImage={pickImage}
                   makeStamp={(iid, w, h) => makeStamp(iid, w, h, (notesRef.current.find(x => x.id === curReal.id) || {}).title)}
-                  onUndoState={u => setUndoState(u)} onFull={() => switchToFull()} fmtDate={fmtDate} bottomPad={0} />
+                  onUndoState={u => setUndoState(u)} onFull={() => switchToFull()} fmtDate={fmtDate} bottomPad={0}
+                  onPlay={playMedia} getPoster={getPoster} playing={playingA} />
               )}
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
@@ -4627,7 +4654,7 @@ function NotesApp() {
       {/* El cascarón queda SIEMPRE encima (transparente). Mover una página web adelante/atrás trababa el teléfono;
           ahora solo se muestra o esconde la nota por dentro. */}
       {POOL && shellHtml && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 20, elevation: 20 }, slotZoom]}>
-        <View pointerEvents={current && !edHidden && !nativeCur ? 'box-none' : 'none'}
+        <View pointerEvents={(current && !edHidden && !nativeCur) || playerOn ? 'box-none' : 'none'}
           style={[edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h }   // ya del tamaño justo
                          : { position: 'absolute', left: 0, top: 0, width, height: winH },
             !current && seeNow ? { opacity: 0 } : null]}>
