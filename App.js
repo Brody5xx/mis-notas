@@ -11,6 +11,8 @@ import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { buildEditorHtml, buildShellHtml, shellSafe } from './editor';
+import NativeEditor from './nativo';
+import { htmlToBlocks, newImgRaw } from './nativo-html';
 import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
@@ -1702,9 +1704,112 @@ function NotesApp() {
   if (!slotRefs.current[0]) slotRefs.current = [0, 1].map(k => ({
     injectJavaScript: js => shellJs('window.__run(' + k + ',' + shellSafe(String(js)) + ')'),
   }));
+  /* ⚡ EDITOR RÁPIDO (nativo): las notas normales se abren aquí al instante */
+  const [nativeOn, setNativeOn] = useState(true);
+  useEffect(() => { AsyncStorage.getItem('nativeEd').then(v => { if (v === '0') setNativeOn(false); }).catch(() => {}); }, []);
+  const nativeCurRef = useRef(null);
+  const [nativeCur, setNativeCur] = useState(null);
+  const nativeApi = useRef(null);
+  const fullIds = useRef(new Set());              // notas que pediste abrir en el editor completo
+  const nativeOk = useRef(new WeakMap());
+  const stampPref = useRef(null);
+  function canNative(n) {
+    if (!POOL || !nativeOn || !n || n.deleted || fullIds.current.has(n.id)) return false;
+    if (n.ink && n.ink.length) return false;
+    if (n.kind && n.kind !== 'text') return false;
+    if (nativeOk.current.has(n)) return nativeOk.current.get(n);
+    let ok = false; try { ok = htmlToBlocks(n.content || '', n.html !== false).ok; } catch (e) { ok = false; }
+    nativeOk.current.set(n, ok);
+    return ok;
+  }
+  /* Fotos: viven en el almacén del cascarón; aquí se guardan copias para mostrarlas sin esperar */
+  const imgMem = useRef({});
+  const shellReq = useRef({ n: 0, wait: {} });
+  function shellAsk(fnJs, timeout = 20000) {
+    return new Promise(resolve => {
+      const r = ++shellReq.current.n;
+      const tm = setTimeout(() => { delete shellReq.current.wait[r]; resolve(null); }, timeout);
+      shellReq.current.wait[r] = m => { clearTimeout(tm); delete shellReq.current.wait[r]; resolve(m); };
+      shellJs(fnJs(r));
+    });
+  }
+  function imgFile(iid) { return new FS.File(FS.Paths.document, 'foto_' + String(iid).replace(/[^A-Za-z0-9_-]/g, '_') + '.txt'); }
+  async function getImg(iid) {
+    if (imgMem.current[iid]) return imgMem.current[iid];
+    try { if (FS) { const f = imgFile(iid); if (f.exists) { const d = await f.text(); if (d) { imgMem.current[iid] = d; return d; } } } } catch (e) {}
+    const m = await shellAsk(r => 'window.__getImg(' + r + ',' + JSON.stringify(iid) + ')');
+    if (!m || !m.data) return null;
+    imgMem.current[iid] = m.data;
+    try { if (FS) { const f = imgFile(iid); if (!f.exists) f.create(); f.write(m.data); } } catch (e) {}
+    return m.data;
+  }
+  async function putImg(data) {
+    const iid = 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const m = await shellAsk(r => 'window.__putImg(' + r + ',' + JSON.stringify(iid) + ',' + shellSafe(data) + ',1600)', 60000);
+    if (!m || !m.ok) return null;
+    const d = m.data || data;
+    imgMem.current[iid] = d;
+    try { if (FS) { const f = imgFile(iid); if (!f.exists) f.create(); f.write(d); } } catch (e) {}
+    return { iid, w: m.w, h: m.h, thumb: m.thumb, data: d };
+  }
+  async function pickImage(fromCamera) {
+    try {
+      if (fromCamera) { const p = await ImagePicker.requestCameraPermissionsAsync(); if (!p.granted) return null; }
+      const opts = { mediaTypes: ['images'], quality: 0.7, base64: true, exif: false };
+      const r = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      if (!r || r.canceled || !r.assets || !r.assets[0] || !r.assets[0].base64) return null;
+      const a = r.assets[0];
+      return { data: 'data:' + (a.mimeType || 'image/jpeg') + ';base64,' + a.base64, w: a.width, h: a.height };
+    } catch (e) { showToast(String(e && e.message || e)); return null; }
+  }
+  function makeStamp(iid, w, h, siteTitle) {
+    let svg = '';
+    if (stampPref.current !== '0') {
+      const d = new Date(); let when;
+      try { when = d.toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { when = d.toLocaleString(); }
+      const txt = '📅 ' + when + (siteTitle ? '  ·  📍 ' + siteTitle : '');
+      const x = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const gid = 'sg' + Math.random().toString(36).slice(2, 7);
+      svg = '<svg class="stamp" viewBox="0 0 1000 110" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">' +
+        '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></linearGradient></defs>' +
+        '<rect x="0" y="0" width="1000" height="110" fill="url(#' + gid + ')"/>' +
+        '<text x="975" y="82" text-anchor="end" font-family="-apple-system,Roboto,Segoe UI,sans-serif" font-size="38" font-weight="700" fill="#fff" ' +
+        'stroke="#000" stroke-width="1.2" paint-order="stroke"' + (txt.length > 52 ? ' textLength="950" lengthAdjust="spacingAndGlyphs"' : '') + '>' + x(txt) + '</text></svg>';
+    }
+    return newImgRaw(iid, w, h, svg, Date.now());
+  }
+  const lastFirstImg = useRef({});
+  function onNativeSave(id, r) {
+    mark('✍️ guardado rápido (' + Math.round(String(r.html || '').length / 1024) + ' KB)');
+    patch(id, { content: r.html, html: true, title: r.title || '', titleHtml: r.titleHtml || '' });
+    clearTimeout(recLater.current[id]);
+    recLater.current[id] = setTimeout(() => { delete recLater.current[id]; updateRecord(notesRef.current.find(x => x.id === id)); }, 1500);
+    if (lastFirstImg.current[id] !== r.firstImg) {
+      lastFirstImg.current[id] = r.firstImg;
+      if (!r.firstImg) patch(id, { thumb: null }, false);
+      else if (/^data:/.test(r.firstImg)) { /* foto vieja dentro de la nota: la tarjeta la toma sola */ }
+      else shellAsk(q => 'window.__thumb(' + q + ',' + JSON.stringify(r.firstImg) + ')').then(m => { if (m && m.data) patch(id, { thumb: m.data }, false); });
+    }
+  }
+  /* Pasar la nota abierta al editor completo (para dibujar, audios, plantillas, etc.) */
+  function switchToFull(then) {
+    const id = nativeCurRef.current; if (!id) return;
+    if (nativeApi.current) nativeApi.current.flush();
+    fullIds.current.add(id);
+    nativeCurRef.current = null; setNativeCur(null);
+    setEdReady(false);
+    setTimeout(() => { setEditorRev(r => r + 1); }, 60);
+    if (then) setTimeout(then, 1300);
+  }
   function onShellMessage(data) {
     let m = null; try { m = JSON.parse(data); } catch (e) { return; }
+    if (m && (m.img != null || m.put != null || m.thumbOf != null)) {
+      const r = m.img != null ? m.img : m.put != null ? m.put : m.thumbOf;
+      const w = shellReq.current.wait[r]; if (w) w(m.thumbOf != null ? { data: m.data } : m);
+      return;
+    }
     if (m && m.shell) {
+      stampPref.current = m.stamp == null ? null : String(m.stamp);
       shellOk.current = true;
       const q = shellQ.current; shellQ.current = [];
       if (q.length && shellRef.current) shellRef.current.injectJavaScript(q.join(';\n') + '; true;');
@@ -1812,7 +1917,7 @@ function NotesApp() {
     if (!POOL) return;
     if (currentId) {
       const n = notesRef.current.find(x => x.id === currentId);
-      if (n) bootNote(n);
+      if (n && nativeCurRef.current !== n.id) bootNote(n);
     } else if (activeRef.current >= 0) {
       const k = activeRef.current;
       activeRef.current = -1; setActiveSlot(-1); webRef.current = null;
@@ -1838,7 +1943,7 @@ function NotesApp() {
   const [dictLang, setDictLang] = useState(null);       // 'es-US' / 'en-US' / ...
   const dictRef = useRef({ on: false, stop: null, lang: null });
   const dictDefault = () => (langCode === 'en' ? 'en-US' : langCode === 'es' ? 'es-US' : langCode);
-  function editorJs(js) { if (webRef.current) webRef.current.injectJavaScript(js + '; true;'); }
+  function editorJs(js) { if (!nativeCurRef.current && webRef.current) webRef.current.injectJavaScript(js + '; true;'); }
   async function dictRun(lang) {
     const D = dictRef.current;
     if (D.stop) { try { D.stop(); } catch (e) {} D.stop = null; }
@@ -1848,6 +1953,7 @@ function NotesApp() {
       onText: (t, fin) => {
         if (!dictRef.current.on) return;
         setDictPart(fin ? '' : t);
+        if (nativeCurRef.current) { if (fin && t && t.trim() && nativeApi.current) nativeApi.current.insertText(t.trim()); return; }   // editor rápido: se escribe al terminar cada frase
         editorJs('window.dictateText && window.dictateText(' + JSON.stringify(t).replace(/</g, '\\u003c') + ',' + (fin ? 'true' : 'false') + ')');
       },
       onEnd: () => { if (dictRef.current.on) setTimeout(() => { if (dictRef.current.on) dictRun(dictRef.current.lang); }, 250); },   // Android para en los silencios: se sigue
@@ -2132,6 +2238,10 @@ function NotesApp() {
         if (r) patch(id, { content: r.html, html: true, title: r.title, titleHtml: r.titleHtml, ...(r.ink ? { ink: r.ink } : {}) });
       } catch (e) {}
       finish();
+    } else if (nativeCurRef.current) {
+      if (nativeApi.current) nativeApi.current.flush();
+      nativeCurRef.current = null;
+      finish(); setNativeCur(null);
     } else if (webRef.current) {
       webRef.current.injectJavaScript('window.flushNow && window.flushNow(); true;');
       if (!LAB.coverHome) shellJs('window.__show(-1)');  // primero se esconde la nota por dentro…
@@ -2143,6 +2253,15 @@ function NotesApp() {
 
   /* ---------- Deshacer / Rehacer (los hace el editor) ---------- */
   function callEditor(fn) {
+    if (nativeCurRef.current) {
+      const a = nativeApi.current;
+      if (fn === 'undoNow') { a && a.undo(); return; }
+      if (fn === 'redoNow') { a && a.redo(); return; }
+      if (fn === 'flushNow') { a && a.flush(); return; }
+      if (/Close$/.test(fn)) return;
+      switchToFull(() => callEditor(fn));           // lo demás lo hace el editor completo
+      return;
+    }
     if (Platform.OS === 'web') {
       try { const w = iframeRef.current && iframeRef.current.contentWindow; if (w && w[fn]) w[fn](); } catch (e) {}
     } else if (webRef.current) {
@@ -2924,6 +3043,16 @@ function NotesApp() {
       // (Mover la nota completa mientras crece trababa la animación.)
       const R = rect || cardRects.current[id] || { x: width * 0.08, y: winH * 0.12, w: width * 0.84, h: winH * 0.7 };
       cardRects.current[id] = R;
+      const nn = notesRef.current.find(x => x.id === id);
+      if (canNative(nn)) {                           // ⚡ editor rápido: se abre ya mismo
+        mark('⚡ abrir en editor rápido');
+        nativeCurRef.current = id; setNativeCur(id);
+        zoomWant.current = null; zoomBusy.current = false;
+        setRevealing(false); setEdHidden(false);
+        setCurrentId(id);
+        return;
+      }
+      nativeCurRef.current = null; setNativeCur(null);
       if (zoomBusy.current) { setCurrentId(id); return; }
       zoomBusy.current = true;
       // La nota REAL (ya cargada por detrás desde que pusiste el dedo) crece desde su tarjeta hasta llenar la pantalla.
@@ -3698,6 +3827,12 @@ function NotesApp() {
               />
             ) : (
               <View ref={edAreaRef} style={{ flex: 1 }} collapsable={false}>
+              {nativeCur && curReal && nativeCur === curReal.id && (
+                <NativeEditor key={curReal.id} ref={nativeApi} note={curReal} c={c} tr={tr}
+                  onSave={r => onNativeSave(curReal.id, r)} getImg={getImg} putImg={putImg} pickImage={pickImage}
+                  makeStamp={(iid, w, h) => makeStamp(iid, w, h, (notesRef.current.find(x => x.id === curReal.id) || {}).title)}
+                  onUndoState={u => setUndoState(u)} onFull={() => switchToFull()} fmtDate={fmtDate} bottomPad={0} />
+              )}
               {!edReady && quickView && (
                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { paddingHorizontal: 24, paddingTop: 18 }]}>
                   <Text maxFontSizeMultiplier={1.3} style={{ color: quickView.title ? c.text : c.muted, fontSize: 32, fontWeight: '800', marginBottom: 18 }} numberOfLines={2}>
@@ -3719,6 +3854,7 @@ function NotesApp() {
 
         {/* Opciones de la nota */}
         <Sheet visible={!!curReal && optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
+          {!!nativeCur && <Row icon="maximize-2" label="Abrir en el editor completo (dibujar, audio, video…)" s={s} t={c} onPress={() => { setOptsOpen(false); setTimeout(() => switchToFull(), 250); }} />}
           <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
             <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>👔</Text>
@@ -4118,6 +4254,19 @@ function NotesApp() {
                 <View style={[s.toggleKnob, { backgroundColor: perfOn ? c.inv : c.text }, perfOn && { alignSelf: 'flex-end' }]} />
               </View>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => {
+              const v = !nativeOn; setNativeOn(v); AsyncStorage.setItem('nativeEd', v ? '1' : '0').catch(() => {});
+              showToast(v ? '⚡ Editor rápido encendido' : 'Editor rápido apagado: se usa el editor completo');
+            }}>
+              <Feather name="zap" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>⚡ Editor rápido</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>Abre las notas al instante (las de audio, video o dibujo usan el completo)</Text>
+              </View>
+              <View style={[s.toggle, { borderColor: c.text }, nativeOn && { backgroundColor: c.text }]}>
+                <View style={[s.toggleKnob, { backgroundColor: nativeOn ? c.inv : c.text }, nativeOn && { alignSelf: 'flex-end' }]} />
+              </View>
+            </TouchableOpacity>
             {/* Sobre la app */}
             <View style={s.sep} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 10 }}>
@@ -4478,7 +4627,7 @@ function NotesApp() {
       {/* El cascarón queda SIEMPRE encima (transparente). Mover una página web adelante/atrás trababa el teléfono;
           ahora solo se muestra o esconde la nota por dentro. */}
       {POOL && shellHtml && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 20, elevation: 20 }, slotZoom]}>
-        <View pointerEvents={current && !edHidden ? 'box-none' : 'none'}
+        <View pointerEvents={current && !edHidden && !nativeCur ? 'box-none' : 'none'}
           style={[edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h }   // ya del tamaño justo
                          : { position: 'absolute', left: 0, top: 0, width, height: winH },
             !current && seeNow ? { opacity: 0 } : null]}>

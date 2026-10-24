@@ -157,6 +157,25 @@ if [ -f app.json ] && command -v node >/dev/null 2>&1; then
   ' || echo "  ✗ No pude registrar el dictado en app.json"
 fi
 
+# 📷 Cámara para el editor rápido (tomar fotos dentro de la nota)
+if [ -f app.json ] && command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs");
+    const j = JSON.parse(fs.readFileSync("app.json", "utf8"));
+    const e = j.expo || j;
+    e.plugins = e.plugins || [];
+    const has = e.plugins.some(p => (Array.isArray(p) ? p[0] : p) === "expo-image-picker");
+    if (!has) {
+      e.plugins.push(["expo-image-picker", {
+        photosPermission: "Best Notes usa tus fotos para ponerlas en tus notas.",
+        cameraPermission: "Best Notes usa la cámara para tomar fotos dentro de tus notas."
+      }]);
+      fs.writeFileSync("app.json", JSON.stringify(j, null, 2) + "\n");
+      console.log("  ✓ app.json (cámara registrada)");
+    }
+  ' || echo "  ✗ No pude registrar la cámara en app.json"
+fi
+
 # Paquete para los recordatorios (avisos a una hora) — solo la primera vez
 if [ -f package.json ] && { ! grep -q '"expo-notifications"' package.json || [ ! -d node_modules/expo-notifications ]; }; then
   echo "  … instalando expo-notifications (para los recordatorios). Espera un momento..."

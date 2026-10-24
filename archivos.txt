@@ -26,3 +26,5 @@ pantalla.js
 hora.js
 dictado.js
 medir.js
+nativo.js
+nativo-html.js
