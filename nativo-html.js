@@ -104,6 +104,10 @@ function inlineRuns(node, st, out) {
   for (const ch of node.children) {
     if (ch.text != null) { out.runs.push({ text: ch.text, st }); continue; }
     if (ch.tag === 'br') { out.runs.push({ br: 1 }); continue; }
+    if (out.inLi && (ch.tag === 'div' || ch.tag === 'p') && !Object.keys(ch.attrs).length) {   // renglón dentro de un renglón de lista
+      if (out.runs.length) out.runs.push({ br: 1 });
+      inlineRuns(ch, st, out); if (out.bad) return; continue;
+    }
     const s2 = tagStyle(ch, st);
     if (!s2) { out.bad = 1; out.why = ch.tag; return; }
     inlineRuns(ch, s2, out);
@@ -172,12 +176,13 @@ export function htmlToBlocks(html, isHtml = true) {
     for (const li of node.children) {
       if (li.text != null) { if (li.text.trim()) return false; continue; }
       if (li.tag !== 'li') return false;
-      for (const k in li.attrs) if (k !== 'class' && k !== 'data-head' && k !== 'data-prev') return false;
-      const out = { runs: [] }; inlineRuns(li, DEF, out);
+      for (const k in li.attrs) if (k !== 'class' && k !== 'style' && !/^data-/.test(k)) return false;
+      const keep = Object.keys(li.attrs).filter(k => /^data-/.test(k) && k !== 'data-head').map(k => k + '="' + esc(li.attrs[k]).replace(/"/g, '&quot;') + '"').join(' ');
+      const out = { runs: [], inLi: 1 }; inlineRuns(li, DEF, out);
       if (out.bad) return false;
       const rs = out.runs.slice(); while (rs.length && rs[rs.length - 1].br) rs.pop();
       const spans = mergeSpans(rs.map(r => (r.br ? { text: ' ', st: DEF } : { text: r.text.replace(/\u200B/g, '').replace(/\n/g, ' '), st: r.st })));
-      items.push({ k: newKey(), spans, done: kind === 'check' && /\bdone\b/.test(li.attrs.class || '') });
+      items.push({ k: newKey(), spans, done: kind === 'check' && /\bdone\b/.test(li.attrs.class || ''), data: keep });
     }
     endText();
     blocks.push({ k: newKey(), t: kind, items: items.length ? items : [{ k: newKey(), spans: [], done: false }] });
@@ -290,7 +295,7 @@ export function blocksToHtml(blocks) {
     if (b.t === 'text') h += spansHtml(b.spans);
     else if (b.t === 'check') {
       const items = b.items.filter(x => !x.done).concat(b.items.filter(x => x.done));
-      h += '<ul class="checklist">' + items.map(x => '<li' + (x.done ? ' class="done"' : '') + '>' + (spansPlain(x.spans) ? inlineHtml(x.spans.filter(y => y.text)) : '<br>') + '</li>').join('') + '</ul>';
+      h += '<ul class="checklist">' + items.map(x => '<li' + (x.done ? ' class="done"' : '') + (x.data ? ' ' + x.data : '') + '>' + (spansPlain(x.spans) ? inlineHtml(x.spans.filter(y => y.text)) : '<br>') + '</li>').join('') + '</ul>';
     } else if (b.t === 'ul' || b.t === 'ol') {
       h += '<' + b.t + '>' + b.items.map(x => '<li>' + (spansPlain(x.spans) ? inlineHtml(x.spans.filter(y => y.text)) : '<br>') + '</li>').join('') + '</' + b.t + '>';
     } else if (b.t === 'img' || b.t === 'media') {

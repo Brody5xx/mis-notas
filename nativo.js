@@ -114,7 +114,20 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
     pushUndo();
   }
   function changed() { dirty.current = true; clearTimeout(saveT.current); saveT.current = setTimeout(doSave, 350); }
-  function setBlocks(fn) {
+  /* ✍️ Mientras escribes en un texto con formato, lo que se ve NO se vuelve a dibujar con cada letra
+     (eso hacía parpadear las otras letras). Se actualiza al dar formato o al salir del renglón. */
+  const shown = useRef({});
+  const [, bump] = useState(0);
+  const hasSt = sp => sp.some(x => Object.keys(x.st || {}).length);
+  function kids(key, spans) {
+    const f = shown.current[key];
+    if (f) return f;
+    return hasSt(spans) ? spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null;
+  }
+  function freeze(key, spans) { if (!shown.current[key] && hasSt(spans)) shown.current[key] = spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>); }
+  function unfreeze(key) { if (shown.current[key]) { delete shown.current[key]; bump(x => x + 1); } }
+  function setBlocks(fn, keep) {
+    if (!keep) shown.current = {};
     setBlocksRaw(prev => { const nx = typeof fn === 'function' ? fn(prev) : fn; blocksRef.current = nx; return nx; });
     changed();
   }
@@ -130,7 +143,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
   function restore(i) {
     const u = undo.current; if (i < 0 || i >= u.list.length) return;
     u.at = i; const o = JSON.parse(u.list[i]);
-    blocksRef.current = o.b; setBlocksRaw(o.b); setTitle(o.t); titleRef.current = o.t; titleTouched.current = true;
+    shown.current = {}; blocksRef.current = o.b; setBlocksRaw(o.b); setTitle(o.t); titleRef.current = o.t; titleTouched.current = true;
     dirty.current = true; clearTimeout(saveT.current);
     const html = blocksToHtml(o.b); const img = o.b.find(b => b.t === 'img');
     dirty.current = false;
@@ -170,6 +183,8 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
   const edits = useRef(0);
   function onTextChange(k, newText) {
     edits.current++;
+    { const b0 = blocksRef.current.find(x => x.k === k); const P = pend.current;
+      if (b0 && !(P && P.k === k)) freeze(k, b0.spans); else delete shown.current[k]; }
     setBlocks(prev => prev.map(b => {
       if (b.k !== k || b.t !== 'text') return b;
       const old = spansPlain(b.spans);
@@ -189,7 +204,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       const st = P && P.k === k && P.pos === a ? P.st : styleAt(b.spans, a);
       if (P && P.k === k && P.pos === a && ins) { pend.current = { k, pos: a + ins.length, st: P.st }; }
       return { ...b, spans: editSpans(b.spans, a, e, ins, clean(st)) };
-    }));
+    }), true);
   }
   function onSel(k, item, s) {
     focus.current = { k, item, sel: s };
@@ -349,7 +364,8 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       wantFocus.current = { key: nk, pos: 0 };
       return;
     }
-    setBlocks(prev => prev.map(b => (b.k !== bk ? b : { ...b, items: b.items.map(x => (x.k === ik ? { ...x, spans } : x)) })));
+    { const P = pend.current; if (!(P && P.k === ik)) freeze(ik, it0.spans); else delete shown.current[ik]; }
+    setBlocks(prev => prev.map(b => (b.k !== bk ? b : { ...b, items: b.items.map(x => (x.k === ik ? { ...x, spans } : x)) })), true);
   }
   function exitList(bk, ik) {
     const list = blocksRef.current; const bi = list.findIndex(b => b.k === bk); if (bi < 0) return;
@@ -435,11 +451,12 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
       onChangeText={t => onTextChange(b.k, t)}
       onSelectionChange={e => onSel(b.k, null, e.nativeEvent.selection)}
       onFocus={() => { setFocusK(b.k); setSelImg(null); }}
+      onBlur={() => unfreeze(b.k)}
       selectionColor={c.text}
       underlineColorAndroid="transparent"
-      {...(b.spans.every(sp => !Object.keys(sp.st || {}).length) ? { value: spansPlain(b.spans) } : {})}
+      {...(!shown.current[b.k] && !hasSt(b.spans) ? { value: spansPlain(b.spans) } : {})}
     >
-      {b.spans.some(sp => Object.keys(sp.st || {}).length) ? b.spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null}
+      {kids(b.k, b.spans)}
     </TextInput>
   );
   const renderList = (b) => {
@@ -459,7 +476,8 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
         <TextInput
           ref={r => { if (r) inputs.current[x.k] = r; else delete inputs.current[x.k]; }}
           multiline scrollEnabled={false}
-          {...(x.spans.some(sp => Object.keys(sp.st || {}).length) ? {} : { value: spansPlain(x.spans) })}
+          {...(!shown.current[x.k] && !hasSt(x.spans) ? { value: spansPlain(x.spans) } : {})}
+          onBlur={() => unfreeze(x.k)}
           style={[baseTxt, { flex: 1 }, x.done && { textDecorationLine: 'line-through', opacity: 0.55 }]}
           onChangeText={t => onItemChange(b.k, x.k, t)}
           onKeyPress={e => onItemKey(b.k, x.k, e)}
@@ -468,7 +486,7 @@ const NativeEditor = React.forwardRef(function NativeEditor(props, ref) {
           selectionColor={c.text}
           underlineColorAndroid="transparent"
         >
-          {x.spans.some(sp => Object.keys(sp.st || {}).length) ? x.spans.map((sp, j) => <Text key={j} style={spanStyle(sp.st, c)}>{sp.text}</Text>) : null}
+          {kids(x.k, x.spans)}
         </TextInput>
       </View>
     );
