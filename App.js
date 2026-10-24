@@ -1484,13 +1484,6 @@ function NotesApp() {
   const openedRef = useRef(null);                      // cómo estaba la nota al abrirla
   const recCache = useRef({});
   const recLater = useRef({});
-  useEffect(() => {                                        // ✨ al volver al inicio: aparece suave (lo hace el teléfono, no se traba)
-    if (currentId || !homeFade.current) return;
-    homeFade.current = false;
-    requestAnimationFrame(() => Animated.timing(homeOp, { toValue: 1, duration: 170, easing: Easing.out(Easing.quad), useNativeDriver: true }).start());
-    const safe = setTimeout(() => homeOp.setValue(1), 600);
-    return () => clearTimeout(safe);
-  }, [currentId]);
   const cardH = useRef({});                         // registro de cada nota (en memoria)
   const recTimers = useRef({});
   const [recEntries, setRecEntries] = useState([]);    // registro que se está mirando
@@ -1550,8 +1543,6 @@ function NotesApp() {
   const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
   const ghostWaiting = useRef(false);
   const homeFrozen = useRef(null);
-  const homeOp = useRef(new Animated.Value(1)).current;   // el inicio aparece suave al salir de una nota
-  const homeFade = useRef(false);
   const [edHidden, setEdHidden] = useState(false);    // el editor se prepara escondido mientras la tarjeta crece
   const zoomWant = useRef(null);                       // { layout } mientras espera para crecer
   function startZoom(force) {
@@ -2046,7 +2037,6 @@ function NotesApp() {
       // Se mira un momentito después, cuando ya llegó lo último que escribiste.
       setTimeout(() => setNotes(ns => (ns.some(n => n.id === id && isEmpty(n) && !n.keep) && currentIdRef.current !== id
         ? ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)) : ns)), 900);
-      if (Platform.OS !== 'web') { homeFade.current = true; homeOp.setValue(0); }   // la nota se funde con el inicio
       setCurrentId(cur => (cur === id ? null : cur));
       setCropOpen(false); setSpellOn(false); setRwOn(false);
       setTitleColorOpen(false);
@@ -4331,7 +4321,7 @@ function NotesApp() {
         const hidden = !!current && !revealing;
         const f = homeFrozen.current;
         if (hidden && f && f.hidden && f.dark === dark) return f.el;
-        homeFrozen.current = { hidden, dark, el: <Animated.View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, hidden ? { opacity: 0 } : { opacity: homeOp }]}>{homeView}</Animated.View> };
+        homeFrozen.current = { hidden, dark, el: <View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, hidden && { opacity: 0 }]}>{homeView}</View> };
         return homeFrozen.current.el;
       })()}
       {!current && menuLayer}
