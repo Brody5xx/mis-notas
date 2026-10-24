@@ -1726,7 +1726,7 @@ function NotesApp() {
       webRef.current = slotRefs.current[k];
       injectBoot(k, n);
     }
-    if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 900); }
+    if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 1400); }
     [0, 1].forEach(i => {                            // otra nota preparada que al final no abriste: se rehace
       if (i !== k && slotPrep.current[i] && slotPrep.current[i] !== n.id) retireSlot(i);
     });
@@ -1741,7 +1741,7 @@ function NotesApp() {
       activeRef.current = -1; setActiveSlot(-1); webRef.current = null;
       slotDirty.current[k] = true; slotLoaded.current[k] = false;
       // se rehace un ratito después (para no trabar la animación de cerrar)
-      whenIdle(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 900);
+      whenIdle(() => { if (activeRef.current !== k && slotDirty.current[k]) retireSlot(k); }, 1400);
     }
   }, [currentId, editorRev]);
   function onSlotMessage(k, data) {
@@ -2043,7 +2043,7 @@ function NotesApp() {
       setOptsOpen(false);
       setUnlocked(u => { const c2 = { ...u }; delete c2[id]; return c2; });   // se vuelve a bloquear
       setHistOpen(false); setHistView(null);
-      setTimeout(() => { updateRecord(notesRef.current.find(x => x.id === id)); flushRecord(id); }, 400);
+      whenIdle(() => { updateRecord(notesRef.current.find(x => x.id === id)); flushRecord(id); }, 1600);   // cuando no estás haciendo nada
     };
     // Primero se guarda lo último que escribiste en el editor
     if (Platform.OS === 'web') {
