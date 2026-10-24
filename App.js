@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PERF, mark, timed, perfStart, perfStop, renderStart, renderEnd, perfReport } from './medir';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share, Linking,
@@ -1286,6 +1287,7 @@ function AppMain() {
 }
 
 function NotesApp() {
+  renderStart();
   const [notes, setNotes] = useState([]);
   const [layout, setLayout] = useState('grid');   // 'grid' o 'list'
   const [dark, setDark] = useState(true);
@@ -1397,6 +1399,10 @@ function NotesApp() {
     menuOff.interpolate({ inputRange: [0, 1.8, 2], outputRange: [1, 1, 0] }));
   const menuScrim = Animated.multiply(menuIn, menuOff.interpolate({ inputRange: [0, 2], outputRange: [1, 0] }));
   const [currentId, setCurrentId] = useState(null);
+  useLayoutEffect(() => renderEnd(currentId ? 'con nota abierta' : 'inicio'));
+  const [perfOn, setPerfOn] = useState(false);
+  const [perfView, setPerfView] = useState(null);
+  useEffect(() => { if (!currentId) mark('🏠 inicio en pantalla'); }, [currentId]);
   const revP = useRef(new Animated.Value(1)).current;   // portal: 0 = puntito, 1 = pantalla completa
   const [revealing, setRevealing] = useState(false);
   const revBusy = useRef(false);
@@ -1550,6 +1556,7 @@ function NotesApp() {
     if (!w) return;
     if (!force && !(w.layout && edReadyRef.current)) return;     // espera: nota puesta en pantalla + editor listo
     zoomWant.current = null;
+    mark(force ? '👀 nota visible (sin esperar más)' : '👀 nota visible');
     // Sin animación: la nota ya está dibujada por detrás, así que se muestra completa de un solo golpe
     zp.setValue(1); setZoomRect(null);
     setEdHidden(false); setRevealing(false); zoomBusy.current = false;
@@ -1682,6 +1689,7 @@ function NotesApp() {
   }
   function retireSlot(k) {
     if (k < 0) return;
+    mark('♻️ rehacer editor ' + k);
     slotLoaded.current[k] = false; pendingBoot.current[k] = null; slotDirty.current[k] = false;
     if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; }
     setSlots(ss => ss.map((sl, i) => (i === k ? { key: sl.key + 2, html: spareHtml } : sl)));
@@ -1701,6 +1709,7 @@ function NotesApp() {
   }
   /* ⚡ Apenas pones el dedo sobre una nota (antes de soltarlo), un editor escondido ya empieza a cargarla */
   function prepNote(n) {
+    mark('⚡ preparar nota');
     if (!POOL || activeRef.current >= 0 || !n || (n.locked && !unlocked[n.id])) return;
     if (slotPrep.current.includes(n.id)) return;
     const k = [0, 1].find(i => !slotDirty.current[i] && slotLoaded.current[i]);
@@ -1747,11 +1756,11 @@ function NotesApp() {
   function onSlotMessage(k, data) {
     let m = null; try { m = JSON.parse(data); } catch (e) {}
     if (m && m.type === 'spare') {
-      slotLoaded.current[k] = true;
+      slotLoaded.current[k] = true; mark('🆕 editor ' + k + ' preparado');
       if (pendingBoot.current[k] && slotRefs.current[k]) { slotRefs.current[k].injectJavaScript(pendingBoot.current[k]); pendingBoot.current[k] = null; }
       return;
     }
-    if (m && m.type === 'ready') slotReady.current[k] = true;
+    if (m && m.type === 'ready') { slotReady.current[k] = true; mark('✅ editor ' + k + ' listo'); }
     // lo que escribiste siempre se guarda (aunque ya cerraste la nota y volviste al inicio)
     if (k === activeRef.current || (m && (m.type === 'change' || m.type === 'thumb') && m.id)) onEditorMessage(data);
   }
@@ -1850,7 +1859,8 @@ function NotesApp() {
     if (!loaded) return;
     let done = false;
     const run = () => { if (done) return; done = true; saveNow.current = null;
-      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock }).catch(() => showToast(tr('saveFail'))); };
+      const a0 = Date.now();
+      saveData({ notes, layout, dark, translucent, lang, wallBlur, folders, sortBy, pinHash, appLock }).then(() => mark('💾 guardar notas', Date.now() - a0)).catch(() => showToast(tr('saveFail'))); };
     saveNow.current = run;
     const t = setTimeout(run, 900);                        // ⚡ se guarda cuando paras un momentito
     return () => clearTimeout(t);
@@ -2006,6 +2016,7 @@ function NotesApp() {
 
   // 🌀 Al cerrar, el portal se encoge de vuelta hacia la nota (en reversa)
   function closeEditor() {
+    mark('⬅️ salir de la nota');
     if (ghostWaiting.current || edHidden || zoomWant.current) { zoomWant.current = null; ghostWaiting.current = false; ghostGo.current = null; setGhost(null); zoomBusy.current = false; setEdHidden(false); setRevealing(false); setZoomRect(null); zp.setValue(1); }   // saliste muy rápido
     // Sin animación al cerrar: se vuelve al inicio al instante (más rápido y sin saltos)
     closeEditorNow(); return;            // se cierra al instante (sin el círculo líquido)
@@ -2037,6 +2048,7 @@ function NotesApp() {
       // Se mira un momentito después, cuando ya llegó lo último que escribiste.
       setTimeout(() => setNotes(ns => (ns.some(n => n.id === id && isEmpty(n) && !n.keep) && currentIdRef.current !== id
         ? ns.filter(n => !(n.id === id && isEmpty(n) && !n.keep)) : ns)), 900);
+      mark('🏠 volver al inicio (orden dada)');
       setCurrentId(cur => (cur === id ? null : cur));
       setCropOpen(false); setSpellOn(false); setRwOn(false);
       setTitleColorOpen(false);
@@ -2102,13 +2114,14 @@ function NotesApp() {
       const r = REC_IMG + 'rf:' + picKey(t);
       return prevE.includes(r) ? r : t;
     });
-    const next = mergeRecord(prevE, tks);
+    const next = timed('📜 registro', () => mergeRecord(prevE, tks));
     if (!next) return;
     cache[n.id] = { e: next, at: Date.now() };
     clearTimeout(recTimers.current[n.id]);
     recTimers.current[n.id] = setTimeout(() => {
       delete recTimers.current[n.id];
-      saveRecord(n.id, cache[n.id]).catch(() => {});
+      const a0 = Date.now();
+      saveRecord(n.id, cache[n.id]).then(() => mark('📜 guardar registro', Date.now() - a0)).catch(() => {});
     }, 1500);
   }
   function flushRecord(id) {
@@ -3177,6 +3190,7 @@ function NotesApp() {
     try {
       const m = JSON.parse(data);
       if (m.type === 'change' && m.id) {
+        mark('✍️ cambio recibido (' + Math.round(String(m.html || '').length / 1024) + ' KB)');
         patch(m.id, { content: m.html, html: true, title: m.title || '', titleHtml: m.titleHtml || '', ...(m.ink ? { ink: m.ink } : {}) }, !m.quiet);
         // ⚡ el registro se actualiza cuando paras de escribir (no con cada pausita)
         clearTimeout(recLater.current[m.id]);
@@ -3813,11 +3827,12 @@ function NotesApp() {
   // las funciones de las tarjetas siempre al día, sin que cambien (así las tarjetas no se redibujan de gusto)
   cardH.current.setRef = (id, r) => { if (r) cardRefs.current[id] = r; else delete cardRefs.current[id]; };
   cardH.current.pressIn = item => {
+    mark('👆 dedo sobre tarjeta');
     if (selMode || (scrollingRef.current && Date.now() - lastScroll.current < 3000)) return;
     clearTimeout(prepTimer.current);
     prepTimer.current = setTimeout(() => { if (!scrollingRef.current || Date.now() - lastScroll.current > 3000) prepNote(item); }, 45);   // si empiezas a deslizar, no se prepara
   };
-  cardH.current.press = item => (selMode ? toggleSelect(item.id) : openNoteFromCard(item));
+  cardH.current.press = item => (mark('👉 abrir nota'), selMode ? toggleSelect(item.id) : openNoteFromCard(item));
   cardH.current.longPress = item => toggleSelect(item.id);
 
   const emptyMsg = query
@@ -4015,6 +4030,16 @@ function NotesApp() {
                 ))}
               </View>
             </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => {
+              const v = !perfOn; setPerfOn(v);
+              if (v) { perfStart(); showToast('⏱ Midiendo… usa la app normal y luego toca ⏱ arriba'); } else { perfStop(); showToast('⏱ Medición apagada'); }
+            }}>
+              <Feather name="activity" size={19} color={c.muted} style={s.navIcon} />
+              <Text maxFontSizeMultiplier={1.3} style={s.navText}>⏱ Medir velocidad</Text>
+              <View style={[s.toggle, { borderColor: c.text }, perfOn && { backgroundColor: c.text }]}>
+                <View style={[s.toggleKnob, { backgroundColor: perfOn ? c.inv : c.text }, perfOn && { alignSelf: 'flex-end' }]} />
+              </View>
+            </TouchableOpacity>
             {/* Sobre la app */}
             <View style={s.sep} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 10 }}>
@@ -4076,10 +4101,10 @@ function NotesApp() {
         key={layout + cols}
         data={visible}
         keyExtractor={n => n.id}
-        onScrollBeginDrag={() => { scrollingRef.current = true; lastScroll.current = Date.now(); clearTimeout(prepTimer.current); }}
+        onScrollBeginDrag={() => { mark('↕️ empieza a deslizar'); scrollingRef.current = true; lastScroll.current = Date.now(); clearTimeout(prepTimer.current); }}
         onScrollEndDrag={() => { scrollingRef.current = false; lastScroll.current = Date.now(); }}
         onMomentumScrollBegin={() => { scrollingRef.current = true; lastScroll.current = Date.now(); }}
-        onMomentumScrollEnd={() => { scrollingRef.current = false; lastScroll.current = Date.now(); }}
+        onMomentumScrollEnd={() => { mark('↕️ termina de deslizar'); scrollingRef.current = false; lastScroll.current = Date.now(); }}
         initialNumToRender={8}
         maxToRenderPerBatch={6}
         windowSize={7}
@@ -4397,6 +4422,35 @@ function NotesApp() {
         </View>
       ) : null)}</Animated.View>}
       {POOL && current && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 30, elevation: 30 }]}>{toast}</View>}
+      {perfOn && (
+        <TouchableOpacity onPress={() => setPerfView(perfReport())} activeOpacity={0.7}
+          style={{ position: 'absolute', left: 16, bottom: ins.bottom + 92, width: 52, height: 30, borderRadius: 15, zIndex: 40, elevation: 40,
+            backgroundColor: '#ff453a', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>⏱</Text>
+        </TouchableOpacity>
+      )}
+      <Modal visible={!!perfView} animationType="fade" onRequestClose={() => setPerfView(null)}>
+        <View style={{ flex: 1, backgroundColor: '#111', paddingTop: ins.top + 10, paddingBottom: ins.bottom + 10, paddingHorizontal: 12 }}>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 8 }}>⏱ Medición</Text>
+          <ScrollView style={{ flex: 1 }}>
+            <Text selectable style={{ color: '#ddd', fontSize: 11.5, fontFamily: Platform.OS === 'android' ? 'monospace' : 'Courier' }}>{perfView || ''}</Text>
+          </ScrollView>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <TouchableOpacity onPress={() => Share.share({ message: perfView || '' }).catch(() => {})} activeOpacity={0.8}
+              style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center' }}>
+              <Text style={{ color: '#000', fontWeight: '800' }}>Compartir</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { perfStart(); setPerfView(null); }} activeOpacity={0.8}
+              style={{ flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#fff', alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Empezar de nuevo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setPerfView(null)} activeOpacity={0.8}
+              style={{ flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#fff', alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {dictOn && current && (
         <View style={{ position: 'absolute', left: 14, right: 14, bottom: 96 + ins.bottom, zIndex: 31, elevation: 31 }} pointerEvents="box-none">
           <Glass t={c} strong radius={22} inner={{ padding: 12 }}>

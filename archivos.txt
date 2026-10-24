@@ -25,3 +25,4 @@ assets/bestnotes/favicon.png
 pantalla.js
 hora.js
 dictado.js
+medir.js
