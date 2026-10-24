@@ -818,8 +818,8 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   /* ---------- Avisar a la app de los cambios ---------- */
   function send(m){
     var s = JSON.stringify(m);
-    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
-    else window.parent.postMessage(s, '*');
+    if (window.parent !== window) window.parent.postMessage(s, '*');        // dentro del cascarón: se lo paso a él
+    else if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
   }
   function cleanHtml(){
     var h = ed.innerHTML.replace(/imgwrap sel/g, 'imgwrap').replace(/ src="blob:[^"]*"/g, '').replace(/<span class="dictlive">[^<]*<[/]span>/g, '');
@@ -4465,7 +4465,7 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   ${deferred
     ? "try { new Date().toLocaleString(" + JSON.stringify(locale || 'es') + ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}" +   /* ⚡ se prepara antes (la primera vez tarda) */
-      "try { var _m = JSON.stringify({ type: 'spare' }); if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(_m); else if (window.parent !== window) window.parent.postMessage(_m, '*'); } catch (e) {}"
+      "try { var _m = JSON.stringify({ type: 'spare' }); if (window.parent !== window) window.parent.postMessage(_m, '*'); else if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(_m); } catch (e) {}"
     : 'window.__boot(' + noteJson + ');'}
 </script></body></html>`;
 }

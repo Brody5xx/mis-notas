@@ -1681,6 +1681,8 @@ function NotesApp() {
   const pendingBoot = useRef([null, null]);
   const activeRef = useRef(-1);
   const [activeSlot, setActiveSlot] = useState(-1);
+  const frameOn = currentId && !edHidden && activeSlot >= 0 ? activeSlot : -1;
+  useEffect(() => { if (POOL) shellJs('window.__show(' + frameOn + ')'); }, [frameOn]);
   const edAreaRef = useRef(null);
   /* Dónde va el editor: se calcula con las medidas normales de la pantalla de la nota
      (no "midiendo en pantalla", porque mientras la nota crece está achicada y saldría chiquito) */
@@ -1755,7 +1757,6 @@ function NotesApp() {
     if (k !== undefined) {
       activeRef.current = k; setActiveSlot(k);
       webRef.current = slotRefs.current[k];
-      shellJs('window.__show(' + k + ')');
       if (slotReady.current[k]) setEdReady(true);
     } else {
       const ok = i => i !== old && !slotDirty.current[i];
@@ -1764,7 +1765,6 @@ function NotesApp() {
       if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
       activeRef.current = k; setActiveSlot(k);
       webRef.current = slotRefs.current[k];
-      shellJs('window.__show(' + k + ')');
       injectBoot(k, n);
     }
     if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 1400); }
@@ -2098,7 +2098,8 @@ function NotesApp() {
       finish();
     } else if (webRef.current) {
       webRef.current.injectJavaScript('window.flushNow && window.flushNow(); true;');
-      finish();                                          // ⚡ se vuelve al inicio al instante (lo último llega solo)
+      shellJs('window.__show(-1)');                      // primero se esconde la nota por dentro…
+      setTimeout(finish, 34);                            // …y enseguida aparece el inicio (sin que se encimen)                                          // ⚡ se vuelve al inicio al instante (lo último llega solo)
     } else {
       finish();
     }
@@ -4437,8 +4438,10 @@ function NotesApp() {
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
       {/* Los editores viven DETRÁS de la pantalla de inicio (así Android los dibuja completos, sin que se vean);
           cuando abres una nota, pasan al frente ya dibujados */}
-      {POOL && shellHtml && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: current && !edHidden ? 20 : -1, elevation: current && !edHidden ? 20 : 0 }, slotZoom]}>
-        <View pointerEvents={current ? 'box-none' : 'none'}
+      {/* El cascarón queda SIEMPRE encima (transparente). Mover una página web adelante/atrás trababa el teléfono;
+          ahora solo se muestra o esconde la nota por dentro. */}
+      {POOL && shellHtml && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 20, elevation: 20 }, slotZoom]}>
+        <View pointerEvents={current && !edHidden ? 'box-none' : 'none'}
           style={[edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h }   // ya del tamaño justo
                          : { position: 'absolute', left: 0, top: 0, width, height: winH },
             !current && seeNow ? { opacity: 0 } : null]}>
