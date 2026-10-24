@@ -1279,6 +1279,7 @@ function AppMain() {
   return (
     <View style={{ flex: 1 }} onStartShouldSetResponderCapture={e => {
       const n = e.nativeEvent; if (n && n.pageX != null) DROP.pt = { x: n.pageX, y: n.pageY };
+      DROP.touch = Date.now();                                   // último toque (el trabajo pesado espera a que no toques)
       return false;
     }}>
       <NotesApp />
@@ -1549,6 +1550,8 @@ function NotesApp() {
   const gFade = useRef(new Animated.Value(1)).current;  // la tarjeta se desvanece cuando el editor ya está listo
   const ghostWaiting = useRef(false);
   const homeFrozen = useRef(null);
+  const lastCurRef = useRef(null);
+  const edFrozen = useRef(null);
   const [edHidden, setEdHidden] = useState(false);    // el editor se prepara escondido mientras la tarjeta crece
   const zoomWant = useRef(null);                       // { layout } mientras espera para crecer
   function startZoom(force) {
@@ -1683,7 +1686,8 @@ function NotesApp() {
   const prepTimer = useRef(null);
   function whenIdle(fn, min) {
     setTimeout(function tick() {
-      if ((scrollingRef.current && Date.now() - lastScroll.current < 3000) || Date.now() - lastScroll.current < 700) { setTimeout(tick, 400); return; }
+      if ((scrollingRef.current && Date.now() - lastScroll.current < 3000) || Date.now() - lastScroll.current < 700 ||
+          Date.now() - (DROP.touch || 0) < 1200) { setTimeout(tick, 400); return; }
       fn();
     }, min);
   }
@@ -2669,7 +2673,7 @@ function NotesApp() {
   useEffect(() => {
     const n = notesRef.current.find(x => x.id === currentId);
     openedRef.current = n ? { id: n.id, v: versionOf(n) } : null;
-    setUndoState({ canUndo: false, canRedo: false });
+    setUndoState(u => (u.canUndo || u.canRedo ? { canUndo: false, canRedo: false } : u));
     if (n && !recCache.current[n.id]) {
       const id = n.id;
       // el registro se carga un ratito después (así abrir la nota no espera por esto)
@@ -3205,7 +3209,7 @@ function NotesApp() {
       if (m.type === 'shareOut' && m.text) Share.share({ message: String(m.text) }).catch(() => showToast(tr('shareFail')));
       if (m.type === 'rewrite') runRewrite(m);
       if (m.type === 'colorPrefs' && m.prefs) { colorPrefs.current = m.prefs; AsyncStorage.setItem('colorPrefs', JSON.stringify(m.prefs)).catch(() => {}); }
-      if (m.type === 'undo') setUndoState({ canUndo: !!m.canUndo, canRedo: !!m.canRedo });
+      if (m.type === 'undo') setUndoState(u => (u.canUndo === !!m.canUndo && u.canRedo === !!m.canRedo ? u : { canUndo: !!m.canUndo, canRedo: !!m.canRedo }));
     } catch (e) {}
   }
 
@@ -3556,7 +3560,14 @@ function NotesApp() {
      PANTALLA DEL EDITOR
      ============================================================ */
   let editorView = null;
-  if (current) {
+  /* ⚡ La pantalla de la nota (barra de arriba, fondo, botones) se arma UNA vez y se queda puesta, escondida.
+     Antes se armaba y se desarmaba cada vez que entrabas o salías (eso trababa el teléfono un ratito). */
+  const curReal = current;
+  if (current && Platform.OS !== 'web') lastCurRef.current = current;
+  const curShown = current || (Platform.OS !== 'web' ? lastCurRef.current : null);
+  if (!curReal && edFrozen.current && edFrozen.current.hidden && edFrozen.current.dark === dark) editorView = edFrozen.current.el;   // escondida: no se vuelve a armar
+  else if (curShown) {
+    const current = curShown;
     const inTrash = current.deleted;
     editorView = (
       <View style={[s.screen, seeNow && { backgroundColor: 'transparent' }]}>
@@ -3634,15 +3645,15 @@ function NotesApp() {
             )}
           </View>
         </KeyboardAvoidingView>
-        {wallModal}
-        {colorSheet}
-        {calcModal}
-        {shareLayer}
-        <WarnSheet visible={clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
+        {curReal && wallModal}
+        {curReal && colorSheet}
+        {curReal && calcModal}
+        {curReal && shareLayer}
+        <WarnSheet visible={!!curReal && clearAsk} title={tr('clearAllTitle')} msg={tr('clearAllMsg')} okText={tr('clearAllOk')}
           onClose={() => setClearAsk(false)} onOk={() => { setClearAsk(false); patch(current.id, { keep: true }, false); setTimeout(() => callEditor('clearAll'), 200); }} s={s} t={c} />
 
         {/* Opciones de la nota */}
-        <Sheet visible={optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
+        <Sheet visible={!!curReal && optsOpen} onClose={() => setOptsOpen(false)} title={tr('noteOptions')} s={s} t={c}>
           <TouchableOpacity onPress={() => { setOptsOpen(false); setTimeout(() => callEditor('workOpen'), 250); }} activeOpacity={0.7}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 8, borderRadius: 18, backgroundColor: c.text }}>
             <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 24 }}>👔</Text>
@@ -3684,7 +3695,7 @@ function NotesApp() {
         </Sheet>
 
         {/* Mover a carpeta */}
-        <Sheet visible={moveOpen} onClose={() => setMoveOpen(false)} title={tr('moveToFolder')} s={s} t={c}>
+        <Sheet visible={!!curReal && moveOpen} onClose={() => setMoveOpen(false)} title={tr('moveToFolder')} s={s} t={c}>
           <Row icon="inbox" label={tr('noFolder')} s={s} t={c} onPress={() => moveTo(null)}
             right={!current.folderId ? <Feather name="check" size={20} color={c.text} /> : null} />
           {folders.map(f => (
@@ -3695,7 +3706,7 @@ function NotesApp() {
         </Sheet>
 
         {/* Historial de versiones */}
-        <Modal visible={histOpen} transparent animationType="fade" onRequestClose={() => (histView ? setHistView(null) : setHistOpen(false))}>
+        <Modal visible={!!curReal && histOpen} transparent animationType="fade" onRequestClose={() => (histView ? setHistView(null) : setHistOpen(false))}>
           <Pressable style={[s.wallScrim, { backgroundColor: c.scrim }]} onPress={() => setHistOpen(false)}>
             <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 440, maxHeight: '88%' }}>
               <Glass t={c} strong radius={28} inner={{ padding: 18 }}>
@@ -3811,11 +3822,12 @@ function NotesApp() {
           </Pressable>
         </Modal>
 
-        {folderModal}
-        {pinModal}
+        {curReal && folderModal}
+        {curReal && pinModal}
         {Platform.OS === 'web' && toast}
       </View>
     );
+    edFrozen.current = { el: editorView, hidden: !curReal, dark };
   }
 
   /* ============================================================
@@ -4351,7 +4363,7 @@ function NotesApp() {
       })()}
       {!current && menuLayer}
       {editorView && (
-        <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, edHidden && { opacity: 0 }]} pointerEvents={revealing ? 'none' : 'auto'}>
+        <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, (edHidden || !current) && { opacity: 0 }]} pointerEvents={revealing || !current ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
