@@ -14,13 +14,14 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StatusBar, TextInput }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 
-export const GUIDE_VERSION = 2;
+export const GUIDE_VERSION = 3;
 const SEEN_KEY = 'misnotas_guide_seen';
 export async function guideSeen() { try { return +(await AsyncStorage.getItem(SEEN_KEY)) || 0; } catch (e) { return 0; } }
 export async function markGuideSeen() { try { await AsyncStorage.setItem(SEEN_KEY, String(GUIDE_VERSION)); } catch (e) {} }
 
 /* 🆕 Lo más nuevo (lo último arriba) */
 const NEWS = [
+  { date: '2026-10-24', es: '⚡ Editor rápido: las notas abren al instante · ⏱ Medir velocidad', en: '⚡ Fast editor: notes open instantly · ⏱ Speed meter' },
   { date: '2026-10-23', es: '🗣️ Dictar · ⏱ Horas de trabajo · 🔇 Video sin sonido · 💬 SMS · 🕐 12/24 h · 🔍 Búsqueda iluminada', en: '🗣️ Dictation · ⏱ Work hours · 🔇 Mute video · 💬 SMS · 🕐 12/24 h · 🔍 Highlighted search' },
   { date: '2026-10-18', es: '📦 Lista de materiales · 📖 Esta guía', en: '📦 Materials list · 📖 This guide' },
   { date: '2026-10-18', es: '✅ Pendientes · 📅 Sello en fotos · ⏰ Recordatorios', en: '✅ To-dos · 📅 Photo stamp · ⏰ Reminders' },
@@ -30,6 +31,28 @@ const NEWS = [
 /* Cada función de la app: ícono, título y qué hace (en español e inglés) */
 const GUIDE = [
   /* ---------- Lo nuevo y lo del trabajo ---------- */
+  { icon: '⚡', isNew: true,
+    es: { t: 'Editor rápido', d: [
+      'Las notas de texto, checklist, listas y fotos se abren AL INSTANTE en el editor rápido.',
+      'Abajo tienes: B (negrita), I (cursiva), U (subrayado), S (tachado), Aa (tamaño), el círculo (color), el marcador (resaltar), ✓ (checklist) y 📷 (foto con cámara o galería).',
+      'Selecciona texto y toca un botón para darle formato. Si no seleccionas nada, lo próximo que escribas sale con ese formato.',
+      'Toca una foto para hacerla más grande (+), más chica (−) o quitarla.',
+      'Las notas con audios, videos o dibujos se abren en el editor completo. Con el botón "Completo" (o ⋮ → Abrir en el editor completo) pasas cualquier nota al editor completo.',
+      'Menú ☰ → ⚡ Editor rápido: lo enciendes o apagas cuando quieras. Las notas son las mismas en los dos editores.'] },
+    en: { t: 'Fast editor', d: [
+      'Text, checklist, list and photo notes open INSTANTLY in the fast editor.',
+      'At the bottom: B (bold), I (italic), U (underline), S (strikethrough), Aa (size), the circle (color), the marker (highlight), ✓ (checklist) and 📷 (photo from camera or gallery).',
+      'Select text and tap a button to format it. With nothing selected, what you type next gets that format.',
+      'Tap a photo to make it bigger (+), smaller (−) or remove it.',
+      'Notes with audio, video or drawings open in the full editor. The "Full" button (or ⋮ → Open in full editor) moves any note to the full editor.',
+      'Menu ☰ → ⚡ Fast editor: turn it on or off anytime. Notes are the same in both editors.'] } },
+  { icon: '⏱', isNew: true,
+    es: { t: 'Medir velocidad', d: [
+      'Menú ☰ → ⏱ Medir velocidad. Sale un botón rojo: tócalo para ver cuánto tarda cada cosa y compartirlo.',
+      '🧪 Prueba: abre y cierra una nota sola para medir. Mientras corre, no toques nada.'] },
+    en: { t: 'Speed meter', d: [
+      'Menu ☰ → ⏱ Speed meter. A red button appears: tap it to see timings and share them.',
+      '🧪 Test: opens and closes a note by itself to measure. Do not touch anything while it runs.'] } },
   { icon: '🗣️', isNew: true,
     es: { t: 'Dictar (voz a texto)', d: [
       'Dentro de una nota: ⋮ → 🗣️ Dictar. Habla y lo que dices se escribe solo donde está el cursor.',
