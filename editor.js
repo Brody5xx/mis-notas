@@ -4479,13 +4479,11 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
 export function shellSafe(str) {
   return JSON.stringify(String(str)).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
-/* Los marcos escondidos quedan casi invisibles (0,4 %) pero DIBUJADOS: así al mostrar la nota ya está
-   pintada y el teléfono no tiene que pintarla de golpe (eso trababa 400-650 ms al entrar). */
 export function buildShellHtml(spare) {
   return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">' +
     '<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}' +
-    'iframe{position:fixed;left:0;top:0;width:100%;height:100%;border:0;background:transparent;opacity:0.004;will-change:opacity;pointer-events:none;z-index:1}' +
+    'iframe{position:fixed;left:0;top:0;width:100%;height:100%;border:0;background:transparent;opacity:0;pointer-events:none;z-index:1}' +
     'iframe.on{opacity:1;pointer-events:auto;z-index:2}</style></head><body><script>' +
     '(function(){var SP=' + shellSafe(spare) + ',F=[],ON=-1;' +
     'function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}' +

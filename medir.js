@@ -7,6 +7,9 @@
 const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
 
 export const PERF = { on: false, log: [], t0: 0 };
+/* 🧪 Prueba automática: apaga UNA cosa a la vez para ver cuál traba al entrar */
+export const LAB = { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 };
+export const perfNow = () => now() - PERF.t0;
 let stallTimer = null;
 
 export function mark(ev, ms) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { PERF, mark, timed, perfStart, perfStop, renderStart, renderEnd, perfReport } from './medir';
+import { PERF, LAB, perfNow, mark, timed, perfStart, perfStop, renderStart, renderEnd, perfReport } from './medir';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, Image, ScrollView,
   Pressable, StyleSheet, StatusBar, BackHandler, Alert, SafeAreaView, Share, Linking,
@@ -1403,6 +1403,34 @@ function NotesApp() {
   useLayoutEffect(() => renderEnd(currentId ? 'con nota abierta' : 'inicio'));
   const [perfOn, setPerfOn] = useState(false);
   const [perfView, setPerfView] = useState(null);
+  const labFns = useRef({});
+  const [labBusy, setLabBusy] = useState(false);
+  /* 🧪 Prueba automática: abre y cierra una nota sola, apagando UNA cosa a la vez, y mide cuánto se traba */
+  async function runLab() {
+    const n = notesRef.current.find(x => !x.deleted && !x.locked);
+    if (!n || labBusy) return;
+    setPerfView(null); setLabBusy(true); setPerfOn(true);
+    perfStart();
+    showToast('🧪 Probando… no toques nada (unos 60 segundos)');
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const stalls = from => PERF.log.filter(x => x.t >= from && x.ev.startsWith('⛔')).reduce((a, x) => a + (x.ms || 0), 0);
+    const variants = [['Normal', {}], ['Sin esconder el inicio', { keepHome: 1 }], ['Sin mostrar la barra', { noChrome: 1 }],
+      ['Sin mostrar la nota', { noFrame: 1 }], ['Sin cargar la nota', { noBoot: 1 }], ['Normal otra vez', {}]];
+    const out = ['🧪 PRUEBA AUTOMÁTICA (promedio de 3 veces)', 'Nota: ' + (n.title || '(sin título)'), ''];
+    await sleep(1500);
+    for (const [name, f] of variants) {
+      Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 }, f);
+      let o = 0, c = 0;
+      for (let i = 0; i < 3; i++) {
+        let t = perfNow(); mark('🧪 ' + name + ': abrir'); labFns.current.open(n.id); await sleep(1700); o += stalls(t);
+        t = perfNow(); mark('🧪 ' + name + ': salir'); labFns.current.close(); await sleep(1700); c += stalls(t);
+      }
+      out.push(name + ':  entrar ' + Math.round(o / 3) + ' ms trabada  ·  salir ' + Math.round(c / 3) + ' ms');
+    }
+    Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 });
+    setLabBusy(false);
+    setPerfView(out.join('\n') + '\n\n' + perfReport());
+  }
   useEffect(() => { if (!currentId) mark('🏠 inicio en pantalla'); }, [currentId]);
   const revP = useRef(new Animated.Value(1)).current;   // portal: 0 = puntito, 1 = pantalla completa
   const [revealing, setRevealing] = useState(false);
@@ -1682,7 +1710,7 @@ function NotesApp() {
   const pendingBoot = useRef([null, null]);
   const activeRef = useRef(-1);
   const [activeSlot, setActiveSlot] = useState(-1);
-  const frameOn = currentId && !edHidden && activeSlot >= 0 ? activeSlot : -1;
+  const frameOn = currentId && !edHidden && activeSlot >= 0 && !LAB.noFrame ? activeSlot : -1;
   useEffect(() => { if (POOL) shellJs('window.__show(' + frameOn + ')'); }, [frameOn]);
   const edAreaRef = useRef(null);
   /* Dónde va el editor: se calcula con las medidas normales de la pantalla de la nota
@@ -1766,7 +1794,7 @@ function NotesApp() {
       if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
       activeRef.current = k; setActiveSlot(k);
       webRef.current = slotRefs.current[k];
-      injectBoot(k, n);
+      if (!LAB.noBoot) injectBoot(k, n);
     }
     if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 1400); }
     [0, 1].forEach(i => {                            // otra nota preparada que al final no abriste: se rehace
@@ -3876,6 +3904,7 @@ function NotesApp() {
   };
   cardH.current.press = item => (mark('👉 abrir nota'), selMode ? toggleSelect(item.id) : openNoteFromCard(item));
   cardH.current.longPress = item => toggleSelect(item.id);
+  labFns.current = { open: id => openWithDrop(id), close: () => closeEditor() };
 
   const emptyMsg = query
     ? ['search', tr('noMatch')]
@@ -4385,7 +4414,7 @@ function NotesApp() {
     <View style={{ flex: 1, backgroundColor: seeNow ? 'transparent' : c.grad[0] }}>
       {(() => {
         // ⚡ Con una nota abierta, el inicio (escondido) NO se vuelve a dibujar con cada letra que escribes
-        const hidden = !!current && !revealing;
+        const hidden = !!current && !revealing && !LAB.keepHome;
         const f = homeFrozen.current;
         if (hidden && f && f.hidden && f.dark === dark) return f.el;
         homeFrozen.current = { hidden, dark, el: <View pointerEvents={hidden ? 'none' : 'auto'} style={[{ flex: 1, zIndex: 0 }, hidden && { opacity: 0 }]}>{homeView}</View> };
@@ -4393,7 +4422,7 @@ function NotesApp() {
       })()}
       {!current && menuLayer}
       {editorView && (
-        <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, (edHidden || !current) && { opacity: 0 }]} pointerEvents={revealing || !current ? 'none' : 'auto'}>
+        <View ref={revEl} style={[StyleSheet.absoluteFill, { zIndex: 10 }, (edHidden || !current || LAB.noChrome) && { opacity: 0 }]} pointerEvents={revealing || !current ? 'none' : 'auto'}>
           <Animated.View style={nat ? { position: 'absolute', left: o.x - D / 2, top: o.y - D / 2, width: D, height: D,
             borderRadius: D / 2, overflow: 'hidden', transform: [{ scaleX: nIn(LIQ.sx) }, { scaleY: nIn(LIQ.sy) }] } : { flex: 1 }}>
             <Animated.View style={nat ? { width: D, height: D, transform: [{ scaleX: nIn(LIQ.ix) }, { scaleY: nIn(LIQ.iy) }] } : { flex: 1 }}>
@@ -4468,7 +4497,7 @@ function NotesApp() {
         <TouchableOpacity onPress={() => setPerfView(perfReport())} activeOpacity={0.7}
           style={{ position: 'absolute', left: 16, bottom: ins.bottom + 92, width: 52, height: 30, borderRadius: 15, zIndex: 40, elevation: 40,
             backgroundColor: '#ff453a', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>⏱</Text>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>{labBusy ? '🧪' : '⏱'}</Text>
         </TouchableOpacity>
       )}
       <Modal visible={!!perfView} animationType="fade" onRequestClose={() => setPerfView(null)}>
@@ -4481,6 +4510,10 @@ function NotesApp() {
             <TouchableOpacity onPress={() => Share.share({ message: perfView || '' }).catch(() => {})} activeOpacity={0.8}
               style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center' }}>
               <Text style={{ color: '#000', fontWeight: '800' }}>Compartir</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={runLab} activeOpacity={0.8}
+              style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#ff453a', alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>🧪 Prueba</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { perfStart(); setPerfView(null); }} activeOpacity={0.8}
               style={{ flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#fff', alignItems: 'center' }}>
