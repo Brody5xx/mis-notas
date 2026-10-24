@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { buildEditorHtml } from './editor';
+import { buildEditorHtml, buildShellHtml, shellSafe } from './editor';
 import { buildCalcHtml } from './calc';
 import { shareFile } from './compartir';
 import { makeBackup, openBackup } from './respaldo';
@@ -1655,6 +1655,28 @@ function NotesApp() {
   const POOL = Platform.OS !== 'web';
   const [slots, setSlots] = useState([{ key: 1, html: null }, { key: 2, html: null }]);
   const slotRefs = useRef([null, null]);
+  /* ⚡ Los 2 editores viven dentro de UNA sola página (cascarón). Hablarle a un editor = pedirle al cascarón */
+  const shellRef = useRef(null);
+  const shellOk = useRef(false);
+  const shellQ = useRef([]);
+  const [shellHtml, setShellHtml] = useState(null);
+  function shellJs(js) {
+    if (shellOk.current && shellRef.current) shellRef.current.injectJavaScript(js + '; true;');
+    else shellQ.current.push(js);
+  }
+  if (!slotRefs.current[0]) slotRefs.current = [0, 1].map(k => ({
+    injectJavaScript: js => shellJs('window.__run(' + k + ',' + shellSafe(String(js)) + ')'),
+  }));
+  function onShellMessage(data) {
+    let m = null; try { m = JSON.parse(data); } catch (e) { return; }
+    if (m && m.shell) {
+      shellOk.current = true;
+      const q = shellQ.current; shellQ.current = [];
+      if (q.length && shellRef.current) shellRef.current.injectJavaScript(q.join(';\n') + '; true;');
+      return;
+    }
+    if (m && m.k != null) onSlotMessage(m.k, m.d);
+  }
   const slotLoaded = useRef([false, false]);
   const pendingBoot = useRef([null, null]);
   const activeRef = useRef(-1);
@@ -1676,7 +1698,11 @@ function NotesApp() {
   }) : null), [loaded, dark, langCode, ins.bottom, hourFmt]);
   useEffect(() => {          // editores nuevos (o al cambiar tema/idioma): los que no se están usando se rehacen
     if (!spareHtml) return;
-    setSlots(ss => ss.map((sl, k) => (k === activeRef.current ? sl : { key: sl.key + 2, html: spareHtml })));
+    if (!shellHtml) setShellHtml(buildShellHtml(spareHtml));
+    else {
+      shellJs('window.__setSpare(' + shellSafe(spareHtml) + ')');
+      [0, 1].forEach(k => { if (k !== activeRef.current) shellJs('window.__reset(' + k + ')'); });
+    }
     [0, 1].forEach(k => { if (k !== activeRef.current) { slotLoaded.current[k] = false; slotDirty.current[k] = false; pendingBoot.current[k] = null; if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; } } });
   }, [spareHtml]);
   const slotDirty = useRef([false, false]);           // ya se usó: hay que rehacerlo antes de volver a usarlo
@@ -1696,7 +1722,7 @@ function NotesApp() {
     mark('♻️ rehacer editor ' + k);
     slotLoaded.current[k] = false; pendingBoot.current[k] = null; slotDirty.current[k] = false;
     if (slotPrep.current) { slotPrep.current[k] = null; slotReady.current[k] = false; }
-    setSlots(ss => ss.map((sl, i) => (i === k ? { key: sl.key + 2, html: spareHtml } : sl)));
+    shellJs('window.__reset(' + k + ')');               // se rehace por dentro (sin crear nada en el teléfono)
   }
   const slotPrep = useRef([null, null]);    // nota que ya tiene cargada (preparada al tocar)
   const slotReady = useRef([false, false]);
@@ -1729,6 +1755,7 @@ function NotesApp() {
     if (k !== undefined) {
       activeRef.current = k; setActiveSlot(k);
       webRef.current = slotRefs.current[k];
+      shellJs('window.__show(' + k + ')');
       if (slotReady.current[k]) setEdReady(true);
     } else {
       const ok = i => i !== old && !slotDirty.current[i];
@@ -1737,6 +1764,7 @@ function NotesApp() {
       if (k === undefined) { k = old === 0 ? 1 : 0; retireSlot(k); }   // los dos usados (muy rápido): se rehace uno ya
       activeRef.current = k; setActiveSlot(k);
       webRef.current = slotRefs.current[k];
+      shellJs('window.__show(' + k + ')');
       injectBoot(k, n);
     }
     if (old >= 0 && old !== k) { slotDirty.current[old] = true; slotLoaded.current[old] = false; whenIdle(() => { if (activeRef.current !== old && slotDirty.current[old]) retireSlot(old); }, 1400); }
@@ -2867,7 +2895,7 @@ function NotesApp() {
       // y luego aparece la nota completa de un solo golpe (sin letras encimadas ni saltos).
       zp.setValue(1); setZoomRect(null);
       setRevealing(true); setEdHidden(true);
-      zoomWant.current = { layout: false };
+      zoomWant.current = { layout: !!edFrozen.current };   // la pantalla de la nota ya está armada: solo falta el editor
       setCurrentId(id);
       setTimeout(() => startZoom(true), 450);          // por si acaso: nunca espera más que esto
       return;
@@ -4409,19 +4437,17 @@ function NotesApp() {
       {/* Teléfono: un editor escondido siempre listo, para que las notas abran más rápido */}
       {/* Los editores viven DETRÁS de la pantalla de inicio (así Android los dibuja completos, sin que se vean);
           cuando abres una nota, pasan al frente ya dibujados */}
-      {POOL && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: current && !edHidden ? 20 : -1, elevation: current && !edHidden ? 20 : 0 }, slotZoom]}>{slots.map((sl, k) => sl.html ? (
-        <View key={sl.key} pointerEvents={k === activeSlot && current ? 'box-none' : 'none'}
+      {POOL && shellHtml && <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: current && !edHidden ? 20 : -1, elevation: current && !edHidden ? 20 : 0 }, slotZoom]}>
+        <View pointerEvents={current ? 'box-none' : 'none'}
           style={[edArea ? { position: 'absolute', left: edArea.x, top: edArea.y, width: edArea.w, height: edArea.h }   // ya del tamaño justo
                          : { position: 'absolute', left: 0, top: 0, width, height: winH },
-            // con una nota abierta solo se ve el editor de esa nota; los demás se esconden
-            current && k !== activeSlot ? { opacity: 0 } : null,
             !current && seeNow ? { opacity: 0 } : null]}>
           <WebView
             textZoom={webTextZoom()}
-            ref={r => { slotRefs.current[k] = r; if (k === activeRef.current) webRef.current = r; }}
+            ref={shellRef}
             originWhitelist={['*']}
-            source={{ html: sl.html, baseUrl: EDITOR_BASE }}
-            onMessage={e => onSlotMessage(k, e.nativeEvent.data)}
+            source={{ html: shellHtml, baseUrl: EDITOR_BASE }}
+            onMessage={e => onShellMessage(e.nativeEvent.data)}
             style={{ flex: 1, backgroundColor: 'transparent' }}
             containerStyle={{ backgroundColor: 'transparent' }}
             allowFileAccess
@@ -4432,7 +4458,7 @@ function NotesApp() {
             hideKeyboardAccessoryView
           />
         </View>
-      ) : null)}</Animated.View>}
+      </Animated.View>}
       {POOL && current && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 30, elevation: 30 }]}>{toast}</View>}
       {perfOn && (
         <TouchableOpacity onPress={() => setPerfView(perfReport())} activeOpacity={0.7}

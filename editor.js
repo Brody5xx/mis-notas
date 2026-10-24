@@ -4465,7 +4465,39 @@ export function buildEditorHtml({ id, content, titleHtml, updated, editable, c, 
   };
   ${deferred
     ? "try { new Date().toLocaleString(" + JSON.stringify(locale || 'es') + ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) {}" +   /* ⚡ se prepara antes (la primera vez tarda) */
-      "try { (window.ReactNativeWebView || { postMessage: function(){} }).postMessage(JSON.stringify({ type: 'spare' })); } catch (e) {}"
+      "try { var _m = JSON.stringify({ type: 'spare' }); if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(_m); else if (window.parent !== window) window.parent.postMessage(_m, '*'); } catch (e) {}"
     : 'window.__boot(' + noteJson + ');'}
 </script></body></html>`;
+}
+
+/* ============================================================
+   ⚡ CASCARÓN: UNA sola página web que tiene adentro los 2 editores
+   (cada uno en un marco). Rehacer un editor ya no crea nada en el
+   teléfono: solo se cambia el marco por dentro (eso trababa la app
+   300-600 ms cada vez, según la medición).
+   ============================================================ */
+export function shellSafe(str) {
+  return JSON.stringify(String(str)).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+export function buildShellHtml(spare) {
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">' +
+    '<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}' +
+    'iframe{position:fixed;left:0;top:0;width:100%;height:100%;border:0;background:transparent;opacity:0;pointer-events:none;z-index:1}' +
+    'iframe.on{opacity:1;pointer-events:auto;z-index:2}</style></head><body><script>' +
+    '(function(){var SP=' + shellSafe(spare) + ',F=[],ON=-1;' +
+    'function post(o){try{window.ReactNativeWebView.postMessage(JSON.stringify(o));}catch(e){}}' +
+    'function mk(k){var f=document.createElement("iframe");' +
+    'f.setAttribute("allow","microphone; camera; autoplay; fullscreen; clipboard-read; clipboard-write");' +
+    'f.setAttribute("allowfullscreen","");f.setAttribute("allowtransparency","true");' +
+    'f.srcdoc=SP;if(k===ON)f.className="on";' +
+    'if(F[k]&&F[k].parentNode)F[k].parentNode.replaceChild(f,F[k]);else document.body.appendChild(f);F[k]=f;}' +
+    'window.addEventListener("message",function(e){for(var k=0;k<F.length;k++){if(F[k]&&e.source===F[k].contentWindow){' +
+    'post({k:k,d:typeof e.data==="string"?e.data:JSON.stringify(e.data)});return;}}});' +
+    'window.__run=function(k,js){try{F[k].contentWindow.eval(js);}catch(e){}};' +
+    'window.__show=function(k){ON=k;for(var i=0;i<F.length;i++)if(F[i])F[i].className=(i===k?"on":"");};' +
+    'window.__reset=function(k){mk(k);};' +
+    'window.__setSpare=function(s){SP=s;};' +
+    'mk(0);mk(1);post({shell:1});})();' +
+    '</scr' + 'ipt></body></html>';
 }
