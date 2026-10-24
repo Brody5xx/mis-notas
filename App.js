@@ -1415,11 +1415,14 @@ function NotesApp() {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const stalls = from => PERF.log.filter(x => x.t >= from && x.ev.startsWith('⛔')).reduce((a, x) => a + (x.ms || 0), 0);
     const variants = [['Normal', {}], ['Sin esconder el inicio', { keepHome: 1 }], ['Sin mostrar la barra', { noChrome: 1 }],
-      ['Sin mostrar la nota', { noFrame: 1 }], ['Sin cargar la nota', { noBoot: 1 }], ['Normal otra vez', {}]];
+      ['Sin mostrar la nota', { noFrame: 1 }], ['Sin cargar la nota', { noBoot: 1 }],
+      ['Sin desenfoque (vidrio) en la nota', { noBlur: 1 }], ['Sin vidrio ni sombras en la nota', { noFx: 1 }], ['Normal otra vez', {}]];
     const out = ['🧪 PRUEBA AUTOMÁTICA (promedio de 3 veces)', 'Nota: ' + (n.title || '(sin título)'), ''];
     await sleep(1500);
     for (const [name, f] of variants) {
       Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 }, f);
+      shellJs('window.__fx(' + JSON.stringify(f.noFx ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important;filter:none!important}'
+        : f.noBlur ? '*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}' : '') + ')');
       let o = 0, c = 0;
       for (let i = 0; i < 3; i++) {
         let t = perfNow(); mark('🧪 ' + name + ': abrir'); labFns.current.open(n.id); await sleep(1700); o += stalls(t);
@@ -1428,6 +1431,7 @@ function NotesApp() {
       out.push(name + ':  entrar ' + Math.round(o / 3) + ' ms trabada  ·  salir ' + Math.round(c / 3) + ' ms');
     }
     Object.assign(LAB, { keepHome: 0, noChrome: 0, noFrame: 0, noBoot: 0 });
+    shellJs('window.__fx("")');
     setLabBusy(false);
     setPerfView(out.join('\n') + '\n\n' + perfReport());
   }
