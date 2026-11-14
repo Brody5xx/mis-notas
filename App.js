@@ -917,12 +917,12 @@ input{display:none}</style></head><body><label>📁 <span>${label.replace(/</g, 
 <script>document.getElementById('f').addEventListener('change',function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
 r.onload=function(){window.ReactNativeWebView.postMessage(JSON.stringify({name:f.name,text:r.result}));};r.readAsText(f);});</script></body></html>`;
 
-function TransferModal({ visible, onClose, onMake, onImport, s, t }) {
+function TransferModal({ visible, onClose, onMake, onImport, s, t, start }) {
   const [step, setStep] = useState('menu');          // 'menu' | 'make' | 'import'
   const [p1, setP1] = useState(''), [p2, setP2] = useState(''), [show, setShow] = useState(false);
   const [file, setFile] = useState(null);           // { name, text }
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [ok, setOk] = useState('');
-  useEffect(() => { if (visible) { setStep('menu'); setP1(''); setP2(''); setFile(null); setErr(''); setOk(''); setBusy(''); setShow(false); } }, [visible]);
+  useEffect(() => { if (visible) { setStep(start || 'menu'); setP1(''); setP2(''); setFile(null); setErr(''); setOk(''); setBusy(''); setShow(false); } }, [visible]);
   /* 📁 En el teléfono: el selector de archivos del propio teléfono (abre al instante) */
   const [picking, setPicking] = useState(false);
   const pickNative = async () => {
@@ -1539,6 +1539,7 @@ function NotesApp() {
   const [calcOpen, setCalcOpen] = useState(null);   // calculadora: null, 'home' o 'note'
   const [shareFor, setShareFor] = useState(null);   // ids de notas para "Compartir como"
   const [transferOpen, setTransferOpen] = useState(false);  // pasar notas a otro teléfono
+  const [transferStart, setTransferStart] = useState('menu');  // 'make' = 📤 Exportar todo para Best Notes 2
   const [reportOpen, setReportOpen] = useState(false);     // 📊 reporte del día
   const [pendOpen, setPendOpen] = useState(false);         // ✅ todos los pendientes
   const [matOpen, setMatOpen] = useState(false);           // 📦 lista de materiales
@@ -4256,7 +4257,15 @@ function NotesApp() {
               <MaterialCommunityIcons name="wallpaper" size={19} color={c.muted} style={s.navIcon} />
               <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('wallpaper')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => fromMenu(() => setTransferOpen(true))}>
+            {/* 📤 Pasar TODO a la app nueva (Best Notes 2): fotos, audios, videos, dibujos, carpetas y bóveda */}
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => fromMenu(() => { setTransferStart('make'); setTransferOpen(true); })}>
+              <Feather name="upload" size={19} color={c.muted} style={s.navIcon} />
+              <View style={{ flex: 1 }}>
+                <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('toBN2')}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{tr('toBN2Hint')}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.navItem} activeOpacity={0.7} onPress={() => fromMenu(() => { setTransferStart('menu'); setTransferOpen(true); })}>
               <Feather name="smartphone" size={19} color={c.muted} style={s.navIcon} />
               <Text maxFontSizeMultiplier={1.3} style={s.navText}>{tr('transfer')}</Text>
             </TouchableOpacity>
@@ -4575,7 +4584,7 @@ function NotesApp() {
       {!current && calcModal}
       {!current && shareLayer}
       <TransferModal visible={transferOpen} onClose={() => setTransferOpen(false)}
-        onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} />
+        onMake={makeTransferFile} onImport={importTransferFile} s={s} t={c} start={transferStart} />
       <Vault visible={vaultOpen} onClose={() => setVaultOpen(false)} s={s} t={c} tr={tr} Glass={Glass} />
       <Pending visible={pendOpen} onClose={() => setPendOpen(false)} notes={notes} onPatch={(id, ch) => patch(id, ch)}
         onOpen={n => { setPendOpen(false); setMenuOpen(false); setTimeout(() => openNote(n), 350); }}

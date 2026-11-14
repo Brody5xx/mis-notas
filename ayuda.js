@@ -21,6 +21,7 @@ export async function markGuideSeen() { try { await AsyncStorage.setItem(SEEN_KE
 
 /* 🆕 Lo más nuevo (lo último arriba) */
 const NEWS = [
+  { date: '2026-11-14', es: '📤 Menú ☰ → Exportar todo para Best Notes 2', en: '📤 Menu ☰ → Export everything to Best Notes 2' },
   { date: '2026-10-24', es: '⚡ Editor rápido: las notas abren al instante · ⏱ Medir velocidad', en: '⚡ Fast editor: notes open instantly · ⏱ Speed meter' },
   { date: '2026-10-23', es: '🗣️ Dictar · ⏱ Horas de trabajo · 🔇 Video sin sonido · 💬 SMS · 🕐 12/24 h · 🔍 Búsqueda iluminada', en: '🗣️ Dictation · ⏱ Work hours · 🔇 Mute video · 💬 SMS · 🕐 12/24 h · 🔍 Highlighted search' },
   { date: '2026-10-18', es: '📦 Lista de materiales · 📖 Esta guía', en: '📦 Materials list · 📖 This guide' },
@@ -103,7 +104,7 @@ const GUIDE = [
   { icon: '📦', 
     es: { t: 'Lista de materiales', d: [
       'Menú ☰ → Lista de materiales. Toca "Buscar en mis notas" y la IA saca todo lo que hay que pedir o comprar (switches, cables, mag locks…).',
-      'Cada material sale con el TOTAL y, debajo, para dónde va cada parte. Ejemplo: 5 × Cable Cat 6 → 3 para Inwood, 2 para DVSS.',
+      'Cada material sale con el TOTAL y, debajo, para dónde va cada parte. Ejemplo: 5 × Cable Cat 6 → 3 para el Sitio A, 2 para la Oficina.',
       'Toca el círculo para cambiar el estado: ○ Por pedir → 🛒 Pedido → ✅ Llegó.',
       'Toca el material para editar el nombre, la cantidad o el sitio. Con ＋ arriba agregas algo a mano.',
       'Puedes buscar solo en las notas de Hoy, de Esta semana o en Todas.',
@@ -111,7 +112,7 @@ const GUIDE = [
       'Lo que ya marcaste como Pedido o Llegó no se borra al volver a buscar.'] },
     en: { t: 'Materials list', d: [
       'Menu ☰ → Materials list. Tap "Search my notes" and the AI pulls out everything that needs to be ordered or bought (switches, cable, mag locks…).',
-      'Each material shows the TOTAL and, below it, where each part goes. Example: 5 × Cat 6 cable → 3 for Inwood, 2 for DVSS.',
+      'Each material shows the TOTAL and, below it, where each part goes. Example: 5 × Cat 6 cable → 3 for Site A, 2 for the Office.',
       'Tap the circle to change its status: ○ To order → 🛒 Ordered → ✅ Arrived.',
       'Tap a material to edit its name, quantity or site. Use ＋ at the top to add something by hand.',
       'You can search only Today\'s notes, This week\'s, or All.',

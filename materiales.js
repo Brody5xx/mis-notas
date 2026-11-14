@@ -4,8 +4,8 @@
    (switches, cables, mag locks…). La lista muestra el TOTAL de
    cada material y, debajo, para dónde va cada parte:
        5 × Cable Cat 6
-         3 · Inwood – piso 14
-         2 · DVSS – sótano
+         3 · Edificio A – piso 14
+         2 · Oficina – sótano
    Cada material tiene su estado: Por pedir → Pedido → Llegó.
    Se puede editar, agregar a mano, compartir con el jefe
    (español, inglés o los dos) o guardar como nota.
